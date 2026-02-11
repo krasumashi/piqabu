@@ -9,7 +9,10 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "resourceClass": "large"
+      }
     },
     "production": {
       "autoIncrement": true,
