@@ -80,7 +80,10 @@ function createNativeAudioRecorder(): AudioRecorder {
 
     return {
         start: async () => {
-            await Audio.requestPermissionsAsync();
+            const permResult = await Audio.requestPermissionsAsync();
+            if (permResult.status !== 'granted') {
+                throw new Error('PERMISSION_DENIED');
+            }
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: true,
                 playsInSilentModeIOS: true,
@@ -126,5 +129,12 @@ export async function playAudioFromDataUri(dataUri: string, rate: number = 1.0):
         { uri: dataUri },
         { shouldPlay: true, rate, shouldCorrectPitch: false }
     );
-    await sound.playAsync();
+    return new Promise<void>((resolve) => {
+        sound.setOnPlaybackStatusUpdate((status: any) => {
+            if (status.didJustFinish) {
+                sound.unloadAsync().catch(() => {});
+                resolve();
+            }
+        });
+    });
 }

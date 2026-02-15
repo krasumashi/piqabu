@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Animated as RNAnimated } from 'react-native';
+import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ScreenCapture from 'expo-screen-capture';
 import { THEME } from '../constants/Theme';
 
 export default function PeepDeck({
@@ -27,7 +28,34 @@ export default function PeepDeck({
         }
     }, [visible]);
 
+    // When sender covers (remoteImage → null), close fullscreen immediately
+    useEffect(() => {
+        if (!remoteImage) setFocusedItem(null);
+    }, [remoteImage]);
+
+    // Prevent screenshots when viewing revealed images
+    useEffect(() => {
+        if (Platform.OS === 'web') return;
+        if (visible && remoteImage) {
+            ScreenCapture.preventScreenCaptureAsync('peepDeck');
+        } else {
+            ScreenCapture.allowScreenCaptureAsync('peepDeck');
+        }
+        return () => {
+            ScreenCapture.allowScreenCaptureAsync('peepDeck');
+        };
+    }, [visible, remoteImage]);
+
     if (!visible) return null;
+
+    // Watermark overlay component
+    const Watermark = () => (
+        <View style={styles.watermarkOverlay} pointerEvents="none">
+            {[0, 1, 2, 3, 4].map(i => (
+                <Text key={i} style={styles.watermarkText}>PIQABU</Text>
+            ))}
+        </View>
+    );
 
     // Focus modal
     if (focusedItem) {
@@ -41,6 +69,7 @@ export default function PeepDeck({
                     </View>
                     <View style={styles.focusBody}>
                         <Image source={{ uri: focusedItem }} style={styles.focusImage} resizeMode="contain" />
+                        <Watermark />
                     </View>
                 </View>
             </Modal>
@@ -81,6 +110,7 @@ export default function PeepDeck({
                             activeOpacity={0.8}
                         >
                             <Image source={{ uri: remoteImage }} style={styles.gridImage} resizeMode="cover" />
+                            <Watermark />
                             <View style={styles.gridItemLabel}>
                                 <Text style={styles.gridItemType}>IMAGE</Text>
                             </View>
@@ -248,5 +278,20 @@ const styles = StyleSheet.create({
     focusImage: {
         width: '100%',
         height: '100%',
+    },
+    watermarkOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        transform: [{ rotate: '-30deg' }],
+        zIndex: 5,
+    },
+    watermarkText: {
+        fontFamily: THEME.mono,
+        fontSize: 24,
+        fontWeight: '900',
+        color: 'rgba(255, 255, 255, 0.04)',
+        letterSpacing: 12,
+        textTransform: 'uppercase',
     },
 });

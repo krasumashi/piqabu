@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    View, Text, TouchableOpacity, Modal, StyleSheet, Platform,
+    View, Text, TouchableOpacity, Modal, StyleSheet, Platform, Alert,
     Animated as RNAnimated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -80,8 +80,18 @@ export default function WhisperPanel({
                 const result = await recorder.stop();
                 if (result) processAndSend(result);
             };
-        } catch (e) {
+        } catch (e: any) {
             console.error('Recording failed:', e);
+            setIsRecording(false);
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+            if (e?.message === 'PERMISSION_DENIED') {
+                Alert.alert('Microphone Access', 'Please allow microphone access in your device settings to use Whisper.');
+            } else {
+                Alert.alert('Recording Error', 'Unable to start recording. Please try again.');
+            }
         }
     };
 
@@ -138,24 +148,28 @@ export default function WhisperPanel({
                 <View style={styles.body}>
                     {/* Voice Chips */}
                     <View style={styles.chipsRow}>
-                        {VOICE_CHIPS.map(chip => (
-                            <TouchableOpacity
-                                key={chip.label}
-                                onPress={() => setSelectedFilter(chip.val)}
-                                style={[
-                                    styles.chip,
-                                    selectedFilter === chip.val && styles.chipActive,
-                                ]}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={[
-                                    styles.chipText,
-                                    selectedFilter === chip.val && styles.chipTextActive,
-                                ]}>
-                                    {chip.label}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                        {VOICE_CHIPS.map(chip => {
+                            const isWebOnly = chip.val !== 'true' && Platform.OS !== 'web';
+                            return (
+                                <TouchableOpacity
+                                    key={chip.label}
+                                    onPress={() => !isWebOnly && setSelectedFilter(chip.val)}
+                                    style={[
+                                        styles.chip,
+                                        selectedFilter === chip.val && styles.chipActive,
+                                        isWebOnly && { opacity: 0.35 },
+                                    ]}
+                                    activeOpacity={isWebOnly ? 1 : 0.7}
+                                >
+                                    <Text style={[
+                                        styles.chipText,
+                                        selectedFilter === chip.val && styles.chipTextActive,
+                                    ]}>
+                                        {chip.label}{isWebOnly ? ' (WEB)' : ''}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
 
                     {/* PTT Button */}

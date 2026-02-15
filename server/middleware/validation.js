@@ -125,6 +125,15 @@ function validateJoinRoom(data) {
     };
 }
 
+const VALID_INVITE_FEATURES = ['whisper', 'live_glass'];
+
+function validateInviteFeature(feature) {
+    if (typeof feature !== 'string' || !VALID_INVITE_FEATURES.includes(feature)) {
+        return { valid: false, error: 'invalid invite feature' };
+    }
+    return { valid: true, sanitized: feature };
+}
+
 module.exports = {
     validateRoomId,
     validateDeviceId,
@@ -134,6 +143,7 @@ module.exports = {
     validateWhisperFilter,
     validateVideoControls,
     validateJoinRoom,
+    validateInviteFeature,
     MAX_TEXT_LENGTH,
     MAX_IMAGE_SIZE,
     MAX_AUDIO_SIZE,

@@ -13,6 +13,9 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
     const [remoteReveal, setRemoteReveal] = useState<string | null>(null);
     const [remoteWhisper, setRemoteWhisper] = useState<string | null>(null);
     const [videoControls, setVideoControls] = useState({ blur: 50, isBnW: true, isMuted: false });
+    const [pendingInvite, setPendingInvite] = useState<{ feature: string } | null>(null);
+    const [inviteStatus, setInviteStatus] = useState<'none' | 'sent' | 'accepted' | 'declined'>('none');
+    const [inviteFeature, setInviteFeature] = useState<string>('');
 
     const joinedRef = useRef(false);
 
@@ -93,6 +96,27 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
             }
         };
 
+        const handleReceiveInvite = (data: { roomId: string; feature: string }) => {
+            if (data.roomId === roomId) {
+                setPendingInvite({ feature: data.feature });
+            }
+        };
+
+        const handleInviteAccepted = (data: { roomId: string; feature: string }) => {
+            if (data.roomId === roomId) {
+                setInviteStatus('accepted');
+                setInviteFeature(data.feature);
+            }
+        };
+
+        const handleInviteDeclined = (data: { roomId: string; feature: string }) => {
+            if (data.roomId === roomId) {
+                setInviteStatus('declined');
+                setInviteFeature(data.feature);
+                setTimeout(() => setInviteStatus('none'), 2000);
+            }
+        };
+
         socket.on('link_status', handleLinkStatus);
         socket.on('remote_text', handleRemoteText);
         socket.on('remote_vanish', handleRemoteVanish);
@@ -100,6 +124,9 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         socket.on('remote_whisper', handleRemoteWhisper);
         socket.on('remote_video_controls', handleRemoteVideoControls);
         socket.on('signal_blocked', handleSignalBlocked);
+        socket.on('receive_invite', handleReceiveInvite);
+        socket.on('invite_accepted', handleInviteAccepted);
+        socket.on('invite_declined', handleInviteDeclined);
 
         return () => {
             socket.off('link_status', handleLinkStatus);
@@ -109,6 +136,9 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
             socket.off('remote_whisper', handleRemoteWhisper);
             socket.off('remote_video_controls', handleRemoteVideoControls);
             socket.off('signal_blocked', handleSignalBlocked);
+            socket.off('receive_invite', handleReceiveInvite);
+            socket.off('invite_accepted', handleInviteAccepted);
+            socket.off('invite_declined', handleInviteDeclined);
         };
     }, [socket, roomId]);
 
@@ -136,6 +166,27 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         socket?.emit('transmit_video_controls', { roomId, controls });
     }, [socket, roomId]);
 
+    const sendInvite = useCallback((feature: string) => {
+        socket?.emit('send_invite', { roomId, feature });
+        setInviteStatus('sent');
+        setInviteFeature(feature);
+    }, [socket, roomId]);
+
+    const acceptInvite = useCallback((feature: string) => {
+        socket?.emit('accept_invite', { roomId, feature });
+        setPendingInvite(null);
+    }, [socket, roomId]);
+
+    const declineInvite = useCallback((feature: string) => {
+        socket?.emit('decline_invite', { roomId, feature });
+        setPendingInvite(null);
+    }, [socket, roomId]);
+
+    const clearInviteStatus = useCallback(() => {
+        setInviteStatus('none');
+        setInviteFeature('');
+    }, []);
+
     return {
         linkStatus,
         remoteText,
@@ -147,5 +198,12 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         sendReveal,
         sendWhisper,
         updateVideoControls,
+        pendingInvite,
+        inviteStatus,
+        inviteFeature,
+        sendInvite,
+        acceptInvite,
+        declineInvite,
+        clearInviteStatus,
     };
 }

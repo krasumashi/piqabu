@@ -17,6 +17,7 @@ const {
     validateVideoControls,
     validateDeviceId,
     validateRoomId,
+    validateInviteFeature,
 } = require('./middleware/validation');
 const { getTier } = require('./lib/subscriptionStore');
 const stripeRoutes = require('./routes/stripe');
@@ -327,6 +328,47 @@ io.on('connection', (socket) => {
                 socket.to(roomId).emit('remote_video_controls', { roomId, controls: result.sanitized });
             }
         }
+    });
+
+    // --- INVITE System ---
+    socket.on('send_invite', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        const featureResult = validateInviteFeature(data.feature);
+        if (!featureResult.valid) return;
+        socket.to(roomId).emit('receive_invite', { roomId, feature: featureResult.sanitized });
+    });
+
+    socket.on('accept_invite', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        const featureResult = validateInviteFeature(data.feature);
+        if (!featureResult.valid) return;
+        socket.to(roomId).emit('invite_accepted', { roomId, feature: featureResult.sanitized });
+    });
+
+    socket.on('decline_invite', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        const featureResult = validateInviteFeature(data.feature);
+        if (!featureResult.valid) return;
+        socket.to(roomId).emit('invite_declined', { roomId, feature: featureResult.sanitized });
+    });
+
+    // --- LIVE GLASS Frame Streaming ---
+    socket.on('transmit_live_glass_frame', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        if (typeof data.frame !== 'string' || data.frame.length > 200000) return;
+        socket.to(roomId).emit('remote_live_glass_frame', { roomId, frame: data.frame });
     });
 
     // --- Disconnect Intent (leaves all rooms) ---

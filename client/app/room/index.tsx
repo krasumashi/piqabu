@@ -17,7 +17,9 @@ import RevealDeck from '../../components/RevealDeck';
 import PeepDeck from '../../components/PeepDeck';
 import SettingsPanel from '../../components/SettingsPanel';
 import WhisperPanel from '../../components/WhisperPanel';
+import InviteOverlay from '../../components/InviteOverlay';
 import ListeningIndicator from '../../components/ListeningIndicator';
+import LiveGlassPanel from '../../components/LiveGlassPanel';
 import Paywall from '../../components/Paywall';
 import { THEME } from '../../constants/Theme';
 import type { VoiceFilter } from '../../components/WhisperPanel';
@@ -107,28 +109,6 @@ function TypingIndicator({ isTyping }: { isTyping: boolean }) {
     );
 }
 
-// ─── Zap Flash Overlay ───
-function ZapFlash({ active }: { active: boolean }) {
-    const opacity = useRef(new RNAnimated.Value(0)).current;
-
-    useEffect(() => {
-        if (active) {
-            RNAnimated.sequence([
-                RNAnimated.timing(opacity, { toValue: 0.6, duration: 60, useNativeDriver: true }),
-                RNAnimated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-            ]).start();
-        }
-    }, [active]);
-
-    if (!active) return null;
-
-    return (
-        <RNAnimated.View
-            style={[st.zapFlash, { opacity }]}
-            pointerEvents="none"
-        />
-    );
-}
 
 // ═══════════════════════════════════════════
 //  Active Room Content (per-room isolated)
@@ -142,18 +122,22 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
     const {
         linkStatus, remoteText, remoteReveal, remoteWhisper,
         sendText, sendVanish, sendReveal,
+        pendingInvite, inviteStatus, inviteFeature,
+        sendInvite, acceptInvite, declineInvite, clearInviteStatus,
     } = useRoom(roomId, socket, deviceId);
 
     const [localText, setLocalText] = useState('');
     const [activeOverlay, setActiveOverlay] = useState<'peep' | 'whisper' | 'reveal' | null>(null);
     const [isRemoteDecaying, setIsRemoteDecaying] = useState(false);
-    const [isLocalDecaying, setIsLocalDecaying] = useState(false);
     const [isPartnerTyping, setIsPartnerTyping] = useState(false);
     const [whisperBadge, setWhisperBadge] = useState(0);
-    const [zapFlash, setZapFlash] = useState(false);
     const [roomCodeCopied, setRoomCodeCopied] = useState(false);
     const [vanishDuration, setVanishDuration] = useState(0);
     const [incomingWhisper, setIncomingWhisper] = useState(false);
+
+    // ── Auto-vanish segment tracking ──
+    const vanishTimersRef = useRef<Array<{ startLen: number; endLen: number; timerId: ReturnType<typeof setTimeout>; intervalId?: ReturnType<typeof setInterval> }>>([]);
+    const prevTextLenRef = useRef(0);
 
     // ── Keyboard-aware dynamic split ──
     const remoteFlex = useRef(new RNAnimated.Value(1)).current;
@@ -214,26 +198,82 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
         return () => { socket.off('remote_vanish', handleVanish); };
     }, [socket, roomId, remoteText.length]);
 
-    // ── Vanish: local trigger with flash ──
-    const handleVanish = () => {
-        sendVanish();
-        setZapFlash(true);
-        setTimeout(() => setZapFlash(false), 400);
-        setIsLocalDecaying(true);
-        const decayTime = Math.max(localText.length * 30, 500) + 300;
-        setTimeout(() => {
-            setIsLocalDecaying(false);
-            setLocalText('');
-        }, decayTime);
-    };
-
-    // ── Vanish cycle: Off → 5s → 10s → 30s → Off ──
-    const VANISH_CYCLE = [0, 5000, 10000, 30000];
+    // ── Vanish cycle: Off → 5s → 10s → 15s → 20s → 25s → 30s → Off ──
+    const VANISH_CYCLE = [0, 5000, 10000, 15000, 20000, 25000, 30000];
     const handleCycleVanish = () => {
         const idx = VANISH_CYCLE.indexOf(vanishDuration);
         const next = VANISH_CYCLE[(idx + 1) % VANISH_CYCLE.length];
         setVanishDuration(next);
     };
+
+    // ── Auto-vanish: schedule character removal for new text ──
+    useEffect(() => {
+        if (vanishDuration === 0) {
+            // Clear all pending vanish timers
+            vanishTimersRef.current.forEach(seg => {
+                clearTimeout(seg.timerId);
+                if (seg.intervalId) clearInterval(seg.intervalId);
+            });
+            vanishTimersRef.current = [];
+            prevTextLenRef.current = localText.length;
+            return;
+        }
+
+        const newLen = localText.length;
+        const oldLen = prevTextLenRef.current;
+
+        if (newLen > oldLen) {
+            // New characters typed — schedule vanish for them
+            const segStartLen = oldLen;
+            const segEndLen = newLen;
+            const charCount = segEndLen - segStartLen;
+
+            const timerId = setTimeout(() => {
+                // Remove characters one-by-one from end of this segment
+                let remaining = charCount;
+                const intervalId = setInterval(() => {
+                    remaining--;
+                    if (remaining < 0) {
+                        clearInterval(intervalId);
+                        // Remove this segment from tracking
+                        vanishTimersRef.current = vanishTimersRef.current.filter(s => s.timerId !== timerId);
+                        return;
+                    }
+                    setLocalText(prev => {
+                        // Find the adjusted position (segments before this may have shrunk)
+                        const pos = Math.min(segStartLen + remaining, prev.length);
+                        if (pos >= prev.length) {
+                            // Just remove last character
+                            const updated = prev.slice(0, -1);
+                            batchSendText(updated);
+                            return updated;
+                        }
+                        const updated = prev.slice(0, pos) + prev.slice(pos + 1);
+                        batchSendText(updated);
+                        return updated;
+                    });
+                }, 30);
+
+                // Store intervalId for cleanup
+                const seg = vanishTimersRef.current.find(s => s.timerId === timerId);
+                if (seg) seg.intervalId = intervalId;
+            }, vanishDuration);
+
+            vanishTimersRef.current.push({ startLen: segStartLen, endLen: segEndLen, timerId });
+        }
+
+        prevTextLenRef.current = newLen;
+    }, [localText, vanishDuration, batchSendText]);
+
+    // ── Cleanup vanish timers on unmount ──
+    useEffect(() => {
+        return () => {
+            vanishTimersRef.current.forEach(seg => {
+                clearTimeout(seg.timerId);
+                if (seg.intervalId) clearInterval(seg.intervalId);
+            });
+        };
+    }, []);
 
     // ── Whisper playback + badge ──
     useEffect(() => {
@@ -267,18 +307,32 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
         }
     };
 
-    // ── Dock toggle ──
+    // ── Dock toggle with invite flow ──
     const handleDockToggle = (id: 'peep' | 'whisper' | 'reveal') => {
+        if (id === 'whisper' && activeOverlay !== 'whisper') {
+            sendInvite('whisper');
+            return;
+        }
         setActiveOverlay(prev => prev === id ? null : id);
     };
+
+    // ── Handle invite acceptance ──
+    useEffect(() => {
+        if (inviteStatus === 'accepted') {
+            if (inviteFeature === 'whisper') {
+                setActiveOverlay('whisper');
+            } else if (inviteFeature === 'live_glass') {
+                onOpenLiveGlass();
+            }
+            clearInviteStatus();
+        }
+    }, [inviteStatus, inviteFeature, clearInviteStatus, onOpenLiveGlass]);
 
     const isLinked = linkStatus === 'LINKED';
     const partnerConnected = linkStatus === 'LINKED';
 
     return (
         <View style={st.roomContent}>
-            <ZapFlash active={zapFlash} />
-
             {/* ─── Session Header ─── */}
             <View style={st.header}>
                 <View style={st.headerLeft}>
@@ -296,13 +350,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
                 </View>
 
                 <View style={st.headerRight}>
-                    <TouchableOpacity onPress={onOpenLiveGlass} style={st.headerIconBtn} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={() => sendInvite('live_glass')} style={st.headerIconBtn} activeOpacity={0.7}>
                         <Ionicons name="camera-outline" size={18} color={THEME.muted} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        onPress={vanishDuration > 0 ? handleCycleVanish : handleVanish}
-                        onLongPress={handleCycleVanish}
+                        onPress={handleCycleVanish}
                         style={[
                             st.headerIconBtn,
                             vanishDuration > 0 && { backgroundColor: THEME.accEmerald, borderWidth: 0 },
@@ -367,24 +420,18 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
                         </View>
                         <View style={st.cardBody}>
                             <LinearGradient colors={['rgba(15,17,20,0.95)', 'transparent']} style={st.fadeTop} pointerEvents="none" />
-                            {isLocalDecaying ? (
-                                <ScrollView style={st.cardScroll}>
-                                    <DecayText text={localText} isDecaying={true} />
-                                </ScrollView>
-                            ) : (
-                                <TextInput
-                                    multiline
-                                    value={localText}
-                                    onChangeText={(text) => {
-                                        if (text.length > limits.textLimit) return;
-                                        setLocalText(text);
-                                        batchSendText(text);
-                                    }}
-                                    placeholder="START TRANSMISSION..."
-                                    placeholderTextColor={THEME.faint}
-                                    style={st.textArea}
-                                />
-                            )}
+                            <TextInput
+                                multiline
+                                value={localText}
+                                onChangeText={(text) => {
+                                    if (text.length > limits.textLimit) return;
+                                    setLocalText(text);
+                                    batchSendText(text);
+                                }}
+                                placeholder="START TRANSMISSION..."
+                                placeholderTextColor={THEME.faint}
+                                style={st.textArea}
+                            />
                             <LinearGradient colors={['transparent', 'rgba(15,17,20,0.95)']} style={st.fadeBottom} pointerEvents="none" />
                         </View>
                     </RNAnimated.View>
@@ -423,6 +470,25 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
                 onWhisperSend={handleWhisperSend}
                 maxDurationSec={limits.whisperDurationSec}
                 whisperBadge={whisperBadge}
+            />
+
+            {/* Invite Overlay */}
+            <InviteOverlay
+                visible={pendingInvite !== null}
+                feature={pendingInvite?.feature === 'live_glass' ? 'LIVE GLASS' : 'WHISPER'}
+                onAccept={() => {
+                    if (pendingInvite) {
+                        acceptInvite(pendingInvite.feature);
+                        if (pendingInvite.feature === 'whisper') {
+                            setActiveOverlay('whisper');
+                        } else if (pendingInvite.feature === 'live_glass') {
+                            onOpenLiveGlass();
+                        }
+                    }
+                }}
+                onDecline={() => {
+                    if (pendingInvite) declineInvite(pendingInvite.feature);
+                }}
             />
         </View>
     );
@@ -526,26 +592,13 @@ export default function RoomScreen() {
                 onRegenerateKey={handleRegenerateKey} onLeaveChannel={handleLeaveChannel}
             />
 
-            {/* Live Glass Modal */}
-            <Modal visible={showLiveGlass} animationType="slide" transparent>
-                <View style={st.liveGlassModal}>
-                    <View style={st.liveGlassHeader}>
-                        <View style={st.liveGlassDot} />
-                        <Text style={st.liveGlassTitle}>LIVE GLASS</Text>
-                        <View style={{ flex: 1 }} />
-                        <TouchableOpacity onPress={() => setShowLiveGlass(false)} style={st.liveGlassCloseIcon}>
-                            <Ionicons name="close" size={16} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                    <View style={st.liveGlassBody}>
-                        <Ionicons name="camera-outline" size={48} color={THEME.faint} />
-                        <Text style={st.liveGlassPlaceholder}>WAITING FOR SIGNAL...</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => setShowLiveGlass(false)} style={st.liveGlassCloseBtn} activeOpacity={0.7}>
-                        <Text style={st.liveGlassCloseBtnText}>CLOSE</Text>
-                    </TouchableOpacity>
-                </View>
-            </Modal>
+            {/* Live Glass */}
+            <LiveGlassPanel
+                visible={showLiveGlass}
+                onClose={() => setShowLiveGlass(false)}
+                socket={socket}
+                roomId={activeRoomId}
+            />
 
             {/* Add Room Modal */}
             <Modal visible={showAddModal} animationType="fade" transparent>
@@ -672,46 +725,6 @@ const st = StyleSheet.create({
     placeholderText: { fontFamily: THEME.mono, fontSize: 13, color: THEME.faint, textTransform: 'uppercase' },
     decayText: { fontFamily: THEME.mono, fontSize: 13, lineHeight: 20 },
     typingText: { fontFamily: THEME.mono, fontSize: 8, color: THEME.live, marginLeft: 8, textTransform: 'uppercase' },
-    zapFlash: {
-        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: '#FFFFFF', zIndex: 50,
-    },
-
-    // Live Glass Modal
-    liveGlassModal: {
-        flex: 1, backgroundColor: 'rgba(0,0,0,0.9)',
-        alignItems: 'center', justifyContent: 'center', padding: 20,
-    },
-    liveGlassHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 24, width: '90%' },
-    liveGlassDot: {
-        width: 6, height: 6, borderRadius: 3, backgroundColor: THEME.live,
-        shadowColor: THEME.live, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 10,
-    },
-    liveGlassTitle: {
-        fontFamily: THEME.mono, fontSize: 10, letterSpacing: 2,
-        color: THEME.live, textTransform: 'uppercase', fontWeight: '900',
-    },
-    liveGlassCloseIcon: {
-        width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.1)',
-        alignItems: 'center', justifyContent: 'center',
-    },
-    liveGlassBody: {
-        width: '90%', aspectRatio: 3 / 4, borderRadius: 32,
-        borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: '#000',
-        alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-    },
-    liveGlassPlaceholder: {
-        fontFamily: THEME.mono, fontSize: 10, color: 'rgba(255,255,255,0.2)',
-        textTransform: 'uppercase', marginTop: 12,
-    },
-    liveGlassCloseBtn: {
-        marginTop: 24, paddingVertical: 10, paddingHorizontal: 24, borderRadius: 14,
-        borderWidth: 1, borderColor: 'rgba(245,243,235,0.2)',
-    },
-    liveGlassCloseBtnText: {
-        fontFamily: THEME.mono, fontSize: 10, fontWeight: '900', letterSpacing: 2.2,
-        color: THEME.muted, textTransform: 'uppercase',
-    },
 
     // Add Room Modal
     addModalBg: { flex: 1, backgroundColor: 'rgba(6,7,9,0.95)', justifyContent: 'center', padding: 24 },
