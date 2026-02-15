@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { io, Socket } from 'socket.io-client';
-import * as Crypto from 'expo-crypto';
 import { CONFIG } from '../constants/Config';
+import { getSecureItem, setSecureItem } from '../lib/platform/storage';
+import { generateUUID } from '../lib/platform/crypto';
 
 export type LinkStatus = 'WAITING' | 'LINKED' | 'SIGNAL LOST' | 'DISCONNECTED' | 'RECONNECTING';
+
+const MAX_TEXT_LENGTH = 10000;
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_AUDIO_SIZE = 1 * 1024 * 1024; // 1MB
 
 export function usePiqabu() {
     const [socket, setSocket] = useState<Socket | null>(null);
@@ -16,31 +20,32 @@ export function usePiqabu() {
     const [videoControls, setVideoControls] = useState({ blur: 50, isBnW: true, isMuted: false });
 
     const heartbeatInterval = useRef<NodeJS.Timeout>();
+    const socketRef = useRef<Socket | null>(null);
 
     useEffect(() => {
         const init = async () => {
-            let id = await SecureStore.getItemAsync('piqabu_ghost_id');
+            let id = await getSecureItem('piqabu_ghost_id');
             if (!id) {
-                id = Crypto.randomUUID();
-                await SecureStore.setItemAsync('piqabu_ghost_id', id);
+                id = generateUUID();
+                await setSecureItem('piqabu_ghost_id', id);
             }
             setDeviceId(id);
 
             const newSocket = io(CONFIG.SIGNAL_TOWER_URL, {
-                transports: ['websocket'], // Critical for Expo/React Native
+                transports: ['websocket'],
                 reconnection: true,
                 reconnectionAttempts: Infinity,
                 timeout: 10000,
+                auth: { deviceId: id },
             });
 
             newSocket.on('connect', () => {
                 console.log('[SIGNAL] Linked to Signal Tower');
                 setLinkStatus('WAITING');
 
-                // Start Heartbeat to keep Render pipe open
                 heartbeatInterval.current = setInterval(() => {
                     newSocket.emit('heartbeat');
-                }, 20000); // Send every 20s
+                }, 20000);
             });
 
             newSocket.on('connect_error', (error) => {
@@ -48,7 +53,7 @@ export function usePiqabu() {
                 setLinkStatus('RECONNECTING');
             });
 
-            newSocket.on('reconnect', (attemptNumber) => {
+            newSocket.on('reconnect', (attemptNumber: number) => {
                 console.log('[SIGNAL] Reconnected on attempt:', attemptNumber);
             });
 
@@ -58,7 +63,7 @@ export function usePiqabu() {
                 clearInterval(heartbeatInterval.current);
             });
 
-            newSocket.on('link_status', ({ status }) => {
+            newSocket.on('link_status', ({ status }: { status: LinkStatus }) => {
                 setLinkStatus(status);
             });
 
@@ -68,49 +73,89 @@ export function usePiqabu() {
             newSocket.on('remote_whisper', (payload: string) => setRemoteWhisper(payload));
             newSocket.on('remote_video_controls', (controls: any) => setVideoControls(controls));
 
+            newSocket.on('signal_blocked', ({ message }: { message: string }) => {
+                console.log('[SIGNAL] Blocked:', message);
+            });
+
+            newSocket.on('rate_limited', ({ event }: { event: string }) => {
+                console.log('[SIGNAL] Rate limited on event:', event);
+            });
+
+            socketRef.current = newSocket;
             setSocket(newSocket);
         };
 
         init();
 
         return () => {
-            socket?.disconnect();
+            socketRef.current?.disconnect();
             clearInterval(heartbeatInterval.current);
         };
     }, []);
 
+    // Server-side room code generation
+    const requestRoomCode = useCallback((): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            if (!socketRef.current) {
+                reject(new Error('Not connected'));
+                return;
+            }
+            socketRef.current.emit('request_room', (response: { roomCode?: string; error?: string }) => {
+                if (response.error) {
+                    reject(new Error(response.error));
+                } else if (response.roomCode) {
+                    resolve(response.roomCode);
+                } else {
+                    reject(new Error('Invalid response'));
+                }
+            });
+        });
+    }, []);
+
     const joinRoom = useCallback((roomId: string) => {
-        if (socket && deviceId) {
-            socket.emit('join_room', { roomId, deviceId });
+        if (socketRef.current && deviceId) {
+            socketRef.current.emit('join_room', { roomId, deviceId });
         }
-    }, [socket, deviceId]);
+    }, [deviceId]);
 
     const sendText = useCallback((text: string) => {
-        socket?.emit('transmit_text', text);
-    }, [socket]);
+        if (text.length > MAX_TEXT_LENGTH) {
+            console.log('[VALIDATION] Text exceeds max length');
+            return;
+        }
+        socketRef.current?.emit('transmit_text', text);
+    }, []);
 
     const sendVanish = useCallback(() => {
-        socket?.emit('transmit_vanish');
-    }, [socket]);
+        socketRef.current?.emit('transmit_vanish');
+    }, []);
 
     const sendReveal = useCallback((payload: string | null) => {
-        socket?.emit('transmit_reveal', payload);
-    }, [socket]);
+        if (payload !== null && payload.length > MAX_IMAGE_SIZE) {
+            console.log('[VALIDATION] Image exceeds max size');
+            return;
+        }
+        socketRef.current?.emit('transmit_reveal', payload);
+    }, []);
 
     const sendWhisper = useCallback((payload: string) => {
-        socket?.emit('transmit_whisper', payload);
-    }, [socket]);
+        if (payload.length > MAX_AUDIO_SIZE) {
+            console.log('[VALIDATION] Audio exceeds max size');
+            return;
+        }
+        socketRef.current?.emit('transmit_whisper', payload);
+    }, []);
 
     const updateVideoControls = useCallback((controls: any) => {
-        socket?.emit('transmit_video_controls', controls);
-    }, [socket]);
+        socketRef.current?.emit('transmit_video_controls', controls);
+    }, []);
 
     const leaveRoom = useCallback(() => {
-        socket?.emit('disconnect_intent');
+        socketRef.current?.emit('disconnect_intent');
         setLinkStatus('DISCONNECTED');
         setRemoteText('');
         setRemoteReveal(null);
-    }, [socket]);
+    }, []);
 
     return {
         deviceId,
@@ -119,12 +164,13 @@ export function usePiqabu() {
         remoteReveal,
         remoteWhisper,
         videoControls,
+        requestRoomCode,
         joinRoom,
         sendText,
         sendVanish,
         sendReveal,
         sendWhisper,
         updateVideoControls,
-        leaveRoom
+        leaveRoom,
     };
 }

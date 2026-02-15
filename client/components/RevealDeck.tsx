@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Button, Image, TouchableOpacity, Text, Modal } from 'react-native';
+import { View, Button, Image, TouchableOpacity, Text, Modal, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+
+const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024; // 1.5MB base64 string limit
 
 export default function RevealDeck({
     visible, onClose, onReveal
@@ -21,7 +23,27 @@ export default function RevealDeck({
         });
 
         if (!result.canceled && result.assets[0].base64) {
-            setImage(`data:image/jpeg;base64,${result.assets[0].base64}`);
+            const dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+            if (dataUri.length > MAX_IMAGE_SIZE) {
+                // Retry with lower quality
+                const lowRes = await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    base64: true,
+                    quality: 0.2,
+                });
+                if (!lowRes.canceled && lowRes.assets[0].base64) {
+                    const lowUri = `data:image/jpeg;base64,${lowRes.assets[0].base64}`;
+                    if (lowUri.length > MAX_IMAGE_SIZE) {
+                        Alert.alert('File Too Large', 'Image is too large even at low quality. Choose a smaller image.');
+                        return;
+                    }
+                    setImage(lowUri);
+                    setRevealed(false);
+                    return;
+                }
+                return;
+            }
+            setImage(dataUri);
             setRevealed(false);
         }
     };

@@ -1,0 +1,25 @@
+{
+  "name": "Piqabu",
+  "short_name": "Piqabu",
+  "description": "Ephemeral peer-to-peer communication. Zero trace.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F1114",
+  "theme_color": "#00FF9D",
+  "orientation": "portrait",
+  "categories": ["communication", "utilities"],
+  "icons": [
+    {
+      "src": "/web/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/web/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,28 +1,70 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { usePiqabu } from '../hooks/usePiqabu';
 import { StatusBar } from 'expo-status-bar';
+import { useFirstLaunch } from '../lib/onboarding/useFirstLaunch';
+import { useRoomContext } from '../contexts/RoomContext';
+import SubscriptionBadge from '../components/SubscriptionBadge';
+import Paywall from '../components/Paywall';
 
 export default function SignalTower() {
     const router = useRouter();
-    const { deviceId } = usePiqabu();
+    const { deviceId, requestRoomCode, addRoom, isConnected, tier, refreshSubscription } = useRoomContext();
+    const { isFirstLaunch } = useFirstLaunch();
     const [roomCode, setRoomCode] = useState('');
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [showPaywall, setShowPaywall] = useState(false);
 
-    const generateCode = () => {
-        // Generate a 6-char alphanumeric code
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
+    // Redirect to onboarding on first launch
+    useEffect(() => {
+        if (isFirstLaunch === true) {
+            router.replace('/onboarding');
         }
-        router.push(`/room/${code}`);
+    }, [isFirstLaunch]);
+
+    // Check for subscription success redirect (web Stripe checkout)
+    useEffect(() => {
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('subscription') === 'success') {
+                refreshSubscription();
+                // Clean up URL
+                window.history.replaceState({}, '', window.location.pathname);
+            }
+        }
+    }, []);
+
+    const generateCode = async () => {
+        if (isGenerating) return;
+        setIsGenerating(true);
+        try {
+            const code = await requestRoomCode();
+            const result = addRoom(code);
+            if (result.success) {
+                router.push('/room');
+            } else {
+                setShowPaywall(true);
+            }
+        } catch (e) {
+            Alert.alert('Error', 'Unable to generate room code. Check your connection.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
     const joinRoom = () => {
         if (roomCode.length === 6) {
-            router.push(`/room/${roomCode.toUpperCase()}`);
+            const result = addRoom(roomCode.toUpperCase());
+            if (result.success) {
+                router.push('/room');
+            } else {
+                setShowPaywall(true);
+            }
         }
+    };
+
+    const handleSubscribed = async () => {
+        await refreshSubscription();
     };
 
     return (
@@ -32,7 +74,15 @@ export default function SignalTower() {
         >
             <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
                 <View className="flex-1 items-center justify-center p-8">
-                    {/* Signal Tower Icon / Animation Placeholder */}
+                    {/* Top Row: Badge + Connection */}
+                    <View className="absolute top-14 left-6">
+                        <SubscriptionBadge tier={tier} onPress={() => setShowPaywall(true)} />
+                    </View>
+                    <View className="absolute top-14 right-6">
+                        <View className={`w-2 h-2 rounded-full ${isConnected ? 'bg-signal' : 'bg-destruct'}`} />
+                    </View>
+
+                    {/* Signal Tower Icon */}
                     <View className="w-24 h-24 border-2 border-signal rounded-full items-center justify-center mb-8">
                         <View className="w-16 h-16 border border-signal/50 rounded-full animate-pulse" />
                         <View className="absolute w-1 h-1 bg-signal rounded-full" />
@@ -80,10 +130,11 @@ export default function SignalTower() {
 
                         <TouchableOpacity
                             onPress={generateCode}
-                            className="p-4 rounded-xl border border-signal"
+                            disabled={isGenerating}
+                            className={`p-4 rounded-xl border border-signal ${isGenerating ? 'opacity-50' : ''}`}
                         >
                             <Text className="text-signal text-center font-mono font-bold uppercase tracking-[2px]">
-                                Initialize Handshake
+                                {isGenerating ? 'Initializing...' : 'Initialize Handshake'}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -93,6 +144,16 @@ export default function SignalTower() {
                     </Text>
                 </View>
             </ScrollView>
+
+            {/* Paywall */}
+            <Paywall
+                visible={showPaywall}
+                feature="multi_room"
+                onDismiss={() => setShowPaywall(false)}
+                deviceId={deviceId}
+                onSubscribed={handleSubscribed}
+            />
+
             <StatusBar style="light" />
         </KeyboardAvoidingView>
     );

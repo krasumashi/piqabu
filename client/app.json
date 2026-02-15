@@ -1,34 +1,38 @@
 {
   "expo": {
-    "name": "client",
-    "slug": "client",
+    "name": "Piqabu",
+    "slug": "piqabu",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0F1114"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.krasumashi.client",
+      "bundleIdentifier": "com.krasumashi.piqabu",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Piqabu uses the camera for the Live Glass feature",
+        "NSMicrophoneUsageDescription": "Piqabu uses the microphone for the Whisper feature"
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0F1114"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.krasumashi.client"
+      "package": "com.krasumashi.piqabu"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single"
     },
     "extra": {
       "eas": {
@@ -37,7 +41,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ]
   }
 }

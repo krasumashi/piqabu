@@ -1,7 +1,54 @@
 import React from 'react';
-import { View, TouchableOpacity, Text } from 'react-native';
-import Slider from '@react-native-community/slider';
+import { View, TouchableOpacity, Text, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+// Web slider component
+function WebSlider({ value, onValueChange, min, max }: {
+    value: number;
+    onValueChange: (v: number) => void;
+    min: number;
+    max: number;
+}) {
+    return (
+        <input
+            type="range"
+            min={min}
+            max={max}
+            value={value}
+            onChange={(e) => onValueChange(Number(e.target.value))}
+            style={{
+                width: '100%',
+                height: 40,
+                accentColor: '#00FF9D',
+                backgroundColor: 'transparent',
+            }}
+        />
+    );
+}
+
+// Native slider component
+function NativeSlider({ value, onValueChange, min, max }: {
+    value: number;
+    onValueChange: (v: number) => void;
+    min: number;
+    max: number;
+}) {
+    const Slider = require('@react-native-community/slider').default;
+    return (
+        <Slider
+            style={{ width: '100%', height: 40 }}
+            minimumValue={min}
+            maximumValue={max}
+            value={value}
+            onValueChange={onValueChange}
+            minimumTrackTintColor="#00FF9D"
+            maximumTrackTintColor="#111"
+            thumbTintColor="#00FF9D"
+        />
+    );
+}
+
+const PlatformSlider = Platform.OS === 'web' ? WebSlider : NativeSlider;
 
 export default function VideoControls({
     blur, setBlur, isBnW, setBnW, isMuted, setMuted, onHide
@@ -21,15 +68,11 @@ export default function VideoControls({
                     <Text className="text-ghost font-mono text-[8px] uppercase">Privacy Blur</Text>
                     <Text className="text-signal font-mono text-[8px]">{Math.round(blur)}%</Text>
                 </View>
-                <Slider
-                    style={{ width: '100%', height: 40 }}
-                    minimumValue={0}
-                    maximumValue={100}
+                <PlatformSlider
                     value={blur}
                     onValueChange={setBlur}
-                    minimumTrackTintColor="#00FF9D"
-                    maximumTrackTintColor="#111"
-                    thumbTintColor="#00FF9D"
+                    min={0}
+                    max={100}
                 />
             </View>
 
