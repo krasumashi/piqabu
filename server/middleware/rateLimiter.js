@@ -8,7 +8,7 @@ const RATE_LIMITS = {
     join_room: { max: 5, windowMs: 60000 },
     leave_room: { max: 10, windowMs: 60000 },
     request_room: { max: 5, windowMs: 60000 },
-    transmit_text: { max: 60, windowMs: 60000 },
+    transmit_text: { max: 120, windowMs: 60000 },
     transmit_vanish: { max: 30, windowMs: 60000 },
     transmit_reveal: { max: 10, windowMs: 60000 },
     transmit_whisper: { max: 10, windowMs: 60000 },

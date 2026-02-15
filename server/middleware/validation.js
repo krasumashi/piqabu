@@ -63,6 +63,8 @@ function validateRevealPayload(payload) {
     return { valid: true, sanitized: payload };
 }
 
+const VALID_WHISPER_FILTERS = ['true', 'ghost', 'lowkey', 'robot'];
+
 function validateWhisperPayload(payload) {
     if (typeof payload !== 'string') {
         return { valid: false, error: 'whisper payload must be a string' };
@@ -74,6 +76,13 @@ function validateWhisperPayload(payload) {
         return { valid: false, error: 'whisper payload must be a valid data URI' };
     }
     return { valid: true, sanitized: payload };
+}
+
+function validateWhisperFilter(filter) {
+    if (typeof filter !== 'string' || !VALID_WHISPER_FILTERS.includes(filter)) {
+        return { valid: false, error: 'invalid whisper filter' };
+    }
+    return { valid: true, sanitized: filter };
 }
 
 function validateVideoControls(controls) {
@@ -122,6 +131,7 @@ module.exports = {
     validateText,
     validateRevealPayload,
     validateWhisperPayload,
+    validateWhisperFilter,
     validateVideoControls,
     validateJoinRoom,
     MAX_TEXT_LENGTH,

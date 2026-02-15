@@ -13,6 +13,7 @@ const {
     validateText,
     validateRevealPayload,
     validateWhisperPayload,
+    validateWhisperFilter,
     validateVideoControls,
     validateDeviceId,
     validateRoomId,
@@ -278,7 +279,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- WHISPER (Multi-Room) ---
+    // --- WHISPER (Multi-Room, with optional filter) ---
     socket.on('transmit_whisper', (data) => {
         const participant = getParticipant(socket.id);
         if (!participant) return;
@@ -288,13 +289,19 @@ io.on('connection', (socket) => {
             if (!roomId || !participant.rooms.has(roomId)) return;
             const result = validateWhisperPayload(data.payload);
             if (!result.valid) return;
-            socket.to(roomId).emit('remote_whisper', { roomId, payload: result.sanitized });
+            // Validate optional filter param
+            let filter = 'true';
+            if (data.filter) {
+                const filterResult = validateWhisperFilter(data.filter);
+                if (filterResult.valid) filter = filterResult.sanitized;
+            }
+            socket.to(roomId).emit('remote_whisper', { roomId, payload: result.sanitized, filter });
         } else {
             const result = validateWhisperPayload(data);
             if (!result.valid) return;
             const roomId = participant.rooms.values().next().value;
             if (roomId) {
-                socket.to(roomId).emit('remote_whisper', { roomId, payload: result.sanitized });
+                socket.to(roomId).emit('remote_whisper', { roomId, payload: result.sanitized, filter: 'true' });
             }
         }
     });
