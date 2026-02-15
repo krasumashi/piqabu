@@ -367,8 +367,18 @@ io.on('connection', (socket) => {
         if (!participant) return;
         const roomId = extractRoomId(data);
         if (!roomId || !participant.rooms.has(roomId)) return;
-        if (typeof data.frame !== 'string' || data.frame.length > 200000) return;
+        if (typeof data.frame !== 'string' || data.frame.length > 300000) return;
         socket.to(roomId).emit('remote_live_glass_frame', { roomId, frame: data.frame });
+    });
+
+    // --- LIVE GLASS Audio Streaming ---
+    socket.on('transmit_live_glass_audio', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        if (typeof data.audio !== 'string' || data.audio.length > 150000) return;
+        socket.to(roomId).emit('remote_live_glass_audio', { roomId, audio: data.audio });
     });
 
     // --- Disconnect Intent (leaves all rooms) ---

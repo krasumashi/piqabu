@@ -125,8 +125,34 @@ export async function playAudioFromDataUri(dataUri: string, rate: number = 1.0):
     }
 
     const { Audio } = require('expo-av');
+    const FileSystem = require('expo-file-system');
+
+    // Set audio mode for playback (disable recording mode)
+    await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+    });
+
+    // Write base64 to temp file for reliable Android playback
+    let playUri = dataUri;
+    try {
+        const base64Data = dataUri.split(',')[1];
+        if (base64Data) {
+            const tempUri = FileSystem.cacheDirectory + 'whisper_play_' + Date.now() + '.m4a';
+            await FileSystem.writeAsStringAsync(tempUri, base64Data, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            playUri = tempUri;
+        }
+    } catch (e) {
+        console.warn('[Audio] Temp file write failed, using data URI:', e);
+    }
+
     const { sound } = await Audio.Sound.createAsync(
-        { uri: dataUri },
+        { uri: playUri },
         { shouldPlay: true, rate, shouldCorrectPitch: false }
     );
     return new Promise<void>((resolve) => {
