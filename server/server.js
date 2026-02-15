@@ -26,7 +26,7 @@ const app = express();
 // --- Security Middleware ---
 app.use(helmet());
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:8081,http://localhost:19006,http://localhost:19000').split(',');
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:8081,http://localhost:19006,http://localhost:19000,https://piqabu.onrender.com').split(',');
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -65,6 +65,8 @@ const io = new Server(server, {
         },
         methods: ["GET", "POST"],
     },
+    allowEIO3: true,
+    transports: ['websocket', 'polling'],
     maxHttpBufferSize: 2e6,
     pingTimeout: 60000,
     pingInterval: 25000,

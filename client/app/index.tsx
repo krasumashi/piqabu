@@ -149,7 +149,7 @@ export default function EntryView() {
         return (
             <View style={styles.splashContainer}>
                 <Animated.Image
-                    source={require('../assets/Splash Logotype White.png')}
+                    source={require('../assets/Splash Medium Logotype White.png')}
                     style={[styles.splashLogoImage, splashLogoStyle]}
                     resizeMode="contain"
                 />
@@ -336,8 +336,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     splashLogoImage: {
-        width: 200,
-        height: 70,
+        width: 280,
+        height: 100,
         marginBottom: 16,
     },
     splashSub: {

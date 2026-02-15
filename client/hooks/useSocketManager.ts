@@ -22,7 +22,7 @@ export function useSocketManager() {
             setDeviceId(id);
 
             const newSocket = io(CONFIG.SIGNAL_TOWER_URL, {
-                transports: ['websocket'],
+                transports: ['websocket', 'polling'],
                 reconnection: true,
                 reconnectionAttempts: Infinity,
                 timeout: 10000,
