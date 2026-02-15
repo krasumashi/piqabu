@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Piqabu",
-    "slug": "piqabu",
+    "slug": "client",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F1114"
+      "backgroundColor": "#060709"
     },
     "ios": {
       "supportsTablet": true,
@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0F1114"
+        "backgroundColor": "#060709"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.krasumashi.piqabu"

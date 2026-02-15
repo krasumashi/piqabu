@@ -1,104 +1,65 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert, Animated, Easing } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+    View, Text, TextInput, TouchableOpacity, ScrollView, Alert,
+    Platform, Share, StyleSheet, KeyboardAvoidingView, Image,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useFirstLaunch } from '../lib/onboarding/useFirstLaunch';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+    FadeIn, FadeOut, FadeInLeft, FadeInRight,
+    useSharedValue, useAnimatedStyle, withSpring, withTiming, withDelay,
+    Easing,
+} from 'react-native-reanimated';
 import { useRoomContext } from '../contexts/RoomContext';
+import { useFirstLaunch } from '../lib/onboarding/useFirstLaunch';
 import SubscriptionBadge from '../components/SubscriptionBadge';
 import Paywall from '../components/Paywall';
+import { THEME, DASHED_BORDER } from '../constants/Theme';
 
-// ─── Staggered fade-in component ───
-function FadeInView({ delay = 0, children, style }: { delay?: number; children: React.ReactNode; style?: any }) {
-    const opacity = useRef(new Animated.Value(0)).current;
-    const translateY = useRef(new Animated.Value(20)).current;
+type Mode = 'SPLASH' | 'LANDING' | 'GENERATED';
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            Animated.parallel([
-                Animated.timing(opacity, { toValue: 1, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-                Animated.timing(translateY, { toValue: 0, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-            ]).start();
-        }, delay);
-        return () => clearTimeout(timer);
-    }, [delay]);
-
-    return (
-        <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>
-            {children}
-        </Animated.View>
-    );
-}
-
-// ─── Pulsing ring component ───
-function PulsingRing() {
-    const outerPulse = useRef(new Animated.Value(1)).current;
-    const innerPulse = useRef(new Animated.Value(0.5)).current;
-    const dotPulse = useRef(new Animated.Value(0.6)).current;
-
-    useEffect(() => {
-        // Outer ring breathe
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(outerPulse, { toValue: 1.06, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-                Animated.timing(outerPulse, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            ])
-        ).start();
-
-        // Inner ring opacity breathe
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(innerPulse, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-                Animated.timing(innerPulse, { toValue: 0.3, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            ])
-        ).start();
-
-        // Center dot pulse
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(dotPulse, { toValue: 1, duration: 800, useNativeDriver: true }),
-                Animated.timing(dotPulse, { toValue: 0.4, duration: 800, useNativeDriver: true }),
-            ])
-        ).start();
-    }, []);
-
-    return (
-        <Animated.View
-            style={{ transform: [{ scale: outerPulse }] }}
-            className="w-24 h-24 border-2 border-signal rounded-full items-center justify-center mb-8"
-        >
-            <Animated.View
-                style={{ opacity: innerPulse }}
-                className="w-16 h-16 border border-signal/50 rounded-full"
-            />
-            <Animated.View
-                style={{ opacity: dotPulse }}
-                className="absolute w-2 h-2 bg-signal rounded-full"
-            />
-        </Animated.View>
-    );
-}
-
-export default function SignalTower() {
+export default function EntryView() {
     const router = useRouter();
     const { deviceId, requestRoomCode, addRoom, isConnected, tier, refreshSubscription } = useRoomContext();
     const { isFirstLaunch } = useFirstLaunch();
+    const [mode, setMode] = useState<Mode>('SPLASH');
     const [roomCode, setRoomCode] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [showPaywall, setShowPaywall] = useState(false);
+    const [generatedCode, setGeneratedCode] = useState('');
+
+    // Splash animation values
+    const splashLogoOpacity = useSharedValue(0);
+    const splashLogoScale = useSharedValue(0.9);
+    const splashSubOpacity = useSharedValue(0);
+    const splashSubY = useSharedValue(10);
 
     // Button scale animations
-    const joinScale = useRef(new Animated.Value(1)).current;
-    const initScale = useRef(new Animated.Value(1)).current;
+    const generateScale = useSharedValue(1);
+    const joinScale = useSharedValue(1);
 
-    const pressIn = (anim: Animated.Value) => Animated.spring(anim, { toValue: 0.95, friction: 5, useNativeDriver: true }).start();
-    const pressOut = (anim: Animated.Value) => Animated.spring(anim, { toValue: 1, friction: 5, useNativeDriver: true }).start();
-
-    // Redirect to onboarding on first launch
+    // Splash → onboarding or LANDING
     useEffect(() => {
-        if (isFirstLaunch === true) {
-            router.replace('/onboarding');
+        if (isFirstLaunch === null) return;
+
+        if (mode === 'SPLASH') {
+            // Animate splash logo
+            splashLogoOpacity.value = withTiming(1, { duration: 600, easing: Easing.out(Easing.quad) });
+            splashLogoScale.value = withSpring(1, { damping: 12, stiffness: 90 });
+            splashSubOpacity.value = withDelay(400, withTiming(1, { duration: 500 }));
+            splashSubY.value = withDelay(400, withSpring(0, { damping: 14, stiffness: 100 }));
+
+            const timer = setTimeout(() => {
+                if (isFirstLaunch === true) {
+                    router.replace('/onboarding');
+                } else {
+                    setMode('LANDING');
+                }
+            }, 2500);
+            return () => clearTimeout(timer);
         }
-    }, [isFirstLaunch]);
+    }, [isFirstLaunch, mode]);
 
     // Check for subscription success redirect (web Stripe checkout)
     useEffect(() => {
@@ -106,141 +67,249 @@ export default function SignalTower() {
             const params = new URLSearchParams(window.location.search);
             if (params.get('subscription') === 'success') {
                 refreshSubscription();
-                // Clean up URL
                 window.history.replaceState({}, '', window.location.pathname);
             }
         }
     }, []);
 
-    const generateCode = async () => {
+    const handleGenerate = async () => {
         if (isGenerating) return;
         setIsGenerating(true);
         try {
             const code = await requestRoomCode();
+            setGeneratedCode(code);
+            const result = addRoom(code);
+            if (result.success) {
+                setMode('GENERATED');
+            } else {
+                setShowPaywall(true);
+            }
+        } catch (e) {
+            Alert.alert('Error', 'Unable to generate session. Check your connection.');
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleJoin = () => {
+        if (roomCode.length === 6) {
+            const code = roomCode.toUpperCase();
             const result = addRoom(code);
             if (result.success) {
                 router.push('/room');
             } else {
                 setShowPaywall(true);
             }
-        } catch (e) {
-            Alert.alert('Error', 'Unable to generate room code. Check your connection.');
-        } finally {
-            setIsGenerating(false);
         }
     };
 
-    const joinRoom = () => {
-        if (roomCode.length === 6) {
-            const result = addRoom(roomCode.toUpperCase());
-            if (result.success) {
-                router.push('/room');
+    const handleEnterSession = () => {
+        router.push('/room');
+    };
+
+    const handleCopy = async () => {
+        if (Platform.OS === 'web') {
+            try { await navigator.clipboard.writeText(generatedCode); } catch {}
+        }
+        Alert.alert('Copied', 'Key copied to clipboard');
+    };
+
+    const handleShare = async () => {
+        if (Platform.OS === 'web') {
+            if (navigator.share) {
+                navigator.share({ title: 'Piqabu Key', text: `Join my secure channel: ${generatedCode}` }).catch(() => {});
             } else {
-                setShowPaywall(true);
+                handleCopy();
             }
+        } else {
+            try {
+                await Share.share({ message: `Join my Piqabu session: ${generatedCode}` });
+            } catch {}
         }
     };
 
-    const handleSubscribed = async () => {
-        await refreshSubscription();
-    };
+    const generateAnimStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: generateScale.value }],
+    }));
+    const joinAnimStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: joinScale.value }],
+    }));
+
+    const splashLogoStyle = useAnimatedStyle(() => ({
+        opacity: splashLogoOpacity.value,
+        transform: [{ scale: splashLogoScale.value }],
+    }));
+    const splashSubStyle = useAnimatedStyle(() => ({
+        opacity: splashSubOpacity.value,
+        transform: [{ translateY: splashSubY.value }],
+    }));
+
+    // ─── SPLASH MODE ───
+    if (mode === 'SPLASH') {
+        return (
+            <View style={styles.splashContainer}>
+                <Animated.Image
+                    source={require('../assets/Splash Logotype White.png')}
+                    style={[styles.splashLogoImage, splashLogoStyle]}
+                    resizeMode="contain"
+                />
+                <Animated.View style={splashSubStyle}>
+                    <Text style={styles.splashSub}>TWO PEOPLE ONLY.</Text>
+                    <Text style={styles.splashSub}>NO ACCOUNTS. NO HISTORY.</Text>
+                </Animated.View>
+                <StatusBar style="light" />
+            </View>
+        );
+    }
 
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            className="flex-1 bg-void"
+            style={styles.container}
         >
-            <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
-                <View className="flex-1 items-center justify-center p-8">
-                    {/* Top Row: Badge + Connection */}
-                    <FadeInView delay={100} style={{ position: 'absolute', top: 56, left: 24 }}>
-                        <SubscriptionBadge tier={tier} onPress={() => setShowPaywall(true)} />
-                    </FadeInView>
-                    <FadeInView delay={100} style={{ position: 'absolute', top: 56, right: 24 }}>
-                        <View className={`w-2 h-2 rounded-full ${isConnected ? 'bg-signal' : 'bg-destruct'}`} />
-                    </FadeInView>
+            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                <View style={styles.inner}>
+                    {/* ─── Top Bar ─── */}
+                    <View style={styles.topBar}>
+                        <View>
+                            <Text style={styles.topBrand}>PIQABU</Text>
+                            <Text style={styles.topSub}>DIGITAL PAPER CHANNEL</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                            <SubscriptionBadge tier={tier} onPress={() => setShowPaywall(true)} />
+                            <View style={styles.statusPill}>
+                                <View style={[styles.statusDot, { backgroundColor: isConnected ? THEME.live : THEME.warn }]} />
+                                <Text style={styles.statusText}>{isConnected ? 'LIVE' : 'WAITING'}</Text>
+                            </View>
+                        </View>
+                    </View>
 
-                    {/* Signal Tower Icon */}
-                    <FadeInView delay={200}>
-                        <PulsingRing />
-                    </FadeInView>
+                    {/* ─── LANDING Mode ─── */}
+                    {mode === 'LANDING' && (
+                        <Animated.View
+                            entering={FadeInLeft.duration(300)}
+                            exiting={FadeOut.duration(200)}
+                            style={styles.modeContainer}
+                        >
+                            {/* Hero */}
+                            <View style={styles.heroSection}>
+                                <Text style={styles.heroTitle}>PIQABU</Text>
+                                <Text style={styles.heroSubtitle}>TWO PEOPLE ONLY.</Text>
+                                <Text style={styles.heroSubtitle}>NO ACCOUNTS. NO HISTORY.</Text>
+                            </View>
 
-                    <FadeInView delay={400}>
-                        <Text className="text-signal font-mono text-xs tracking-[4px] mb-2 uppercase text-center">
-                            Establishing Identity...
-                        </Text>
-                    </FadeInView>
-                    <FadeInView delay={500}>
-                        <Text className="text-ghost font-mono text-[10px] mb-12 uppercase text-center">
-                            ID: {deviceId?.substring(0, 18)}...
-                        </Text>
-                    </FadeInView>
+                            {/* Generate Button */}
+                            <Animated.View style={generateAnimStyle}>
+                                <TouchableOpacity
+                                    onPress={handleGenerate}
+                                    onPressIn={() => { generateScale.value = withSpring(0.96); }}
+                                    onPressOut={() => { generateScale.value = withSpring(1); }}
+                                    disabled={isGenerating}
+                                    style={[styles.generateBtn, isGenerating && { opacity: 0.5 }]}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.generateBtnText}>
+                                        {isGenerating ? 'GENERATING...' : 'GENERATE SECURE SESSION'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </Animated.View>
 
-                    <View className="w-full">
-                        <FadeInView delay={600}>
-                            <View className="mb-6">
-                                <Text className="text-ghost font-mono text-[10px] mb-2 uppercase tracking-[2px]">
-                                    Input Frequency
-                                </Text>
+                            {/* OR Divider */}
+                            <View style={styles.orRow}>
+                                <View style={styles.orLine} />
+                                <Text style={styles.orText}>OR</Text>
+                                <View style={styles.orLine} />
+                            </View>
+
+                            {/* Join Row */}
+                            <View style={styles.joinRow}>
                                 <TextInput
                                     value={roomCode}
                                     onChangeText={(val) => setRoomCode(val.toUpperCase())}
-                                    placeholder="_ _ _ _ _ _"
-                                    placeholderTextColor="#333"
-                                    className="bg-ghost/10 border border-ghost/40 p-4 text-signal font-mono text-2xl text-center rounded-xl"
+                                    placeholder="ENTER KEY"
+                                    placeholderTextColor={THEME.faint}
+                                    style={styles.joinInput}
                                     maxLength={6}
                                     autoCapitalize="characters"
                                     autoCorrect={false}
                                 />
+                                <Animated.View style={joinAnimStyle}>
+                                    <TouchableOpacity
+                                        onPress={handleJoin}
+                                        onPressIn={() => { joinScale.value = withSpring(0.95); }}
+                                        onPressOut={() => { joinScale.value = withSpring(1); }}
+                                        disabled={roomCode.length !== 6}
+                                        style={[styles.joinBtn, roomCode.length !== 6 && { opacity: 0.4 }]}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text style={styles.joinBtnText}>JOIN</Text>
+                                    </TouchableOpacity>
+                                </Animated.View>
                             </View>
-                        </FadeInView>
 
-                        <FadeInView delay={700}>
-                            <Animated.View style={{ transform: [{ scale: joinScale }] }}>
-                                <TouchableOpacity
-                                    onPress={joinRoom}
-                                    onPressIn={() => pressIn(joinScale)}
-                                    onPressOut={() => pressOut(joinScale)}
-                                    disabled={roomCode.length !== 6}
-                                    className={`p-4 rounded-xl border mb-6 ${roomCode.length === 6 ? 'bg-signal border-signal' : 'border-ghost/30 opacity-50'}`}
-                                >
-                                    <Text className={`text-center font-mono font-bold uppercase tracking-[2px] ${roomCode.length === 6 ? 'text-void' : 'text-ghost'}`}>
-                                        Join Frequency
-                                    </Text>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        </FadeInView>
-
-                        <FadeInView delay={800}>
-                            <View className="flex-row items-center my-2 mb-4">
-                                <View className="flex-1 h-[1px] bg-ghost/20" />
-                                <Text className="text-ghost/40 font-mono text-[10px] mx-4 uppercase">OR</Text>
-                                <View className="flex-1 h-[1px] bg-ghost/20" />
+                            {/* Footer */}
+                            <View style={styles.footer}>
+                                <Text style={styles.footerText}>
+                                    BRING ONLY WHAT YOU'RE WILLING TO VANISH.
+                                </Text>
                             </View>
-                        </FadeInView>
+                        </Animated.View>
+                    )}
 
-                        <FadeInView delay={900}>
-                            <Animated.View style={{ transform: [{ scale: initScale }] }}>
-                                <TouchableOpacity
-                                    onPress={generateCode}
-                                    onPressIn={() => pressIn(initScale)}
-                                    onPressOut={() => pressOut(initScale)}
-                                    disabled={isGenerating}
-                                    className={`p-4 rounded-xl border border-signal ${isGenerating ? 'opacity-50' : ''}`}
-                                >
-                                    <Text className="text-signal text-center font-mono font-bold uppercase tracking-[2px]">
-                                        {isGenerating ? 'Initializing...' : 'Initialize Handshake'}
-                                    </Text>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        </FadeInView>
-                    </View>
+                    {/* ─── GENERATED Mode ─── */}
+                    {mode === 'GENERATED' && (
+                        <Animated.View
+                            entering={FadeInRight.duration(300)}
+                            exiting={FadeOut.duration(200)}
+                            style={styles.modeContainer}
+                        >
+                            {/* Hero */}
+                            <View style={styles.heroSection}>
+                                <Text style={styles.generatedTitle}>SESSION MADE</Text>
+                                <Text style={styles.generatedSubtitle}>SHARE THE KEY.</Text>
+                                <Text style={styles.generatedSubtitle}>WHEN THEY JOIN, YOU GO LIVE.</Text>
+                            </View>
 
-                    <FadeInView delay={1100} style={{ position: 'absolute', bottom: 32 }}>
-                        <Text className="text-ghost/30 font-mono text-[8px] uppercase tracking-[1px] text-center">
-                            No Accounts. No History. Zero Trace.
-                        </Text>
-                    </FadeInView>
+                            {/* Key Card */}
+                            <View style={styles.keyCard}>
+                                <View style={styles.keyCardHeader}>
+                                    <Text style={styles.keyCardLabel}>SESSION KEY</Text>
+                                    <View style={styles.keyPill}>
+                                        <Text style={styles.keyPillText}>{generatedCode}</Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.keyCardActions}>
+                                    <TouchableOpacity onPress={handleCopy} style={styles.keyActionBtn} activeOpacity={0.7}>
+                                        <Text style={styles.keyActionText}>COPY</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={handleShare} style={styles.keyActionBtn} activeOpacity={0.7}>
+                                        <Text style={styles.keyActionText}>SHARE</Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <Text style={styles.keyCardFooter}>
+                                    CO-CONSPIRATORS JOIN WITH THE KEY.
+                                </Text>
+                            </View>
+
+                            {/* Enter Session */}
+                            <TouchableOpacity onPress={handleEnterSession} style={styles.enterBtn} activeOpacity={0.8}>
+                                <Text style={styles.enterBtnText}>ENTER SESSION</Text>
+                                <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
+                            </TouchableOpacity>
+
+                            {/* Back */}
+                            <TouchableOpacity
+                                onPress={() => setMode('LANDING')}
+                                style={styles.backBtn}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="arrow-back" size={12} color={THEME.faint} />
+                                <Text style={styles.backText}>BACK</Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    )}
                 </View>
             </ScrollView>
 
@@ -250,10 +319,339 @@ export default function SignalTower() {
                 feature="multi_room"
                 onDismiss={() => setShowPaywall(false)}
                 deviceId={deviceId}
-                onSubscribed={handleSubscribed}
+                onSubscribed={async () => { await refreshSubscription(); }}
             />
 
             <StatusBar style="light" />
         </KeyboardAvoidingView>
     );
 }
+
+const styles = StyleSheet.create({
+    // Splash
+    splashContainer: {
+        flex: 1,
+        backgroundColor: THEME.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    splashLogoImage: {
+        width: 200,
+        height: 70,
+        marginBottom: 16,
+    },
+    splashSub: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        letterSpacing: 11 * 0.10,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+        textAlign: 'center',
+        lineHeight: 16,
+    },
+
+    container: {
+        flex: 1,
+        backgroundColor: THEME.bg,
+    },
+    scrollContent: {
+        flexGrow: 1,
+    },
+    inner: {
+        flex: 1,
+        padding: 14,
+        gap: 14,
+    },
+
+    // ── Top Bar ──
+    topBar: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        paddingVertical: 6,
+        paddingTop: 50,
+    },
+    topBrand: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 10 * 0.28,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    topSub: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 10 * 0.18,
+        color: THEME.faint,
+        textTransform: 'uppercase',
+        marginTop: 4,
+    },
+    statusPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 7,
+        paddingHorizontal: 10,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderStyle: 'dashed' as any,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(0,0,0,0.12)',
+    },
+    statusDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 99,
+    },
+    statusText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.10,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+
+    // ── Mode Container ──
+    modeContainer: {
+        flex: 1,
+        gap: 24,
+        justifyContent: 'center',
+    },
+
+    // ── Hero ──
+    heroSection: {
+        alignItems: 'center',
+    },
+    heroTitle: {
+        fontFamily: THEME.mono,
+        fontSize: 24,
+        fontWeight: '900',
+        letterSpacing: 24 * 0.34,
+        color: THEME.ink,
+        textTransform: 'uppercase',
+    },
+    heroSubtitle: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        letterSpacing: 11 * 0.10,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+        lineHeight: 16,
+        marginTop: 2,
+    },
+
+    // ── Generate Button ──
+    generateBtn: {
+        width: '100%',
+        padding: 16,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(245,243,235,0.03)',
+    },
+    generateBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 12 * 0.24,
+        color: THEME.ink,
+        textTransform: 'uppercase',
+        textAlign: 'center',
+    },
+
+    // ── OR Divider ──
+    orRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    orLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: 'rgba(245,243,235,0.12)',
+    },
+    orText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.24,
+        color: THEME.faint,
+        textTransform: 'uppercase',
+    },
+
+    // ── Join Row ──
+    joinRow: {
+        flexDirection: 'row',
+        gap: 10,
+        padding: 12,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderStyle: 'dashed' as any,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(0,0,0,0.14)',
+    },
+    joinInput: {
+        flex: 1,
+        backgroundColor: 'transparent',
+        color: THEME.ink,
+        fontFamily: THEME.mono,
+        fontSize: 14,
+        letterSpacing: 14 * 0.22,
+        fontWeight: '900',
+        textTransform: 'uppercase',
+    },
+    joinBtn: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(245,243,235,0.06)',
+    },
+    joinBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        fontWeight: '900',
+        letterSpacing: 11 * 0.1,
+        color: THEME.ink,
+        textTransform: 'uppercase',
+    },
+
+    // ── Footer ──
+    footer: {
+        marginTop: 'auto',
+        paddingTop: 24,
+    },
+    footerText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.10,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+        textAlign: 'center',
+    },
+
+    // ── Generated Mode ──
+    generatedTitle: {
+        fontFamily: THEME.mono,
+        fontSize: 20,
+        fontWeight: '900',
+        letterSpacing: 20 * 0.28,
+        color: THEME.ink,
+        textTransform: 'uppercase',
+    },
+    generatedSubtitle: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        letterSpacing: 11 * 0.10,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+        lineHeight: 16,
+        marginTop: 2,
+    },
+
+    // ── Key Card ──
+    keyCard: {
+        padding: 24,
+        borderRadius: THEME.r,
+        borderWidth: 1,
+        borderStyle: 'dashed' as any,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(0,0,0,0.10)',
+    },
+    keyCardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+    },
+    keyCardLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.22,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    keyPill: {
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 99,
+        backgroundColor: 'rgba(245,243,235,0.1)',
+    },
+    keyPillText: {
+        fontFamily: THEME.mono,
+        fontSize: 14,
+        fontWeight: '900',
+        letterSpacing: 14 * 0.1,
+        color: THEME.ink,
+        textTransform: 'uppercase',
+    },
+    keyCardActions: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    keyActionBtn: {
+        flex: 1,
+        padding: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderStyle: 'dashed' as any,
+        borderColor: 'rgba(245,243,235,0.2)',
+        alignItems: 'center',
+    },
+    keyActionText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 10 * 0.15,
+        color: THEME.ink,
+        textTransform: 'uppercase',
+    },
+    keyCardFooter: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.12,
+        color: THEME.faint,
+        textTransform: 'uppercase',
+        textAlign: 'center',
+        marginTop: 16,
+    },
+
+    // ── Enter Session Button ──
+    enterBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        width: '100%',
+        padding: 16,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(245,243,235,0.06)',
+    },
+    enterBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 12 * 0.20,
+        color: THEME.ink,
+        textTransform: 'uppercase',
+    },
+
+    // ── Back Button ──
+    backBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 'auto',
+        paddingTop: 16,
+    },
+    backText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        color: THEME.faint,
+        textTransform: 'uppercase',
+    },
+});

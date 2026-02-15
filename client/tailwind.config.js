@@ -5,9 +5,9 @@ module.exports = {
         extend: {
             colors: {
                 void: "#0F1114",
-                signal: "#00FF9D",
-                destruct: "#FF453A",
-                amber: "#FFB800",
+                signal: "#FFFFFF",
+                destruct: "#555555",
+                amber: "#888888",
                 ghost: "#333333",
             },
             fontFamily: {

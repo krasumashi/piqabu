@@ -16,6 +16,16 @@ if (Platform.OS === 'web') {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+// Override DarkTheme bg to match split-sync
+const PiqabuTheme = {
+    ...DarkTheme,
+    colors: {
+        ...DarkTheme.colors,
+        background: '#060709',
+        card: '#060709',
+    },
+};
+
 export default function RootLayout() {
     const [loaded] = useFonts({
         SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -32,12 +42,12 @@ export default function RootLayout() {
     }
 
     return (
-        <ThemeProvider value={DarkTheme}>
+        <ThemeProvider value={PiqabuTheme}>
             <RoomProvider>
                 <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="index" />
-                    <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
-                    <Stack.Screen name="room/index" />
+                    <Stack.Screen name="index" options={{ animation: 'fade' }} />
+                    <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
+                    <Stack.Screen name="room/index" options={{ animation: 'fade' }} />
                 </Stack>
                 <StatusBar style="light" />
             </RoomProvider>

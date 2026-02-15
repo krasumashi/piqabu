@@ -14,9 +14,9 @@ interface RoomTabBarProps {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-    LINKED: '#00FF9D',
-    WAITING: '#FFB800',
-    'SIGNAL LOST': '#FF453A',
+    LINKED: '#FFFFFF',
+    WAITING: '#888888',
+    'SIGNAL LOST': '#555555',
     DISCONNECTED: '#333333',
 };
 
@@ -72,7 +72,7 @@ export default function RoomTabBar({
                                     className="ml-2 p-0.5"
                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                 >
-                                    <Ionicons name="close" size={10} color={isActive ? '#00FF9D' : '#333'} />
+                                    <Ionicons name="close" size={10} color={isActive ? '#FFFFFF' : '#333'} />
                                 </TouchableOpacity>
                             )}
                         </TouchableOpacity>

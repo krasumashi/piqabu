@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Modal, Animated, Share, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-linking';
+import { THEME } from '../constants/Theme';
 
 interface SettingsPanelProps {
     visible: boolean;
@@ -15,36 +15,19 @@ interface SettingsPanelProps {
 export default function SettingsPanel({
     visible, onClose, roomId, linkStatus, onRegenerateKey, onLeaveChannel,
 }: SettingsPanelProps) {
-    const slideAnim = useRef(new Animated.Value(300)).current;
-    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new RNAnimated.Value(300)).current;
+    const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
     useEffect(() => {
         if (visible) {
-            Animated.parallel([
-                Animated.spring(slideAnim, {
-                    toValue: 0,
-                    tension: 65,
-                    friction: 11,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(fadeAnim, {
-                    toValue: 1,
-                    duration: 200,
-                    useNativeDriver: true,
-                }),
+            RNAnimated.parallel([
+                RNAnimated.spring(slideAnim, { toValue: 0, damping: 25, stiffness: 200, useNativeDriver: true }),
+                RNAnimated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
             ]).start();
         } else {
-            Animated.parallel([
-                Animated.timing(slideAnim, {
-                    toValue: 300,
-                    duration: 200,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(fadeAnim, {
-                    toValue: 0,
-                    duration: 200,
-                    useNativeDriver: true,
-                }),
+            RNAnimated.parallel([
+                RNAnimated.timing(slideAnim, { toValue: 300, duration: 200, useNativeDriver: true }),
+                RNAnimated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
             ]).start();
         }
     }, [visible]);
@@ -53,9 +36,7 @@ export default function SettingsPanel({
         if (Platform.OS === 'web') {
             try {
                 await navigator.clipboard.writeText(roomId);
-            } catch {
-                // Fallback: select text
-            }
+            } catch {}
         } else {
             try {
                 await Share.share({ message: `Join my Piqabu session: ${roomId}` });
@@ -68,76 +49,173 @@ export default function SettingsPanel({
     if (!visible) return null;
 
     return (
-        <Modal visible={visible} animationType="none" transparent>
-            <Animated.View
-                style={{ flex: 1, opacity: fadeAnim }}
-                className="bg-void/95"
-            >
-                <View className="flex-1 justify-start pt-20 px-6">
-                    {/* Header */}
-                    <View className="flex-row justify-between items-center mb-8">
-                        <Text className="text-signal font-mono text-sm tracking-[4px] uppercase font-bold">
-                            Settings
-                        </Text>
-                        <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
-                            <Text className="text-ghost font-mono text-xs tracking-[2px] uppercase">Close</Text>
-                        </TouchableOpacity>
-                    </View>
+        <View style={StyleSheet.absoluteFill}>
+            {/* Backdrop */}
+            <RNAnimated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+                <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+            </RNAnimated.View>
 
-                    <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
-                        {/* Channel Key */}
-                        <View className="border border-ghost/30 rounded-xl p-4 mb-4 flex-row justify-between items-center">
-                            <Text className="text-ghost font-mono text-[10px] uppercase tracking-[2px]">Channel Key</Text>
-                            <Text className="text-signal font-mono text-sm font-bold tracking-[2px]">{roomId}</Text>
-                        </View>
-
-                        {/* Share Key */}
-                        <TouchableOpacity
-                            onPress={handleShareKey}
-                            activeOpacity={0.7}
-                            className="border border-ghost/30 rounded-xl p-4 mb-4 flex-row justify-between items-center"
-                        >
-                            <Text className="text-ghost font-mono text-[10px] uppercase tracking-[2px]">Share Key</Text>
-                            <Ionicons name="link-outline" size={18} color="#333" />
-                        </TouchableOpacity>
-
-                        {/* Status */}
-                        <View className="border border-ghost/30 rounded-xl p-4 mb-4 flex-row justify-between items-center">
-                            <Text className="text-ghost font-mono text-[10px] uppercase tracking-[2px]">Status</Text>
-                            <Text className={`font-mono text-xs font-bold tracking-[2px] ${isLive ? 'text-signal' : 'text-amber'}`}>
-                                {isLive ? 'LIVE' : 'WAITING'}
-                            </Text>
-                        </View>
-
-                        {/* Regenerate Key */}
-                        <TouchableOpacity
-                            onPress={onRegenerateKey}
-                            activeOpacity={0.7}
-                            className="border border-ghost/30 rounded-xl p-4 mb-4 flex-row justify-between items-center"
-                        >
-                            <Text className="text-ghost font-mono text-[10px] uppercase tracking-[2px]">Regenerate Key</Text>
-                            <Ionicons name="refresh-outline" size={18} color="#333" />
-                        </TouchableOpacity>
-
-                        {/* Leave Channel */}
-                        <TouchableOpacity
-                            onPress={onLeaveChannel}
-                            activeOpacity={0.7}
-                            className="border border-destruct/40 rounded-xl p-4 flex-row justify-between items-center"
-                        >
-                            <Text className="text-destruct font-mono text-[10px] uppercase tracking-[2px]">Leave Channel</Text>
-                            <Ionicons name="log-out-outline" size={18} color="#FF453A" />
-                        </TouchableOpacity>
-                    </Animated.View>
-
-                    {/* Footer */}
-                    <View className="flex-1 justify-end pb-12">
-                        <Text className="text-ghost/50 font-mono text-[8px] text-center uppercase tracking-[2px]">
-                            Micro: No Accounts. No History.
-                        </Text>
-                    </View>
+            {/* Drawer */}
+            <RNAnimated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}>
+                {/* Header */}
+                <View style={styles.drawerHeader}>
+                    <Text style={styles.drawerTitle}>SETTINGS</Text>
+                    <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+                        <Text style={styles.closeBtnText}>CLOSE</Text>
+                    </TouchableOpacity>
                 </View>
-            </Animated.View>
-        </Modal>
+
+                {/* Channel Key */}
+                <View style={styles.item}>
+                    <Text style={styles.itemLabel}>CHANNEL KEY</Text>
+                    <Text style={styles.itemValueBold}>{roomId || '---'}</Text>
+                </View>
+
+                {/* Share Key */}
+                <TouchableOpacity onPress={handleShareKey} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>SHARE KEY</Text>
+                    <Ionicons name="link-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+
+                {/* Status */}
+                <View style={styles.item}>
+                    <Text style={styles.itemLabel}>STATUS</Text>
+                    <Text style={[styles.itemValueBold, { color: isLive ? THEME.live : THEME.warn }]}>
+                        {isLive ? 'LIVE' : 'WAITING'}
+                    </Text>
+                </View>
+
+                {/* Regenerate Key */}
+                <TouchableOpacity onPress={onRegenerateKey} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>REGENERATE KEY</Text>
+                    <Ionicons name="refresh-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+
+                {/* Leave Channel */}
+                <TouchableOpacity onPress={onLeaveChannel} style={styles.dangerItem} activeOpacity={0.7}>
+                    <Text style={styles.dangerLabel}>LEAVE CHANNEL</Text>
+                    <Ionicons name="log-out-outline" size={14} color={THEME.bad} />
+                </TouchableOpacity>
+
+                {/* Footer */}
+                <View style={styles.drawerFooter}>
+                    <Text style={styles.footerText}>NO ACCOUNTS. NO HISTORY.</Text>
+                </View>
+            </RNAnimated.View>
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        zIndex: 90,
+    },
+    drawer: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: 300,
+        maxWidth: '85%',
+        backgroundColor: 'rgba(15,17,20,0.96)',
+        borderLeftWidth: 1,
+        borderLeftColor: THEME.edge,
+        zIndex: 100,
+        padding: 18,
+        paddingTop: 50,
+        gap: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: -10, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 40,
+        elevation: 20,
+    },
+    drawerHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    drawerTitle: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        letterSpacing: 11 * 0.28,
+        textTransform: 'uppercase',
+        color: THEME.muted,
+        fontWeight: '900',
+    },
+    closeBtn: {
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.20)',
+        backgroundColor: 'transparent',
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 12,
+    },
+    closeBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.22,
+        fontWeight: '900',
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    item: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 12,
+        paddingHorizontal: 10,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.16)',
+        backgroundColor: 'rgba(0,0,0,0.12)',
+    },
+    itemLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.14,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    itemValueBold: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 10 * 0.18,
+        color: THEME.ink,
+        textTransform: 'uppercase',
+    },
+    dangerItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 12,
+        paddingHorizontal: 10,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(120,120,120,0.4)',
+        backgroundColor: 'rgba(120,120,120,0.05)',
+    },
+    dangerLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.14,
+        color: THEME.bad,
+        textTransform: 'uppercase',
+    },
+    drawerFooter: {
+        marginTop: 'auto',
+        paddingVertical: 6,
+    },
+    footerText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.12,
+        color: THEME.faint,
+        lineHeight: 16,
+        textTransform: 'uppercase',
+    },
+});

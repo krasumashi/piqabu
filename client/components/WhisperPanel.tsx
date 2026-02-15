@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    View, Text, TouchableOpacity, Modal, Animated, Platform,
+    View, Text, TouchableOpacity, Modal, StyleSheet, Platform,
+    Animated as RNAnimated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { THEME } from '../constants/Theme';
 
 export type VoiceFilter = 'true' | 'ghost' | 'lowkey' | 'robot';
 
@@ -14,12 +16,18 @@ interface WhisperPanelProps {
     whisperBadge: number;
 }
 
+const VOICE_CHIPS: { label: string; val: VoiceFilter }[] = [
+    { label: 'TRUE', val: 'true' },
+    { label: 'GHOST', val: 'ghost' },
+    { label: 'LOW-KEY', val: 'lowkey' },
+    { label: 'ROBOT', val: 'robot' },
+];
+
 export default function WhisperPanel({
     visible, onClose, onWhisperSend, maxDurationSec, whisperBadge,
 }: WhisperPanelProps) {
-    const slideAnim = useRef(new Animated.Value(400)).current;
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-    const pulseAnim = useRef(new Animated.Value(1)).current;
+    const slideAnim = useRef(new RNAnimated.Value(400)).current;
+    const fadeAnim = useRef(new RNAnimated.Value(0)).current;
     const [selectedFilter, setSelectedFilter] = useState<VoiceFilter>('true');
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
@@ -28,40 +36,17 @@ export default function WhisperPanel({
 
     useEffect(() => {
         if (visible) {
-            Animated.parallel([
-                Animated.spring(slideAnim, {
-                    toValue: 0, tension: 65, friction: 11, useNativeDriver: true,
-                }),
-                Animated.timing(fadeAnim, {
-                    toValue: 1, duration: 200, useNativeDriver: true,
-                }),
+            RNAnimated.parallel([
+                RNAnimated.spring(slideAnim, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
+                RNAnimated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
             ]).start();
         } else {
-            Animated.parallel([
-                Animated.timing(slideAnim, {
-                    toValue: 400, duration: 200, useNativeDriver: true,
-                }),
-                Animated.timing(fadeAnim, {
-                    toValue: 0, duration: 200, useNativeDriver: true,
-                }),
+            RNAnimated.parallel([
+                RNAnimated.timing(slideAnim, { toValue: 400, duration: 200, useNativeDriver: true }),
+                RNAnimated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
             ]).start();
         }
     }, [visible]);
-
-    // Recording pulse animation
-    useEffect(() => {
-        if (isRecording) {
-            Animated.loop(
-                Animated.sequence([
-                    Animated.timing(pulseAnim, { toValue: 1.15, duration: 600, useNativeDriver: true }),
-                    Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-                ])
-            ).start();
-        } else {
-            pulseAnim.stopAnimation();
-            pulseAnim.setValue(1);
-        }
-    }, [isRecording]);
 
     const handlePressIn = async () => {
         try {
@@ -71,11 +56,9 @@ export default function WhisperPanel({
             setIsRecording(true);
             setRecordingTime(0);
 
-            // Start timer
             timerRef.current = setInterval(() => {
                 setRecordingTime(prev => {
                     if (prev >= maxDurationSec) {
-                        // Auto-stop
                         handlePressOut();
                         return prev;
                     }
@@ -83,14 +66,11 @@ export default function WhisperPanel({
                 });
             }, 1000);
 
-            // Max duration guard
             const maxMs = maxDurationSec * 1000;
             const timeout = setTimeout(async () => {
                 if (recorder.isRecording()) {
                     const result = await recorder.stop();
-                    if (result) {
-                        processAndSend(result);
-                    }
+                    if (result) processAndSend(result);
                 }
             }, maxMs);
 
@@ -98,9 +78,7 @@ export default function WhisperPanel({
                 clearTimeout(timeout);
                 if (timerRef.current) clearInterval(timerRef.current);
                 const result = await recorder.stop();
-                if (result) {
-                    processAndSend(result);
-                }
+                if (result) processAndSend(result);
             };
         } catch (e) {
             console.error('Recording failed:', e);
@@ -122,12 +100,9 @@ export default function WhisperPanel({
 
     const processAndSend = async (rawPayload: string) => {
         if (selectedFilter === 'true' || Platform.OS !== 'web') {
-            // No processing — send raw
             onWhisperSend(rawPayload, selectedFilter);
             return;
         }
-
-        // Apply Web Audio filter for web platform
         try {
             const { applyVoiceFilter } = await import('../lib/platform/audioFilters');
             const processed = await applyVoiceFilter(rawPayload, selectedFilter);
@@ -138,136 +113,254 @@ export default function WhisperPanel({
         }
     };
 
-    const FILTERS: { key: VoiceFilter; label: string; icon: string }[] = [
-        { key: 'true', label: 'TRUE', icon: 'mic-outline' },
-        { key: 'ghost', label: 'GHOST', icon: 'skull-outline' },
-        { key: 'lowkey', label: 'LOW-KEY', icon: 'volume-low-outline' },
-        { key: 'robot', label: 'ROBOT', icon: 'hardware-chip-outline' },
-    ];
-
     if (!visible) return null;
 
     return (
-        <Modal visible={visible} animationType="none" transparent>
-            <Animated.View
-                style={{ flex: 1, opacity: fadeAnim }}
-                className="bg-void/95"
-            >
-                <View className="flex-1 justify-end pb-12 px-6">
-                    {/* Header */}
-                    <View className="flex-row justify-between items-center mb-6 pt-20">
-                        <View>
-                            <Text className="text-signal font-mono text-sm tracking-[4px] uppercase font-bold">
-                                Whisper
-                            </Text>
-                            <Text className="text-ghost font-mono text-[8px] uppercase tracking-[1px] mt-1">
-                                Hold to Speak {'\u2022'} Release to Vanish
-                            </Text>
-                        </View>
-                        <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
-                            <Text className="text-ghost font-mono text-xs tracking-[2px] uppercase">Close</Text>
-                        </TouchableOpacity>
+        <View style={StyleSheet.absoluteFill}>
+            {/* Backdrop */}
+            <RNAnimated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+                <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+            </RNAnimated.View>
+
+            {/* Card */}
+            <RNAnimated.View style={[styles.card, { transform: [{ translateY: slideAnim }] }]}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <View>
+                        <Text style={styles.headerTitle}>WHISPER</Text>
+                        <Text style={styles.headerSub}>HOLD TO SPEAK • RELEASE TO VANISH</Text>
+                    </View>
+                    <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+                        <Text style={styles.closeBtnText}>CLOSE</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.body}>
+                    {/* Voice Chips */}
+                    <View style={styles.chipsRow}>
+                        {VOICE_CHIPS.map(chip => (
+                            <TouchableOpacity
+                                key={chip.label}
+                                onPress={() => setSelectedFilter(chip.val)}
+                                style={[
+                                    styles.chip,
+                                    selectedFilter === chip.val && styles.chipActive,
+                                ]}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[
+                                    styles.chipText,
+                                    selectedFilter === chip.val && styles.chipTextActive,
+                                ]}>
+                                    {chip.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
 
-                    <Animated.View style={{ transform: [{ translateY: slideAnim }] }}>
-                        {/* Voice Filter Selector */}
-                        <View className="flex-row justify-between mb-8">
-                            {FILTERS.map((f) => (
-                                <TouchableOpacity
-                                    key={f.key}
-                                    onPress={() => setSelectedFilter(f.key)}
-                                    activeOpacity={0.7}
-                                    className={`flex-1 mx-1 py-3 rounded-xl border items-center ${
-                                        selectedFilter === f.key
-                                            ? 'bg-signal/10 border-signal'
-                                            : 'border-ghost/30'
-                                    }`}
-                                >
-                                    <Ionicons
-                                        name={f.icon as any}
-                                        size={20}
-                                        color={selectedFilter === f.key ? '#00FF9D' : '#555'}
-                                    />
-                                    <Text
-                                        className={`font-mono text-[7px] mt-1 uppercase tracking-[1px] ${
-                                            selectedFilter === f.key ? 'text-signal font-bold' : 'text-ghost/50'
-                                        }`}
-                                    >
-                                        {f.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                    {/* PTT Button */}
+                    <TouchableOpacity
+                        onPressIn={handlePressIn}
+                        onPressOut={handlePressOut}
+                        activeOpacity={0.8}
+                        style={[styles.pttBtn, isRecording && styles.pttBtnActive]}
+                    >
+                        <Text style={[styles.pttLabel, isRecording && styles.pttLabelActive]}>
+                            {isRecording ? 'TRANSMITTING...' : 'HOLD TO WHISPER'}
+                        </Text>
+                        <Text style={styles.pttStatus}>
+                            {isRecording ? `LIVE • ${recordingTime}s` : 'IDLE'}
+                        </Text>
+                    </TouchableOpacity>
 
-                        {/* Recording Timer */}
-                        {isRecording && (
-                            <View className="items-center mb-4">
-                                <Text className="text-destruct font-mono text-2xl font-bold tracking-[4px]">
-                                    {recordingTime}s / {maxDurationSec}s
-                                </Text>
+                    {/* Wave Bar */}
+                    <View style={styles.waveBar}>
+                        {whisperBadge > 0 ? (
+                            <Text style={styles.waveText}>INCOMING TRANSMISSION...</Text>
+                        ) : (
+                            <View style={styles.waveDots}>
+                                {[0.1, 0.35, 0.65, 0.9].map((pos, i) => (
+                                    <View key={i} style={[styles.waveDot, { left: `${pos * 100}%` }]} />
+                                ))}
                             </View>
                         )}
-
-                        {/* Big Record Button */}
-                        <View className="items-center mb-8">
-                            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                                <TouchableOpacity
-                                    onPressIn={handlePressIn}
-                                    onPressOut={handlePressOut}
-                                    activeOpacity={0.8}
-                                    className={`w-28 h-28 rounded-full border-2 items-center justify-center ${
-                                        isRecording
-                                            ? 'bg-destruct/20 border-destruct'
-                                            : 'border-ghost/30'
-                                    }`}
-                                >
-                                    <Ionicons
-                                        name={isRecording ? 'radio' : 'mic-outline'}
-                                        size={40}
-                                        color={isRecording ? '#FF453A' : '#555'}
-                                    />
-                                    <Text
-                                        className={`font-mono text-[8px] mt-2 uppercase tracking-[1px] ${
-                                            isRecording ? 'text-destruct font-bold' : 'text-ghost/50'
-                                        }`}
-                                    >
-                                        {isRecording ? 'Recording' : 'Hold'}
-                                    </Text>
-                                </TouchableOpacity>
-                            </Animated.View>
-                        </View>
-
-                        {/* Badge Indicator */}
-                        {whisperBadge > 0 && (
-                            <View className="items-center mb-4">
-                                <View className="flex-row items-center bg-destruct/10 border border-destruct/30 rounded-full px-4 py-2">
-                                    <Ionicons name="volume-high-outline" size={14} color="#FF453A" />
-                                    <Text className="text-destruct font-mono text-[9px] ml-2 uppercase tracking-[1px]">
-                                        {whisperBadge} Unheard
-                                    </Text>
-                                </View>
-                            </View>
-                        )}
-
-                        {/* Status */}
-                        <View className="border border-ghost/20 rounded-xl p-3 mb-6">
-                            <View className="flex-row justify-between items-center">
-                                <Text className="text-ghost/50 font-mono text-[8px] uppercase tracking-[1px]">
-                                    Filter
-                                </Text>
-                                <Text className="text-signal font-mono text-[9px] uppercase tracking-[1px] font-bold">
-                                    {selectedFilter.toUpperCase()}
-                                </Text>
-                            </View>
-                        </View>
-                    </Animated.View>
+                    </View>
 
                     {/* Footer */}
-                    <Text className="text-ghost/30 font-mono text-[7px] text-center uppercase tracking-[2px]">
-                        No Playback. No History.
-                    </Text>
+                    <Text style={styles.footer}>NO PLAYBACK. NO HISTORY.</Text>
                 </View>
-            </Animated.View>
-        </Modal>
+            </RNAnimated.View>
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        zIndex: 20,
+    },
+    card: {
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        bottom: 16,
+        borderRadius: 26,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.20)',
+        backgroundColor: THEME.paper,
+        zIndex: 21,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 16 },
+        shadowOpacity: 0.6,
+        shadowRadius: 40,
+        elevation: 20,
+        overflow: 'hidden',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        padding: 14,
+        paddingBottom: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(245,243,235,0.14)',
+    },
+    headerTitle: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.28,
+        fontWeight: '900',
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    headerSub: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.12,
+        color: THEME.faint,
+        marginTop: 8,
+        textTransform: 'uppercase',
+    },
+    closeBtn: {
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.20)',
+        backgroundColor: 'transparent',
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: 14,
+    },
+    closeBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.22,
+        fontWeight: '900',
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    body: {
+        padding: 14,
+        gap: 12,
+    },
+    chipsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        flexWrap: 'wrap',
+    },
+    chip: {
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+    },
+    chipActive: {
+        borderColor: 'rgba(255,255,255,0.40)',
+    },
+    chipText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.20,
+        fontWeight: '900',
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    chipTextActive: {
+        color: THEME.ink,
+    },
+    pttBtn: {
+        width: '100%',
+        height: 160,
+        borderRadius: 26,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.22)',
+        backgroundColor: 'rgba(0,0,0,0.10)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 10,
+    },
+    pttBtnActive: {
+        borderWidth: 2,
+        borderColor: THEME.accEmerald,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    pttLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.28,
+        fontWeight: '900',
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    pttLabelActive: {
+        color: THEME.accEmerald,
+    },
+    pttStatus: {
+        fontFamily: THEME.mono,
+        fontSize: 12,
+        letterSpacing: 12 * 0.12,
+        fontWeight: '900',
+        color: THEME.ink,
+        opacity: 0.92,
+        textTransform: 'uppercase',
+    },
+    waveBar: {
+        height: 36,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.16)',
+        backgroundColor: 'rgba(0,0,0,0.10)',
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    waveText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.2,
+        color: THEME.accSky,
+        textTransform: 'uppercase',
+    },
+    waveDots: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+    },
+    waveDot: {
+        position: 'absolute',
+        top: '50%',
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: 'rgba(255,255,255,0.10)',
+        marginTop: -3,
+    },
+    footer: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.12,
+        color: THEME.faint,
+        textAlign: 'center',
+        textTransform: 'uppercase',
+    },
+});

@@ -66,7 +66,7 @@ export default function Onboarding() {
             {/* Animated Icon */}
             <View className="w-28 h-28 border-2 border-signal/40 rounded-full items-center justify-center mb-10">
                 <View className="w-20 h-20 border border-signal/20 rounded-full items-center justify-center">
-                    <Ionicons name={item.icon} size={36} color="#00FF9D" />
+                    <Ionicons name={item.icon} size={36} color="#FFFFFF" />
                 </View>
             </View>
 
@@ -91,7 +91,7 @@ export default function Onboarding() {
     }).current;
 
     return (
-        <View className="flex-1 bg-void">
+        <View className="flex-1" style={{ backgroundColor: '#060709' }}>
             {/* Skip button */}
             <TouchableOpacity
                 onPress={handleFinish}

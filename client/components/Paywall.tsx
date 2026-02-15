@@ -104,7 +104,7 @@ export default function Paywall({ visible, feature, onDismiss, deviceId, onSubsc
                     {/* Feature Icon */}
                     <View className="items-center mb-6">
                         <View className="w-16 h-16 border-2 border-signal/40 rounded-full items-center justify-center mb-4">
-                            <Ionicons name={info.icon} size={28} color="#00FF9D" />
+                            <Ionicons name={info.icon} size={28} color="#FFFFFF" />
                         </View>
                         <Text className="text-signal font-mono text-sm tracking-[3px] uppercase font-bold">
                             {info.title}
@@ -121,7 +121,7 @@ export default function Paywall({ visible, feature, onDismiss, deviceId, onSubsc
                         </Text>
                         {['5 Simultaneous Rooms', 'Live Glass Camera', '60s Whisper Messages', '10 Reveal Images', '10K Character Limit'].map((benefit, i) => (
                             <View key={i} className="flex-row items-center mb-2">
-                                <Ionicons name="checkmark-circle" size={14} color="#00FF9D" />
+                                <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
                                 <Text className="text-ghost font-mono text-[10px] ml-2">{benefit}</Text>
                             </View>
                         ))}
