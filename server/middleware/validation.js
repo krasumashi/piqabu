@@ -125,7 +125,7 @@ function validateJoinRoom(data) {
     };
 }
 
-const VALID_INVITE_FEATURES = ['whisper', 'live_glass'];
+const VALID_INVITE_FEATURES = ['whisper', 'live_glass', 'screen_share'];
 
 function validateInviteFeature(feature) {
     if (typeof feature !== 'string' || !VALID_INVITE_FEATURES.includes(feature)) {

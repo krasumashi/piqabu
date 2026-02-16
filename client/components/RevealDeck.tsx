@@ -1,21 +1,32 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Image, TouchableOpacity, Text, StyleSheet, Alert, ScrollView, Animated as RNAnimated } from 'react-native';
+import {
+    View, Image, TouchableOpacity, Text, StyleSheet, Alert, ScrollView,
+    Animated as RNAnimated, Platform,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 
 const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024;
 
+type EvidenceItem = { id: string; uri: string };
+
+let _idCounter = 0;
+function nextId(): string {
+    return `ev_${Date.now()}_${++_idCounter}`;
+}
+
 export default function RevealDeck({
-    visible, onClose, onReveal, onOpenLiveMirror,
+    visible, onClose, onReveal, onOpenLiveMirror, maxImages = 10,
 }: {
     visible: boolean;
     onClose: () => void;
     onReveal: (payload: string | null) => void;
     onOpenLiveMirror?: () => void;
+    maxImages?: number;
 }) {
-    const [image, setImage] = useState<string | null>(null);
-    const [isRevealed, setRevealed] = useState(false);
+    const [images, setImages] = useState<EvidenceItem[]>([]);
+    const [exposedId, setExposedId] = useState<string | null>(null);
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
@@ -32,6 +43,11 @@ export default function RevealDeck({
     }, [visible]);
 
     const pickImage = async () => {
+        if (images.length >= maxImages) {
+            Alert.alert('Limit Reached', `Maximum ${maxImages} images allowed.`);
+            return;
+        }
+
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             base64: true,
@@ -39,8 +55,10 @@ export default function RevealDeck({
         });
 
         if (!result.canceled && result.assets[0].base64) {
-            const dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+            let dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+
             if (dataUri.length > MAX_IMAGE_SIZE) {
+                // Try lower quality
                 const lowRes = await ImagePicker.launchImageLibraryAsync({
                     mediaTypes: ImagePicker.MediaTypeOptions.Images,
                     base64: true,
@@ -52,27 +70,41 @@ export default function RevealDeck({
                         Alert.alert('File Too Large', 'Image is too large even at low quality. Choose a smaller image.');
                         return;
                     }
-                    setImage(lowUri);
-                    setRevealed(false);
+                    dataUri = lowUri;
+                } else {
                     return;
                 }
-                return;
             }
-            setImage(dataUri);
-            setRevealed(false);
+
+            setImages(prev => [...prev, { id: nextId(), uri: dataUri }]);
         }
     };
 
-    const toggleReveal = () => {
-        if (!image) return;
-        const newState = !isRevealed;
-        setRevealed(newState);
-        onReveal(newState ? image : null);
+    // Radio-style expose: only ONE image exposed at a time
+    const toggleExpose = (id: string) => {
+        if (exposedId === id) {
+            // Already exposed → cover it
+            setExposedId(null);
+            onReveal(null);
+        } else {
+            // Expose this one (covers previous)
+            setExposedId(id);
+            const item = images.find(i => i.id === id);
+            if (item) onReveal(item.uri);
+        }
     };
 
-    const clear = () => {
-        setImage(null);
-        setRevealed(false);
+    const removeImage = (id: string) => {
+        setImages(prev => prev.filter(i => i.id !== id));
+        if (exposedId === id) {
+            setExposedId(null);
+            onReveal(null);
+        }
+    };
+
+    const clearAll = () => {
+        setImages([]);
+        setExposedId(null);
         onReveal(null);
     };
 
@@ -92,7 +124,7 @@ export default function RevealDeck({
                     <View>
                         <Text style={styles.headerTitle}>REVEAL VAULT</Text>
                         <Text style={styles.headerSub}>
-                            LOADED: {image ? '1' : '0'} • EXPOSED: {isRevealed ? '1' : '0'}
+                            LOADED: {images.length} • EXPOSED: {exposedId ? '1' : '0'}
                         </Text>
                     </View>
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -113,8 +145,8 @@ export default function RevealDeck({
                         </TouchableOpacity>
                     )}
 
-                    {image && (
-                        <TouchableOpacity onPress={clear} style={[styles.actionBtn, { marginLeft: 'auto' }]} activeOpacity={0.7}>
+                    {images.length > 0 && (
+                        <TouchableOpacity onPress={clearAll} style={[styles.actionBtn, { marginLeft: 'auto' }]} activeOpacity={0.7}>
                             <Text style={[styles.actionBtnText, { color: THEME.bad }]}>CLEAR ALL</Text>
                         </TouchableOpacity>
                     )}
@@ -122,41 +154,54 @@ export default function RevealDeck({
 
                 {/* Content */}
                 <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-                    {!image ? (
+                    {images.length === 0 ? (
                         <View style={styles.emptyState}>
                             <Ionicons name="folder-open-outline" size={32} color={THEME.faint} />
                             <Text style={styles.emptyText}>NO EVIDENCE LOADED</Text>
                         </View>
                     ) : (
-                        <View style={styles.evidenceRow}>
-                            {/* Thumbnail */}
-                            <View style={styles.thumb}>
-                                <Image source={{ uri: image }} style={styles.thumbImage} resizeMode="cover" />
-                            </View>
+                        images.map((item, idx) => {
+                            const isExposed = exposedId === item.id;
+                            return (
+                                <View key={item.id} style={styles.evidenceRow}>
+                                    {/* Thumbnail */}
+                                    <View style={styles.thumb}>
+                                        <Image source={{ uri: item.uri }} style={styles.thumbImage} resizeMode="cover" />
+                                    </View>
 
-                            {/* Meta */}
-                            <View style={styles.meta}>
-                                <Text style={styles.metaTitle}>EVIDENCE 1</Text>
-                                <View style={styles.metaRow}>
-                                    <Text style={styles.metaType}>IMAGE</Text>
-                                    <Text style={styles.metaDivider}>•</Text>
-                                    <Text style={[styles.metaStatus, isRevealed && { color: THEME.accEmerald }]}>
-                                        {isRevealed ? 'EXPOSED' : 'HIDDEN'}
-                                    </Text>
+                                    {/* Meta */}
+                                    <View style={styles.meta}>
+                                        <Text style={styles.metaTitle}>EVIDENCE {idx + 1}</Text>
+                                        <View style={styles.metaRow}>
+                                            <Text style={styles.metaType}>IMAGE</Text>
+                                            <Text style={styles.metaDivider}>•</Text>
+                                            <Text style={[styles.metaStatus, isExposed && { color: THEME.accEmerald }]}>
+                                                {isExposed ? 'EXPOSED' : 'HIDDEN'}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Actions: Expose/Cover + Delete */}
+                                    <TouchableOpacity
+                                        onPress={() => removeImage(item.id)}
+                                        style={styles.deleteBtn}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="trash-outline" size={14} color={THEME.faint} />
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        onPress={() => toggleExpose(item.id)}
+                                        style={[styles.toggleBtn, isExposed && styles.toggleBtnActive]}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={[styles.toggleText, isExposed && styles.toggleTextActive]}>
+                                            {isExposed ? 'COVER' : 'EXPOSE'}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
-                            </View>
-
-                            {/* Toggle */}
-                            <TouchableOpacity
-                                onPress={toggleReveal}
-                                style={[styles.toggleBtn, isRevealed && styles.toggleBtnActive]}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={[styles.toggleText, isRevealed && styles.toggleTextActive]}>
-                                    {isRevealed ? 'COVER' : 'EXPOSE'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
+                            );
+                        })
                     )}
                 </ScrollView>
 
@@ -350,6 +395,15 @@ const styles = StyleSheet.create({
         letterSpacing: 10 * 0.14,
         color: THEME.faint,
         textTransform: 'uppercase',
+    },
+    deleteBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.12)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     toggleBtn: {
         paddingVertical: 8,

@@ -20,6 +20,9 @@ import WhisperPanel from '../../components/WhisperPanel';
 import InviteOverlay from '../../components/InviteOverlay';
 import ListeningIndicator from '../../components/ListeningIndicator';
 import LiveGlassPanel from '../../components/LiveGlassPanel';
+import ScreenSharePanel from '../../components/ScreenSharePanel';
+import PresencePulse from '../../components/PresencePulse';
+import { usePresence } from '../../hooks/usePresence';
 import Paywall from '../../components/Paywall';
 import { THEME } from '../../constants/Theme';
 import type { VoiceFilter } from '../../components/WhisperPanel';
@@ -113,12 +116,14 @@ function TypingIndicator({ isTyping }: { isTyping: boolean }) {
 // ═══════════════════════════════════════════
 //  Active Room Content (per-room isolated)
 // ═══════════════════════════════════════════
-function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
+function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShare }: {
     roomId: string;
     onOpenSettings: () => void;
     onOpenLiveGlass: () => void;
+    onOpenScreenShare: (asSharer: boolean) => void;
 }) {
     const { socket, deviceId, limits } = useRoomContext();
+    const { partnerPresence, sendPulseTap } = usePresence(socket, roomId);
     const {
         linkStatus, remoteText, remoteReveal, remoteWhisper,
         sendText, sendVanish, sendReveal,
@@ -135,9 +140,13 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
     const [vanishDuration, setVanishDuration] = useState(0);
     const [incomingWhisper, setIncomingWhisper] = useState(false);
 
-    // ── Auto-vanish segment tracking ──
-    const vanishTimersRef = useRef<Array<{ startLen: number; endLen: number; timerId: ReturnType<typeof setTimeout>; intervalId?: ReturnType<typeof setInterval> }>>([]);
-    const prevTextLenRef = useRef(0);
+    // ── Auto-vanish segment tracking (isolated segments prevent typing interference) ──
+    type VanishSegment = { id: string; text: string; createdAt: number };
+    const [vanishSegments, setVanishSegments] = useState<VanishSegment[]>([]);
+    const activeSegIdRef = useRef<string | null>(null);
+    const vanishTimerMapRef = useRef<Map<string, { timerId: ReturnType<typeof setTimeout>; intervalId?: ReturnType<typeof setInterval> }>>(new Map());
+    const segCounterRef = useRef(0);
+    const lastInputTextRef = useRef('');
 
     // ── Keyboard-aware dynamic split ──
     const remoteFlex = useRef(new RNAnimated.Value(1)).current;
@@ -206,72 +215,149 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
         setVanishDuration(next);
     };
 
-    // ── Auto-vanish: schedule character removal for new text ──
+    // ── Derive localText from segments ──
+    const segmentText = vanishSegments.map(s => s.text).join('');
+
+    // ── Sync localText with segment-derived text ──
     useEffect(() => {
+        if (localText !== segmentText) {
+            setLocalText(segmentText);
+            batchSendText(segmentText);
+        }
+    }, [segmentText]);
+
+    // ── Handle text input changes — diff against segments ──
+    const handleTextChange = useCallback((newText: string) => {
+        if (newText.length > limits.textLimit) return;
+        lastInputTextRef.current = newText;
+        const currentJoined = vanishSegments.map(s => s.text).join('');
+
         if (vanishDuration === 0) {
-            // Clear all pending vanish timers
-            vanishTimersRef.current.forEach(seg => {
-                clearTimeout(seg.timerId);
-                if (seg.intervalId) clearInterval(seg.intervalId);
-            });
-            vanishTimersRef.current = [];
-            prevTextLenRef.current = localText.length;
+            // No vanish — just use flat text
+            setLocalText(newText);
+            batchSendText(newText);
+            setVanishSegments([]);
+            activeSegIdRef.current = null;
             return;
         }
 
-        const newLen = localText.length;
-        const oldLen = prevTextLenRef.current;
+        if (newText.length > currentJoined.length) {
+            // Characters were added — append to active segment or create new one
+            const addedChars = newText.slice(currentJoined.length);
+            setVanishSegments(prev => {
+                const activeId = activeSegIdRef.current;
+                const lastSeg = prev.length > 0 ? prev[prev.length - 1] : null;
 
-        if (newLen > oldLen) {
-            // New characters typed — schedule vanish for them
-            const segStartLen = oldLen;
-            const segEndLen = newLen;
-            const charCount = segEndLen - segStartLen;
+                if (activeId && lastSeg && lastSeg.id === activeId) {
+                    // Extend active segment
+                    return prev.map(s =>
+                        s.id === activeId ? { ...s, text: s.text + addedChars } : s
+                    );
+                } else {
+                    // Create new segment
+                    const id = `seg_${++segCounterRef.current}`;
+                    activeSegIdRef.current = id;
+                    return [...prev, { id, text: addedChars, createdAt: Date.now() }];
+                }
+            });
+        } else if (newText.length < currentJoined.length) {
+            // Characters were deleted (backspace) — remove from end of last non-empty segment
+            const charsToRemove = currentJoined.length - newText.length;
+            setVanishSegments(prev => {
+                const updated = [...prev];
+                let remaining = charsToRemove;
+                for (let i = updated.length - 1; i >= 0 && remaining > 0; i--) {
+                    const seg = updated[i];
+                    if (seg.text.length <= remaining) {
+                        remaining -= seg.text.length;
+                        updated[i] = { ...seg, text: '' };
+                    } else {
+                        updated[i] = { ...seg, text: seg.text.slice(0, seg.text.length - remaining) };
+                        remaining = 0;
+                    }
+                }
+                return updated.filter(s => s.text.length > 0);
+            });
+        }
+
+        setLocalText(newText);
+        batchSendText(newText);
+    }, [vanishDuration, vanishSegments, batchSendText, limits.textLimit]);
+
+    // ── Schedule vanish timers for new/growing segments ──
+    useEffect(() => {
+        if (vanishDuration === 0) {
+            // Clear all timers
+            vanishTimerMapRef.current.forEach(({ timerId, intervalId }) => {
+                clearTimeout(timerId);
+                if (intervalId) clearInterval(intervalId);
+            });
+            vanishTimerMapRef.current.clear();
+            return;
+        }
+
+        // Check each segment — if it doesn't have a timer yet, schedule one
+        vanishSegments.forEach(seg => {
+            if (vanishTimerMapRef.current.has(seg.id)) return; // Already scheduled
 
             const timerId = setTimeout(() => {
-                // Remove characters one-by-one from end of this segment
-                let remaining = charCount;
+                // Start decaying this segment character by character
                 const intervalId = setInterval(() => {
-                    remaining--;
-                    if (remaining < 0) {
-                        clearInterval(intervalId);
-                        // Remove this segment from tracking
-                        vanishTimersRef.current = vanishTimersRef.current.filter(s => s.timerId !== timerId);
-                        return;
-                    }
-                    setLocalText(prev => {
-                        // Find the adjusted position (segments before this may have shrunk)
-                        const pos = Math.min(segStartLen + remaining, prev.length);
-                        if (pos >= prev.length) {
-                            // Just remove last character
-                            const updated = prev.slice(0, -1);
-                            batchSendText(updated);
-                            return updated;
+                    setVanishSegments(prev => {
+                        const target = prev.find(s => s.id === seg.id);
+                        if (!target || target.text.length === 0) {
+                            // Segment fully decayed — clear interval and remove
+                            const timer = vanishTimerMapRef.current.get(seg.id);
+                            if (timer?.intervalId) clearInterval(timer.intervalId);
+                            vanishTimerMapRef.current.delete(seg.id);
+                            return prev.filter(s => s.id !== seg.id);
                         }
-                        const updated = prev.slice(0, pos) + prev.slice(pos + 1);
-                        batchSendText(updated);
-                        return updated;
+                        // Remove last character of THIS segment only
+                        return prev.map(s =>
+                            s.id === seg.id ? { ...s, text: s.text.slice(0, -1) } : s
+                        );
                     });
                 }, 30);
 
-                // Store intervalId for cleanup
-                const seg = vanishTimersRef.current.find(s => s.timerId === timerId);
-                if (seg) seg.intervalId = intervalId;
+                // Store intervalId
+                const entry = vanishTimerMapRef.current.get(seg.id);
+                if (entry) entry.intervalId = intervalId;
             }, vanishDuration);
 
-            vanishTimersRef.current.push({ startLen: segStartLen, endLen: segEndLen, timerId });
-        }
+            vanishTimerMapRef.current.set(seg.id, { timerId });
+        });
 
-        prevTextLenRef.current = newLen;
-    }, [localText, vanishDuration, batchSendText]);
+        // Clean up timers for segments that no longer exist
+        vanishTimerMapRef.current.forEach(({ timerId, intervalId }, id) => {
+            if (!vanishSegments.find(s => s.id === id)) {
+                clearTimeout(timerId);
+                if (intervalId) clearInterval(intervalId);
+                vanishTimerMapRef.current.delete(id);
+            }
+        });
+    }, [vanishSegments, vanishDuration]);
 
-    // ── Cleanup vanish timers on unmount ──
+    // ── Create new segment on typing pause (300ms idle = new segment) ──
+    const segmentPauseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        if (vanishDuration === 0) return;
+        if (segmentPauseRef.current) clearTimeout(segmentPauseRef.current);
+        segmentPauseRef.current = setTimeout(() => {
+            activeSegIdRef.current = null; // Next keystroke creates new segment
+        }, 300);
+        return () => {
+            if (segmentPauseRef.current) clearTimeout(segmentPauseRef.current);
+        };
+    }, [localText, vanishDuration]);
+
+    // ── Cleanup vanish timers on unmount or vanishDuration change to 0 ──
     useEffect(() => {
         return () => {
-            vanishTimersRef.current.forEach(seg => {
-                clearTimeout(seg.timerId);
-                if (seg.intervalId) clearInterval(seg.intervalId);
+            vanishTimerMapRef.current.forEach(({ timerId, intervalId }) => {
+                clearTimeout(timerId);
+                if (intervalId) clearInterval(intervalId);
             });
+            vanishTimerMapRef.current.clear();
         };
     }, []);
 
@@ -323,10 +409,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
                 setActiveOverlay('whisper');
             } else if (inviteFeature === 'live_glass') {
                 onOpenLiveGlass();
+            } else if (inviteFeature === 'screen_share') {
+                onOpenScreenShare(true); // Your invite was accepted = you're the sharer
             }
             clearInviteStatus();
         }
-    }, [inviteStatus, inviteFeature, clearInviteStatus, onOpenLiveGlass]);
+    }, [inviteStatus, inviteFeature, clearInviteStatus, onOpenLiveGlass, onOpenScreenShare]);
 
     const isLinked = linkStatus === 'LINKED';
     const partnerConnected = linkStatus === 'LINKED';
@@ -336,6 +424,13 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
             {/* ─── Session Header ─── */}
             <View style={st.header}>
                 <View style={st.headerLeft}>
+                    <PresencePulse
+                        partnerPresence={partnerPresence}
+                        onTap={sendPulseTap}
+                        onLongPress={() => {
+                            sendPulseTap(); // Sync pulse on long-press
+                        }}
+                    />
                     <View style={st.statusPill}>
                         <View style={[
                             st.statusDot,
@@ -423,11 +518,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
                             <TextInput
                                 multiline
                                 value={localText}
-                                onChangeText={(text) => {
-                                    if (text.length > limits.textLimit) return;
-                                    setLocalText(text);
-                                    batchSendText(text);
-                                }}
+                                onChangeText={handleTextChange}
                                 placeholder="START TRANSMISSION..."
                                 placeholderTextColor={THEME.faint}
                                 style={st.textArea}
@@ -456,7 +547,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
                 onReveal={sendReveal}
                 onOpenLiveMirror={() => {
                     setActiveOverlay(null);
-                    Alert.alert('Coming Soon', 'Live Mirror screen sharing will be available in a future update.');
+                    onOpenScreenShare(true); // You initiated = you're the sharer
                 }}
             />
             <PeepDeck
@@ -475,7 +566,11 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
             {/* Invite Overlay */}
             <InviteOverlay
                 visible={pendingInvite !== null}
-                feature={pendingInvite?.feature === 'live_glass' ? 'LIVE GLASS' : 'WHISPER'}
+                feature={
+                    pendingInvite?.feature === 'live_glass' ? 'LIVE GLASS'
+                    : pendingInvite?.feature === 'screen_share' ? 'SCREEN SHARE'
+                    : 'WHISPER'
+                }
                 onAccept={() => {
                     if (pendingInvite) {
                         acceptInvite(pendingInvite.feature);
@@ -483,6 +578,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass }: {
                             setActiveOverlay('whisper');
                         } else if (pendingInvite.feature === 'live_glass') {
                             onOpenLiveGlass();
+                        } else if (pendingInvite.feature === 'screen_share') {
+                            onOpenScreenShare(false); // Accepting invite = you're the viewer
                         }
                     }
                 }}
@@ -511,6 +608,8 @@ export default function RoomScreen() {
     const [paywallFeature, setPaywallFeature] = useState('multi_room');
     const [showSettings, setShowSettings] = useState(false);
     const [showLiveGlass, setShowLiveGlass] = useState(false);
+    const [showScreenShare, setShowScreenShare] = useState(false);
+    const [isScreenSharer, setIsScreenSharer] = useState(false);
 
     const [roomStatuses, setRoomStatuses] = useState<Record<string, LinkStatus>>({});
 
@@ -584,6 +683,10 @@ export default function RoomScreen() {
                 key={activeRoomId} roomId={activeRoomId}
                 onOpenSettings={() => setShowSettings(true)}
                 onOpenLiveGlass={() => setShowLiveGlass(true)}
+                onOpenScreenShare={(asSharer: boolean) => {
+                    setIsScreenSharer(asSharer);
+                    setShowScreenShare(true);
+                }}
             />
 
             <SettingsPanel
@@ -598,6 +701,18 @@ export default function RoomScreen() {
                 onClose={() => setShowLiveGlass(false)}
                 socket={socket}
                 roomId={activeRoomId}
+            />
+
+            {/* Screen Share */}
+            <ScreenSharePanel
+                visible={showScreenShare}
+                onClose={() => {
+                    setShowScreenShare(false);
+                    setIsScreenSharer(false);
+                }}
+                socket={socket}
+                roomId={activeRoomId}
+                isSharer={isScreenSharer}
             />
 
             {/* Add Room Modal */}

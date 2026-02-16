@@ -361,7 +361,7 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('invite_declined', { roomId, feature: featureResult.sanitized });
     });
 
-    // --- LIVE GLASS Frame Streaming ---
+    // --- LIVE GLASS Frame Streaming (legacy — kept for compat) ---
     socket.on('transmit_live_glass_frame', (data) => {
         const participant = getParticipant(socket.id);
         if (!participant) return;
@@ -371,7 +371,7 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('remote_live_glass_frame', { roomId, frame: data.frame });
     });
 
-    // --- LIVE GLASS Audio Streaming ---
+    // --- LIVE GLASS Audio Streaming (legacy — kept for compat) ---
     socket.on('transmit_live_glass_audio', (data) => {
         const participant = getParticipant(socket.id);
         if (!participant) return;
@@ -379,6 +379,80 @@ io.on('connection', (socket) => {
         if (!roomId || !participant.rooms.has(roomId)) return;
         if (typeof data.audio !== 'string' || data.audio.length > 150000) return;
         socket.to(roomId).emit('remote_live_glass_audio', { roomId, audio: data.audio });
+    });
+
+    // --- WebRTC Ready (Live Glass handshake) ---
+    socket.on('webrtc_ready', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        socket.to(roomId).emit('webrtc_ready', { roomId });
+    });
+
+    // --- WebRTC Signaling (Live Glass peer-to-peer video) ---
+    socket.on('webrtc_signal', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        if (typeof data.type !== 'string') return;
+        // Relay the signal to the other peer in the room
+        socket.to(roomId).emit('webrtc_signal', {
+            roomId,
+            type: data.type,
+            sdp: data.sdp,
+            candidate: data.candidate,
+            from: socket.id,
+        });
+    });
+
+    // --- Screen Share Signaling ---
+    socket.on('screen_share_signal', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        if (typeof data.type !== 'string') return;
+        socket.to(roomId).emit('screen_share_signal', {
+            roomId,
+            type: data.type,
+            sdp: data.sdp,
+            candidate: data.candidate,
+        });
+    });
+
+    // --- Screen Share Controls (blur relay) ---
+    socket.on('transmit_screen_share_controls', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        if (typeof data.controls !== 'object' || data.controls === null) return;
+        socket.to(roomId).emit('transmit_screen_share_controls', {
+            roomId,
+            controls: { blur: Number(data.controls.blur) || 0 },
+        });
+    });
+
+    // --- Presence Pulse ---
+    socket.on('transmit_presence', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        const activity = typeof data.activity === 'number' ? Math.min(1, Math.max(0, data.activity)) : 0.5;
+        const brightness = typeof data.brightness === 'number' ? Math.min(1, Math.max(0, data.brightness)) : 0.5;
+        socket.to(roomId).emit('remote_presence', { roomId, activity, brightness });
+    });
+
+    // --- Presence Pulse Tap (haptic) ---
+    socket.on('transmit_pulse_tap', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        socket.to(roomId).emit('remote_pulse_tap', { roomId });
     });
 
     // --- Disconnect Intent (leaves all rooms) ---

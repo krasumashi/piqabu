@@ -104,7 +104,7 @@ function createNativeAudioRecorder(): AudioRecorder {
             const base64 = await FileSystem.readAsStringAsync(uri, {
                 encoding: FileSystem.EncodingType.Base64,
             });
-            return `data:audio/m4a;base64,${base64}`;
+            return `data:audio/mp4;base64,${base64}`;
         },
 
         isRecording: () => recording !== null,
@@ -138,29 +138,45 @@ export async function playAudioFromDataUri(dataUri: string, rate: number = 1.0):
 
     // Write base64 to temp file for reliable Android playback
     let playUri = dataUri;
+    let tempFile: string | null = null;
     try {
         const base64Data = dataUri.split(',')[1];
         if (base64Data) {
-            const tempUri = FileSystem.cacheDirectory + 'whisper_play_' + Date.now() + '.m4a';
-            await FileSystem.writeAsStringAsync(tempUri, base64Data, {
+            tempFile = FileSystem.cacheDirectory + 'whisper_play_' + Date.now() + '.mp4';
+            await FileSystem.writeAsStringAsync(tempFile, base64Data, {
                 encoding: FileSystem.EncodingType.Base64,
             });
-            playUri = tempUri;
+            playUri = tempFile;
         }
     } catch (e) {
         console.warn('[Audio] Temp file write failed, using data URI:', e);
     }
 
-    const { sound } = await Audio.Sound.createAsync(
-        { uri: playUri },
-        { shouldPlay: true, rate, shouldCorrectPitch: false }
-    );
-    return new Promise<void>((resolve) => {
-        sound.setOnPlaybackStatusUpdate((status: any) => {
-            if (status.didJustFinish) {
+    try {
+        const { sound } = await Audio.Sound.createAsync(
+            { uri: playUri },
+            { shouldPlay: true, rate, shouldCorrectPitch: false }
+        );
+
+        return await new Promise<void>((resolve) => {
+            // Timeout safety: resolve after 10s max to prevent hanging
+            const timeout = setTimeout(() => {
                 sound.unloadAsync().catch(() => {});
                 resolve();
-            }
+            }, 10000);
+
+            sound.setOnPlaybackStatusUpdate((status: any) => {
+                if (status.didJustFinish) {
+                    clearTimeout(timeout);
+                    sound.unloadAsync().catch(() => {});
+                    resolve();
+                }
+            });
         });
-    });
+    } finally {
+        // Clean up temp file
+        if (tempFile) {
+            FileSystem.deleteAsync(tempFile, { idempotent: true }).catch(() => {});
+        }
+    }
 }

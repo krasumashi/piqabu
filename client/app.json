@@ -42,7 +42,11 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      ["@config-plugins/react-native-webrtc", {
+        "cameraPermission": "Piqabu uses the camera for the Live Glass feature",
+        "microphonePermission": "Piqabu uses the microphone for Whisper and Live Glass"
+      }]
     ]
   }
 }
