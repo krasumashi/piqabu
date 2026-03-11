@@ -25,12 +25,17 @@ interface RoomContextValue {
     limits: TierLimits;
     isSubLoading: boolean;
     refreshSubscription: () => Promise<void>;
+
+    // Admin
+    maintenanceMode: boolean;
+    maintenanceMessage: string;
+    adminBroadcast: string | null;
 }
 
 const RoomCtx = createContext<RoomContextValue | null>(null);
 
 export function RoomProvider({ children }: { children: React.ReactNode }) {
-    const { socket, deviceId, isConnected, requestRoomCode } = useSocketManager();
+    const { socket, deviceId, isConnected, requestRoomCode, maintenanceMode, maintenanceMessage, adminBroadcast } = useSocketManager();
     const { tier, isPro, limits, isLoading: isSubLoading, refresh: refreshSubscription } = useSubscription(deviceId);
     const { rooms, activeRoomId, addRoom, removeRoom, switchRoom } = useRoomManager(limits.maxRooms);
 
@@ -51,6 +56,9 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
                 limits,
                 isSubLoading,
                 refreshSubscription,
+                maintenanceMode,
+                maintenanceMessage,
+                adminBroadcast,
             }}
         >
             {children}

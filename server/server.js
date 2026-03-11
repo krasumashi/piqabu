@@ -20,7 +20,10 @@ const {
     validateInviteFeature,
 } = require('./middleware/validation');
 const { getTier } = require('./lib/subscriptionStore');
+const adminStore = require('./lib/adminStore');
 const stripeRoutes = require('./routes/stripe');
+const { createAdminRouter } = require('./routes/admin');
+const path = require('path');
 
 const app = express();
 
@@ -54,6 +57,9 @@ app.get('/health', healthLimiter, (req, res) => {
 // Stripe subscription routes (checkout, status, webhook)
 app.use(stripeRoutes);
 
+// Serve static files (admin dashboard)
+app.use(express.static(path.join(__dirname, 'public')));
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
@@ -78,6 +84,9 @@ const rooms = new Map();
 
 // Multi-room participants: Map<socketId, { rooms: Set<roomId>, deviceId: string }>
 const participants = new Map();
+
+// Mount admin routes
+app.use('/admin', createAdminRouter({ io, rooms, participants }));
 
 // Tier room limits
 const ROOM_LIMITS = { free: 1, pro: 5 };
@@ -178,6 +187,23 @@ io.on('connection', (socket) => {
         }
 
         const { roomId, deviceId } = result.sanitized;
+
+        // Check maintenance mode
+        const adminState = adminStore.getState();
+        if (adminState.maintenanceMode) {
+            socket.emit('signal_blocked', {
+                message: 'MAINTENANCE',
+                detail: adminState.maintenanceMessage || 'System is under maintenance.',
+            });
+            return;
+        }
+
+        // Check if device is blocked
+        if (adminStore.isBlocked(deviceId)) {
+            socket.emit('signal_blocked', { message: 'DEVICE_BLOCKED' });
+            return;
+        }
+
         const participant = ensureParticipant(socket, deviceId);
 
         // Check room limit based on tier
@@ -396,13 +422,12 @@ io.on('connection', (socket) => {
         if (!participant) return;
         const roomId = extractRoomId(data);
         if (!roomId || !participant.rooms.has(roomId)) return;
-        if (typeof data.type !== 'string') return;
-        // Relay the signal to the other peer in the room
+        // Client sends { roomId, signal: { type, payload } }
+        if (!data.signal || typeof data.signal.type !== 'string') return;
+        // Relay as-is so the receiving client gets the same structure
         socket.to(roomId).emit('webrtc_signal', {
             roomId,
-            type: data.type,
-            sdp: data.sdp,
-            candidate: data.candidate,
+            signal: data.signal,
             from: socket.id,
         });
     });

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Alert, Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { CONFIG } from '../constants/Config';
 import { getSecureItem, setSecureItem } from '../lib/platform/storage';
@@ -8,6 +9,9 @@ export function useSocketManager() {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [deviceId, setDeviceId] = useState<string | null>(null);
     const [isConnected, setIsConnected] = useState(false);
+    const [maintenanceMode, setMaintenanceMode] = useState(false);
+    const [maintenanceMessage, setMaintenanceMessage] = useState('');
+    const [adminBroadcast, setAdminBroadcast] = useState<string | null>(null);
 
     const socketRef = useRef<Socket | null>(null);
     const heartbeatInterval = useRef<NodeJS.Timeout>();
@@ -45,6 +49,27 @@ export function useSocketManager() {
                 setIsConnected(false);
             });
 
+            // Admin events
+            newSocket.on('maintenance_mode', (data: { enabled: boolean; message: string }) => {
+                setMaintenanceMode(data.enabled);
+                setMaintenanceMessage(data.message || '');
+            });
+
+            newSocket.on('admin_broadcast', (data: { message: string }) => {
+                setAdminBroadcast(data.message);
+                // Auto-clear after 10s
+                setTimeout(() => setAdminBroadcast(null), 10000);
+            });
+
+            newSocket.on('force_disconnect', (data: { message: string }) => {
+                if (Platform.OS === 'web') {
+                    alert(data.message || 'You have been disconnected.');
+                } else {
+                    Alert.alert('Disconnected', data.message || 'You have been disconnected.');
+                }
+                newSocket.disconnect();
+            });
+
             socketRef.current = newSocket;
             setSocket(newSocket);
         };
@@ -80,5 +105,8 @@ export function useSocketManager() {
         deviceId,
         isConnected,
         requestRoomCode,
+        maintenanceMode,
+        maintenanceMessage,
+        adminBroadcast,
     };
 }

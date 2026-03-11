@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PIQABU TOWER — ADMIN</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+        font-family: 'Space Mono', monospace;
+        background: #060709;
+        color: rgba(245,243,235,0.92);
+        min-height: 100vh;
+        padding: 24px;
+    }
+
+    .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 20px;
+        border-bottom: 1px solid rgba(245,243,235,0.14);
+        margin-bottom: 24px;
+    }
+    .header h1 {
+        font-size: 11px;
+        letter-spacing: 3px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: rgba(245,243,235,0.62);
+    }
+    .header .dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.85);
+        display: inline-block;
+        margin-right: 10px;
+        box-shadow: 0 0 8px rgba(255,255,255,0.6);
+    }
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .refresh-label {
+        font-size: 9px;
+        letter-spacing: 1.5px;
+        color: rgba(245,243,235,0.38);
+        text-transform: uppercase;
+    }
+
+    /* Auth overlay */
+    #auth-overlay {
+        position: fixed; inset: 0;
+        background: #060709;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+    }
+    .auth-card {
+        background: #0F1114;
+        border: 1px solid rgba(245,243,235,0.18);
+        border-radius: 22px;
+        padding: 32px;
+        width: 100%;
+        max-width: 380px;
+        text-align: center;
+    }
+    .auth-card h2 {
+        font-size: 10px;
+        letter-spacing: 2.8px;
+        font-weight: 700;
+        color: rgba(245,243,235,0.62);
+        text-transform: uppercase;
+        margin-bottom: 24px;
+    }
+    .auth-card input {
+        width: 100%;
+        padding: 14px;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid rgba(245,243,235,0.18);
+        border-radius: 14px;
+        font-family: 'Space Mono', monospace;
+        font-size: 13px;
+        color: rgba(245,243,235,0.92);
+        letter-spacing: 1px;
+        text-align: center;
+        outline: none;
+        margin-bottom: 16px;
+    }
+    .auth-card input::placeholder { color: rgba(245,243,235,0.38); }
+    .auth-card input:focus { border-color: rgba(245,243,235,0.4); }
+    .auth-card button {
+        width: 100%;
+        padding: 14px;
+        background: rgba(245,243,235,0.06);
+        border: 1px solid rgba(245,243,235,0.18);
+        border-radius: 14px;
+        font-family: 'Space Mono', monospace;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        color: rgba(245,243,235,0.92);
+        text-transform: uppercase;
+        cursor: pointer;
+    }
+    .auth-card button:hover { background: rgba(245,243,235,0.12); }
+    .auth-error {
+        font-size: 10px;
+        color: rgba(120,120,120,0.70);
+        margin-top: 12px;
+        letter-spacing: 1px;
+    }
+
+    /* Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 14px;
+        margin-bottom: 24px;
+    }
+    .stat-card {
+        background: #0F1114;
+        border: 1px solid rgba(245,243,235,0.18);
+        border-radius: 18px;
+        padding: 18px;
+    }
+    .stat-label {
+        font-size: 9px;
+        letter-spacing: 2px;
+        font-weight: 700;
+        color: rgba(245,243,235,0.38);
+        text-transform: uppercase;
+        margin-bottom: 10px;
+    }
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: rgba(245,243,235,0.92);
+    }
+    .stat-sub {
+        font-size: 9px;
+        letter-spacing: 1.5px;
+        color: rgba(245,243,235,0.38);
+        margin-top: 6px;
+        text-transform: uppercase;
+    }
+
+    /* Sections */
+    .section {
+        background: #0F1114;
+        border: 1px solid rgba(245,243,235,0.18);
+        border-radius: 22px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+    .section-title {
+        font-size: 10px;
+        letter-spacing: 2.8px;
+        font-weight: 700;
+        color: rgba(245,243,235,0.62);
+        text-transform: uppercase;
+    }
+
+    /* Tables */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    th {
+        font-size: 9px;
+        letter-spacing: 1.5px;
+        font-weight: 700;
+        color: rgba(245,243,235,0.38);
+        text-transform: uppercase;
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(245,243,235,0.10);
+    }
+    td {
+        font-size: 11px;
+        color: rgba(245,243,235,0.72);
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(245,243,235,0.06);
+    }
+    tr:last-child td { border-bottom: none; }
+
+    .empty-state {
+        text-align: center;
+        padding: 24px;
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        color: rgba(245,243,235,0.38);
+        text-transform: uppercase;
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 10px 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(245,243,235,0.18);
+        background: transparent;
+        font-family: 'Space Mono', monospace;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        color: rgba(245,243,235,0.72);
+        text-transform: uppercase;
+        cursor: pointer;
+    }
+    .btn:hover { background: rgba(245,243,235,0.06); }
+    .btn-active {
+        background: rgba(255,255,255,0.85);
+        color: #000;
+        border-color: transparent;
+    }
+    .btn-active:hover { background: rgba(255,255,255,0.75); }
+    .btn-danger { color: rgba(120,120,120,0.70); border-color: rgba(120,120,120,0.30); }
+    .btn-danger:hover { background: rgba(120,120,120,0.10); }
+
+    /* Toggle */
+    .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+    .toggle-label {
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        color: rgba(245,243,235,0.62);
+        text-transform: uppercase;
+        min-width: 120px;
+    }
+
+    /* Inputs */
+    .input-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    .input-field {
+        flex: 1;
+        padding: 12px 16px;
+        background: rgba(0,0,0,0.3);
+        border: 1px solid rgba(245,243,235,0.18);
+        border-radius: 14px;
+        font-family: 'Space Mono', monospace;
+        font-size: 11px;
+        color: rgba(245,243,235,0.92);
+        outline: none;
+    }
+    .input-field::placeholder { color: rgba(245,243,235,0.38); }
+    .input-field:focus { border-color: rgba(245,243,235,0.4); }
+
+    /* Toast */
+    .toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #0F1114;
+        border: 1px solid rgba(245,243,235,0.18);
+        border-radius: 14px;
+        padding: 14px 20px;
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        color: rgba(245,243,235,0.72);
+        text-transform: uppercase;
+        transform: translateY(100px);
+        opacity: 0;
+        transition: all 0.3s ease;
+        z-index: 50;
+    }
+    .toast.visible {
+        transform: translateY(0);
+        opacity: 1;
+    }
+</style>
+</head>
+<body>
+
+<!-- Auth Overlay -->
+<div id="auth-overlay">
+    <div class="auth-card">
+        <h2>PIQABU TOWER ADMIN</h2>
+        <input type="password" id="api-key-input" placeholder="ENTER API KEY" autofocus>
+        <button onclick="authenticate()">AUTHENTICATE</button>
+        <div id="auth-error" class="auth-error"></div>
+    </div>
+</div>
+
+<!-- Dashboard (hidden until authenticated) -->
+<div id="dashboard" style="display:none;">
+    <div class="header">
+        <div style="display:flex;align-items:center;">
+            <span class="dot"></span>
+            <h1>PIQABU TOWER ADMIN</h1>
+        </div>
+        <div class="header-right">
+            <span class="refresh-label" id="last-refresh">LOADING...</span>
+            <button class="btn" onclick="refreshAll()">REFRESH</button>
+            <button class="btn btn-danger" onclick="logout()">LOGOUT</button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">CONNECTIONS</div>
+            <div class="stat-value" id="stat-connections">-</div>
+            <div class="stat-sub">ACTIVE SOCKETS</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">ROOMS</div>
+            <div class="stat-value" id="stat-rooms">-</div>
+            <div class="stat-sub">ACTIVE SESSIONS</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">UPTIME</div>
+            <div class="stat-value" id="stat-uptime">-</div>
+            <div class="stat-sub" id="stat-uptime-unit">SECONDS</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">BLOCKED</div>
+            <div class="stat-value" id="stat-blocked">-</div>
+            <div class="stat-sub">DEVICES</div>
+        </div>
+    </div>
+
+    <!-- Maintenance -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">MAINTENANCE MODE</div>
+            <button class="btn" id="maint-btn" onclick="toggleMaintenance()">ENABLE</button>
+        </div>
+        <div class="toggle-row">
+            <span class="toggle-label" id="maint-status">INACTIVE</span>
+        </div>
+        <div class="input-row">
+            <input type="text" class="input-field" id="maint-message" placeholder="MAINTENANCE MESSAGE (OPTIONAL)">
+        </div>
+    </div>
+
+    <!-- Broadcast -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">BROADCAST MESSAGE</div>
+        </div>
+        <div class="input-row">
+            <input type="text" class="input-field" id="broadcast-input" placeholder="TYPE A MESSAGE TO ALL USERS...">
+            <button class="btn btn-active" onclick="sendBroadcast()">SEND</button>
+        </div>
+    </div>
+
+    <!-- Active Rooms -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">ACTIVE ROOMS</div>
+        </div>
+        <div id="rooms-table"></div>
+    </div>
+
+    <!-- Blocked Devices -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">BLOCKED DEVICES</div>
+        </div>
+        <div class="input-row" style="margin-bottom:16px;">
+            <input type="text" class="input-field" id="block-device-id" placeholder="DEVICE UUID">
+            <input type="text" class="input-field" id="block-reason" placeholder="REASON (OPTIONAL)" style="max-width:200px;">
+            <button class="btn btn-danger" onclick="blockDevice()">BLOCK</button>
+        </div>
+        <div id="blocked-table"></div>
+    </div>
+
+    <!-- Kick Device -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">KICK DEVICE</div>
+        </div>
+        <div class="input-row">
+            <input type="text" class="input-field" id="kick-device-id" placeholder="DEVICE UUID">
+            <button class="btn btn-danger" onclick="kickDevice()">KICK</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+    let apiKey = sessionStorage.getItem('piqabu_admin_key') || '';
+    let refreshInterval = null;
+    let maintenanceActive = false;
+
+    // Check if already authenticated
+    if (apiKey) {
+        checkAuth();
+    }
+
+    document.getElementById('api-key-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') authenticate();
+    });
+
+    async function authenticate() {
+        apiKey = document.getElementById('api-key-input').value.trim();
+        if (!apiKey) return;
+        const ok = await checkAuth();
+        if (!ok) {
+            document.getElementById('auth-error').textContent = 'INVALID API KEY';
+        }
+    }
+
+    async function checkAuth() {
+        try {
+            const res = await fetch('/admin/status', {
+                headers: { 'x-admin-key': apiKey },
+            });
+            if (res.ok) {
+                sessionStorage.setItem('piqabu_admin_key', apiKey);
+                document.getElementById('auth-overlay').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+                refreshAll();
+                // Auto-refresh every 10s
+                if (refreshInterval) clearInterval(refreshInterval);
+                refreshInterval = setInterval(refreshAll, 10000);
+                return true;
+            }
+            return false;
+        } catch {
+            return false;
+        }
+    }
+
+    function logout() {
+        sessionStorage.removeItem('piqabu_admin_key');
+        apiKey = '';
+        if (refreshInterval) clearInterval(refreshInterval);
+        document.getElementById('auth-overlay').style.display = 'flex';
+        document.getElementById('dashboard').style.display = 'none';
+        document.getElementById('api-key-input').value = '';
+    }
+
+    async function apiFetch(path, opts = {}) {
+        const res = await fetch(path, {
+            ...opts,
+            headers: {
+                'x-admin-key': apiKey,
+                'Content-Type': 'application/json',
+                ...(opts.headers || {}),
+            },
+        });
+        return res.json();
+    }
+
+    function showToast(msg) {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.classList.add('visible');
+        setTimeout(() => t.classList.remove('visible'), 3000);
+    }
+
+    function formatUptime(seconds) {
+        if (seconds < 60) return { value: Math.floor(seconds), unit: 'SECONDS' };
+        if (seconds < 3600) return { value: Math.floor(seconds / 60), unit: 'MINUTES' };
+        if (seconds < 86400) return { value: Math.floor(seconds / 3600), unit: 'HOURS' };
+        return { value: Math.floor(seconds / 86400), unit: 'DAYS' };
+    }
+
+    async function refreshAll() {
+        try {
+            const [status, roomsData, devicesData] = await Promise.all([
+                apiFetch('/admin/status'),
+                apiFetch('/admin/rooms'),
+                apiFetch('/admin/devices'),
+            ]);
+
+            // Stats
+            document.getElementById('stat-connections').textContent = status.connectedSockets;
+            document.getElementById('stat-rooms').textContent = status.activeRooms;
+            document.getElementById('stat-blocked').textContent = status.blockedDevices;
+            const up = formatUptime(status.uptime);
+            document.getElementById('stat-uptime').textContent = up.value;
+            document.getElementById('stat-uptime-unit').textContent = up.unit;
+
+            // Maintenance state
+            maintenanceActive = status.maintenanceMode;
+            document.getElementById('maint-status').textContent = maintenanceActive ? 'ACTIVE' : 'INACTIVE';
+            document.getElementById('maint-status').style.color = maintenanceActive ? 'rgba(255,255,255,0.85)' : 'rgba(245,243,235,0.38)';
+            document.getElementById('maint-btn').textContent = maintenanceActive ? 'DISABLE' : 'ENABLE';
+            document.getElementById('maint-btn').className = maintenanceActive ? 'btn btn-danger' : 'btn';
+            if (status.maintenanceMessage) {
+                document.getElementById('maint-message').value = status.maintenanceMessage;
+            }
+
+            // Rooms table
+            const roomsEl = document.getElementById('rooms-table');
+            if (roomsData.rooms.length === 0) {
+                roomsEl.innerHTML = '<div class="empty-state">NO ACTIVE ROOMS</div>';
+            } else {
+                let html = '<table><tr><th>ROOM</th><th>PARTICIPANTS</th><th>DEVICES</th></tr>';
+                roomsData.rooms.forEach(r => {
+                    const devices = r.details.map(d => d.deviceId).join(', ');
+                    html += `<tr><td>${r.roomId}</td><td>${r.participants}/2</td><td>${devices || '-'}</td></tr>`;
+                });
+                html += '</table>';
+                roomsEl.innerHTML = html;
+            }
+
+            // Blocked devices table
+            const blockedEl = document.getElementById('blocked-table');
+            if (devicesData.blockedDevices.length === 0) {
+                blockedEl.innerHTML = '<div class="empty-state">NO BLOCKED DEVICES</div>';
+            } else {
+                let html = '<table><tr><th>DEVICE</th><th>REASON</th><th>BLOCKED AT</th><th>ACTION</th></tr>';
+                devicesData.blockedDevices.forEach(d => {
+                    const time = new Date(d.blockedAt).toLocaleString();
+                    html += `<tr>
+                        <td style="font-size:10px;">${d.deviceId}</td>
+                        <td>${d.reason || '-'}</td>
+                        <td>${time}</td>
+                        <td><button class="btn" onclick="unblockDevice('${d.deviceId}')">UNBLOCK</button></td>
+                    </tr>`;
+                });
+                html += '</table>';
+                blockedEl.innerHTML = html;
+            }
+
+            // Last refresh
+            document.getElementById('last-refresh').textContent = 'UPDATED ' + new Date().toLocaleTimeString();
+        } catch (err) {
+            console.error('Refresh failed:', err);
+        }
+    }
+
+    async function toggleMaintenance() {
+        const message = document.getElementById('maint-message').value.trim();
+        const data = await apiFetch('/admin/maintenance', {
+            method: 'POST',
+            body: JSON.stringify({ enabled: !maintenanceActive, message }),
+        });
+        showToast(data.maintenanceMode ? 'MAINTENANCE MODE ENABLED' : 'MAINTENANCE MODE DISABLED');
+        refreshAll();
+    }
+
+    async function sendBroadcast() {
+        const input = document.getElementById('broadcast-input');
+        const message = input.value.trim();
+        if (!message) return;
+        const data = await apiFetch('/admin/broadcast', {
+            method: 'POST',
+            body: JSON.stringify({ message }),
+        });
+        showToast(data.message || 'BROADCAST SENT');
+        input.value = '';
+    }
+
+    async function blockDevice() {
+        const deviceId = document.getElementById('block-device-id').value.trim();
+        const reason = document.getElementById('block-reason').value.trim();
+        if (!deviceId) return;
+        const data = await apiFetch(`/admin/devices/${encodeURIComponent(deviceId)}/block`, {
+            method: 'POST',
+            body: JSON.stringify({ reason }),
+        });
+        showToast(data.message || 'DEVICE BLOCKED');
+        document.getElementById('block-device-id').value = '';
+        document.getElementById('block-reason').value = '';
+        refreshAll();
+    }
+
+    async function unblockDevice(deviceId) {
+        const data = await apiFetch(`/admin/devices/${encodeURIComponent(deviceId)}/unblock`, {
+            method: 'POST',
+        });
+        showToast(data.message || 'DEVICE UNBLOCKED');
+        refreshAll();
+    }
+
+    async function kickDevice() {
+        const deviceId = document.getElementById('kick-device-id').value.trim();
+        if (!deviceId) return;
+        const data = await apiFetch(`/admin/devices/${encodeURIComponent(deviceId)}/kick`, {
+            method: 'POST',
+        });
+        showToast(data.message || 'DEVICE KICKED');
+        document.getElementById('kick-device-id').value = '';
+        refreshAll();
+    }
+</script>
+</body>
+</html>

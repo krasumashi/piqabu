@@ -60,7 +60,7 @@ const ICE_SERVERS: RTCIceServer[] = [
     { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
-type ConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'FAILED';
+type Mode = 'lobby' | 'calling' | 'connected';
 
 /* ───────────────── web-only <video> element component ────────────────────── */
 
@@ -110,6 +110,12 @@ interface LiveGlassPanelProps {
     onClose: () => void;
     socket: Socket | null;
     roomId: string;
+    /** Called when user taps CALL in lobby — parent should call sendInvite('live_glass') */
+    onSendInvite: () => void;
+    /** Set to true when partner has accepted the invite */
+    partnerAccepted: boolean;
+    /** 'lobby' for initiator (opens camera preview first), 'calling' for receiver (accepted invite, goes straight to WebRTC) */
+    initialMode?: 'lobby' | 'calling';
 }
 
 /* ═════════════════════════════ COMPONENT ══════════════════════════════════ */
@@ -119,11 +125,14 @@ export default function LiveGlassPanel({
     onClose,
     socket,
     roomId,
+    onSendInvite,
+    partnerAccepted,
+    initialMode = 'lobby',
 }: LiveGlassPanelProps) {
     /* ── state ─────────────────────────────────────────────────────────── */
+    const [mode, setMode] = useState<Mode>(initialMode);
     const [localStream, setLocalStream] = useState<any>(null);
     const [remoteStream, setRemoteStream] = useState<any>(null);
-    const [status, setStatus] = useState<ConnectionStatus>('CONNECTING');
     const [blurIntensity, setBlurIntensity] = useState(0);
     const [audioEnabled, setAudioEnabled] = useState(true);
     const [facingFront, setFacingFront] = useState(true);
@@ -136,6 +145,15 @@ export default function LiveGlassPanel({
     const partnerReady = useRef(false);
     const cleanedUp = useRef(false);
     const makingOffer = useRef(false);
+    const webrtcStarted = useRef(false);
+
+    /* ── reset mode when panel opens ─────────────────────────────────── */
+    useEffect(() => {
+        if (visible) {
+            setMode(initialMode);
+            webrtcStarted.current = false;
+        }
+    }, [visible, initialMode]);
 
     /* ────────────────── helper: build RTCPeerConnection ──────────────── */
 
@@ -257,7 +275,7 @@ export default function LiveGlassPanel({
         /* reset state */
         setLocalStream(null);
         setRemoteStream(null);
-        setStatus('CONNECTING');
+        setMode('lobby');
         setBlurIntensity(0);
         setAudioEnabled(true);
         setFacingFront(true);
@@ -265,6 +283,7 @@ export default function LiveGlassPanel({
         partnerReady.current = false;
         isCaller.current = false;
         makingOffer.current = false;
+        webrtcStarted.current = false;
     }, [socket]);
 
     /* ─────────── helper: wrap SDP / ICE in platform-specific class ───── */
@@ -295,7 +314,6 @@ export default function LiveGlassPanel({
 
     const serialiseDescription = useCallback((desc: any): any => {
         if (!desc) return desc;
-        /* On native, RTCSessionDescription may not JSON-serialise cleanly */
         if (Platform.OS !== 'web') {
             return { type: desc.type, sdp: desc.sdp };
         }
@@ -354,18 +372,10 @@ export default function LiveGlassPanel({
 
             try {
                 if (type === 'offer') {
-                    /*
-                     * Glare resolution (perfect negotiation pattern):
-                     * If we are also making an offer we need to decide who
-                     * yields. The "polite" peer (non-caller) rolls back.
-                     * The "impolite" peer (caller) ignores the incoming offer.
-                     */
                     if (makingOffer.current || pc.signalingState !== 'stable') {
                         if (isCaller.current) {
-                            /* Impolite — ignore the incoming offer */
                             return;
                         }
-                        /* Polite — rollback our own description */
                         await pc.setLocalDescription({ type: 'rollback' });
                     }
 
@@ -407,7 +417,7 @@ export default function LiveGlassPanel({
         ],
     );
 
-    /* ──────────────────── initialise the session ─────────────────────── */
+    /* ──────────── Phase A: start camera only (lobby mode) ────────────── */
 
     useEffect(() => {
         if (!visible) return;
@@ -415,125 +425,133 @@ export default function LiveGlassPanel({
         cleanedUp.current = false;
         let cancelled = false;
 
-        const init = async () => {
-            if (!socket) {
-                setError('No socket connection available.');
-                return;
-            }
-
-            /* 1 — acquire local media ---------------------------------- */
+        const startCamera = async () => {
             const stream = await acquireMedia(true);
-            if (!stream || cancelled) {
-                return;
-            }
+            if (!stream || cancelled) return;
             localStreamRef.current = stream;
             setLocalStream(stream);
-
-            /* 2 — create peer connection ------------------------------- */
-            const pc = createPeerConnection();
-            if (!pc) return;
-            pcRef.current = pc;
-
-            /* 3 — add local tracks to the peer connection -------------- */
-            const tracks: any[] = stream.getTracks?.() ?? [];
-            tracks.forEach((track: any) => {
-                try {
-                    pc.addTrack(track, stream);
-                } catch (e: any) {
-                    console.warn('[LiveGlass] addTrack error:', e?.message);
-                }
-            });
-
-            /* 4 — listen for remote tracks ----------------------------- */
-            pc.ontrack = (event: any) => {
-                if (event.streams?.[0]) {
-                    setRemoteStream(event.streams[0]);
-                }
-            };
-            /* react-native-webrtc also fires onaddstream */
-            if (Platform.OS !== 'web') {
-                pc.onaddstream = (event: any) => {
-                    if (event.stream) {
-                        setRemoteStream(event.stream);
-                    }
-                };
-            }
-
-            /* 5 — forward ICE candidates via signaling server ---------- */
-            pc.onicecandidate = (event: any) => {
-                if (event.candidate && socket) {
-                    socket.emit('webrtc_signal', {
-                        roomId,
-                        signal: {
-                            type: 'candidate' as const,
-                            payload: serialiseCandidate(event.candidate),
-                        },
-                    });
-                }
-            };
-
-            /* 6 — track connection state ------------------------------- */
-            pc.onconnectionstatechange = () => {
-                if (cancelled) return;
-                const s = pc.connectionState;
-                if (s === 'connected') {
-                    setStatus('CONNECTED');
-                } else if (
-                    s === 'failed' ||
-                    s === 'disconnected' ||
-                    s === 'closed'
-                ) {
-                    setStatus('FAILED');
-                } else {
-                    setStatus('CONNECTING');
-                }
-            };
-
-            pc.oniceconnectionstatechange = () => {
-                if (cancelled) return;
-                const ice = pc.iceConnectionState;
-                if (ice === 'connected' || ice === 'completed') {
-                    setStatus('CONNECTED');
-                } else if (
-                    ice === 'failed' ||
-                    ice === 'disconnected' ||
-                    ice === 'closed'
-                ) {
-                    setStatus('FAILED');
-                }
-            };
-
-            /* 7 — attach socket listeners ------------------------------ */
-            socket.off('webrtc_signal');
-            socket.off('webrtc_ready');
-
-            socket.on('webrtc_signal', handleSignal);
-
-            socket.on('webrtc_ready', () => {
-                /*
-                 * Both peers emit `webrtc_ready` upon opening.
-                 * The first one to **receive** the partner's ready
-                 * becomes the caller (creates the offer).
-                 */
-                if (!partnerReady.current) {
-                    partnerReady.current = true;
-                    isCaller.current = true;
-                    createOffer();
-                }
-            });
-
-            /* 8 — announce that we are ready --------------------------- */
-            socket.emit('webrtc_ready', { roomId });
         };
 
-        init();
+        startCamera();
 
         return () => {
             cancelled = true;
-            cleanup();
+            // Don't full cleanup here — only cleanup when closing
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [visible, socket, roomId]);
+    }, [visible, acquireMedia]);
+
+    /* ──── Phase B: start WebRTC when mode transitions to 'calling' ──── */
+
+    const startWebRTC = useCallback(async () => {
+        if (webrtcStarted.current) return;
+        webrtcStarted.current = true;
+
+        if (!socket || !localStreamRef.current) {
+            setError('No socket connection or camera available.');
+            return;
+        }
+
+        const stream = localStreamRef.current;
+
+        /* create peer connection */
+        const pc = createPeerConnection();
+        if (!pc) return;
+        pcRef.current = pc;
+
+        /* add local tracks */
+        const tracks: any[] = stream.getTracks?.() ?? [];
+        tracks.forEach((track: any) => {
+            try {
+                pc.addTrack(track, stream);
+            } catch (e: any) {
+                console.warn('[LiveGlass] addTrack error:', e?.message);
+            }
+        });
+
+        /* listen for remote tracks */
+        pc.ontrack = (event: any) => {
+            if (event.streams?.[0]) {
+                setRemoteStream(event.streams[0]);
+            }
+        };
+        if (Platform.OS !== 'web') {
+            pc.onaddstream = (event: any) => {
+                if (event.stream) {
+                    setRemoteStream(event.stream);
+                }
+            };
+        }
+
+        /* forward ICE candidates */
+        pc.onicecandidate = (event: any) => {
+            if (event.candidate && socket) {
+                socket.emit('webrtc_signal', {
+                    roomId,
+                    signal: {
+                        type: 'candidate' as const,
+                        payload: serialiseCandidate(event.candidate),
+                    },
+                });
+            }
+        };
+
+        /* track connection state */
+        pc.onconnectionstatechange = () => {
+            const s = pc.connectionState;
+            if (s === 'connected') {
+                setMode('connected');
+            } else if (s === 'failed' || s === 'disconnected' || s === 'closed') {
+                setError('Connection lost. Please try again.');
+            }
+        };
+
+        pc.oniceconnectionstatechange = () => {
+            const ice = pc.iceConnectionState;
+            if (ice === 'connected' || ice === 'completed') {
+                setMode('connected');
+            } else if (ice === 'failed' || ice === 'disconnected' || ice === 'closed') {
+                setError('Connection lost.');
+            }
+        };
+
+        /* attach socket listeners */
+        socket.off('webrtc_signal');
+        socket.off('webrtc_ready');
+
+        socket.on('webrtc_signal', handleSignal);
+
+        socket.on('webrtc_ready', () => {
+            if (!partnerReady.current) {
+                partnerReady.current = true;
+                isCaller.current = true;
+                createOffer();
+            }
+        });
+
+        /* announce ready */
+        socket.emit('webrtc_ready', { roomId });
+    }, [socket, roomId, createPeerConnection, handleSignal, createOffer, serialiseCandidate]);
+
+    /* Trigger WebRTC when mode becomes 'calling' */
+    useEffect(() => {
+        if (mode === 'calling' && visible) {
+            startWebRTC();
+        }
+    }, [mode, visible, startWebRTC]);
+
+    /* ── When partner accepts our invite, transition lobby → calling ──── */
+    useEffect(() => {
+        if (partnerAccepted && mode === 'lobby' && visible) {
+            setMode('calling');
+        }
+    }, [partnerAccepted, mode, visible]);
+
+    /* ──── If initialMode is 'calling' (receiver), start WebRTC immediately ─── */
+    useEffect(() => {
+        if (visible && initialMode === 'calling') {
+            setMode('calling');
+        }
+    }, [visible, initialMode]);
 
     /* ──────────────────── audio mute toggle ──────────────────────────── */
 
@@ -553,27 +571,23 @@ export default function LiveGlassPanel({
     /* ──────────────────── camera flip ────────────────────────────────── */
 
     const flipCamera = useCallback(async () => {
-        const pc = pcRef.current;
         const oldStream = localStreamRef.current;
-        if (!pc || !oldStream) return;
+        if (!oldStream) return;
 
         const useFrontNext = !facingFront;
-
-        /* acquire new stream with opposite facing */
         const newStream = await acquireMedia(useFrontNext);
         if (!newStream) return;
 
         /* stop old video track */
         const oldVideoTrack = oldStream.getVideoTracks?.()?.[0];
         if (oldVideoTrack) {
-            try {
-                oldVideoTrack.stop();
-            } catch {}
+            try { oldVideoTrack.stop(); } catch {}
         }
 
-        /* replace the video track inside the RTCPeerConnection sender */
+        /* If WebRTC is active, replace the video track in the sender */
+        const pc = pcRef.current;
         const newVideoTrack = newStream.getVideoTracks?.()?.[0];
-        if (newVideoTrack) {
+        if (pc && newVideoTrack) {
             const senders: any[] = pc.getSenders?.() ?? [];
             const videoSender = senders.find(
                 (s: any) => s.track?.kind === 'video',
@@ -582,28 +596,18 @@ export default function LiveGlassPanel({
                 try {
                     await videoSender.replaceTrack(newVideoTrack);
                 } catch (err: any) {
-                    console.warn(
-                        '[LiveGlass] replaceTrack error:',
-                        err?.message,
-                    );
+                    console.warn('[LiveGlass] replaceTrack error:', err?.message);
                 }
             }
         }
 
-        /*
-         * Build a composite stream reference that keeps the original
-         * audio track but uses the new video track.
-         */
+        /* Build composite stream */
         const oldAudioTrack = oldStream.getAudioTracks?.()?.[0];
         if (Platform.OS === 'web' && oldAudioTrack && newVideoTrack) {
             const combined = new MediaStream([oldAudioTrack, newVideoTrack]);
             localStreamRef.current = combined;
             setLocalStream(combined);
         } else {
-            /*
-             * On native the new stream already contains a fresh audio track
-             * that mirrors the enabled state of the old one.
-             */
             const freshAudio = newStream.getAudioTracks?.()?.[0];
             if (freshAudio && oldAudioTrack) {
                 freshAudio.enabled = oldAudioTrack.enabled;
@@ -622,21 +626,30 @@ export default function LiveGlassPanel({
         onClose();
     }, [cleanup, onClose]);
 
+    /* ──────────────────── handle CALL button ─────────────────────────── */
+
+    const handleCall = useCallback(() => {
+        setMode('calling');
+        onSendInvite();
+    }, [onSendInvite]);
+
     /* ──────────────────── derived values ─────────────────────────────── */
 
     const statusColor =
-        status === 'CONNECTED'
+        mode === 'connected'
             ? '#4ADE80'
-            : status === 'FAILED'
+            : error
               ? '#EF4444'
               : THEME.faint;
 
     const statusLabel =
-        status === 'CONNECTED'
+        mode === 'connected'
             ? 'CONNECTED'
-            : status === 'FAILED'
-              ? 'CONNECTION FAILED'
-              : 'CONNECTING...';
+            : mode === 'calling'
+              ? 'CALLING...'
+              : error
+                ? 'ERROR'
+                : 'PREVIEW';
 
     /* ═══════════════════════════ RENDER ═══════════════════════════════ */
 
@@ -662,8 +675,6 @@ export default function LiveGlassPanel({
                         style={styles.closeBtn}
                         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                         activeOpacity={0.7}
-                        accessibilityLabel="Close live glass"
-                        accessibilityRole="button"
                     >
                         <Ionicons name="close" size={16} color="#fff" />
                     </TouchableOpacity>
@@ -672,18 +683,14 @@ export default function LiveGlassPanel({
                 {/* ── error banner ───────────────────────────────────── */}
                 {error && (
                     <View style={styles.errorBanner}>
-                        <Ionicons
-                            name="warning-outline"
-                            size={16}
-                            color="#EF4444"
-                        />
+                        <Ionicons name="warning-outline" size={16} color="#EF4444" />
                         <Text style={styles.errorText}>{error}</Text>
                     </View>
                 )}
 
                 {/* ── connection status ──────────────────────────────── */}
                 <View style={styles.statusRow}>
-                    {status === 'CONNECTING' && (
+                    {mode === 'calling' && !error && (
                         <ActivityIndicator
                             size="small"
                             color={THEME.faint}
@@ -732,7 +739,6 @@ export default function LiveGlassPanel({
                                     </View>
                                 )}
 
-                                {/* blur overlay — local control only */}
                                 {blurIntensity > 0 && (
                                     <BlurView
                                         intensity={blurIntensity}
@@ -749,7 +755,7 @@ export default function LiveGlassPanel({
                                     color={THEME.faint}
                                 />
                                 <Text style={styles.noSignalText}>
-                                    WAITING FOR PARTNER
+                                    {mode === 'lobby' ? 'TAP CALL TO CONNECT' : 'WAITING FOR PARTNER'}
                                 </Text>
                             </View>
                         )}
@@ -838,10 +844,6 @@ export default function LiveGlassPanel({
                             ]}
                             onPress={toggleAudio}
                             activeOpacity={0.7}
-                            accessibilityLabel={
-                                audioEnabled ? 'Mute audio' : 'Unmute audio'
-                            }
-                            accessibilityRole="button"
                         >
                             <Ionicons
                                 name={audioEnabled ? 'mic' : 'mic-off'}
@@ -862,8 +864,6 @@ export default function LiveGlassPanel({
                             style={styles.controlBtn}
                             onPress={flipCamera}
                             activeOpacity={0.7}
-                            accessibilityLabel="Flip camera"
-                            accessibilityRole="button"
                         >
                             <Ionicons
                                 name="camera-reverse-outline"
@@ -875,16 +875,25 @@ export default function LiveGlassPanel({
                     </View>
                 </View>
 
-                {/* ── end session button ─────────────────────────────── */}
-                <TouchableOpacity
-                    onPress={handleClose}
-                    style={styles.endBtn}
-                    activeOpacity={0.7}
-                    accessibilityLabel="End session"
-                    accessibilityRole="button"
-                >
-                    <Text style={styles.endBtnText}>END SESSION</Text>
-                </TouchableOpacity>
+                {/* ── CALL / END button ───────────────────────────────── */}
+                {mode === 'lobby' ? (
+                    <TouchableOpacity
+                        onPress={handleCall}
+                        style={styles.callBtn}
+                        activeOpacity={0.7}
+                    >
+                        <Ionicons name="call" size={18} color="#000" />
+                        <Text style={styles.callBtnText}>CALL</Text>
+                    </TouchableOpacity>
+                ) : (
+                    <TouchableOpacity
+                        onPress={handleClose}
+                        style={styles.endBtn}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={styles.endBtnText}>END SESSION</Text>
+                    </TouchableOpacity>
+                )}
             </View>
         </Modal>
     );
@@ -1071,6 +1080,26 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: 1,
         color: '#fff',
+        textTransform: 'uppercase',
+    },
+
+    /* call button */
+    callBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        padding: 16,
+        borderRadius: 14,
+        backgroundColor: '#fff',
+        marginBottom: Platform.OS === 'ios' ? 20 : 10,
+    },
+    callBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 2.2,
+        color: '#000',
         textTransform: 'uppercase',
     },
 

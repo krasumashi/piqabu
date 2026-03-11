@@ -116,11 +116,13 @@ function TypingIndicator({ isTyping }: { isTyping: boolean }) {
 // ═══════════════════════════════════════════
 //  Active Room Content (per-room isolated)
 // ═══════════════════════════════════════════
-function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShare }: {
+function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShare, setLiveGlassPartnerAccepted, setLiveGlassInitialMode }: {
     roomId: string;
     onOpenSettings: () => void;
     onOpenLiveGlass: () => void;
     onOpenScreenShare: (asSharer: boolean) => void;
+    setLiveGlassPartnerAccepted: (v: boolean) => void;
+    setLiveGlassInitialMode: (m: 'lobby' | 'calling') => void;
 }) {
     const { socket, deviceId, limits } = useRoomContext();
     const { partnerPresence, sendPulseTap } = usePresence(socket, roomId);
@@ -147,6 +149,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const vanishTimerMapRef = useRef<Map<string, { timerId: ReturnType<typeof setTimeout>; intervalId?: ReturnType<typeof setInterval> }>>(new Map());
     const segCounterRef = useRef(0);
     const lastInputTextRef = useRef('');
+    const isTypingRef = useRef(false);
+    const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // ── Keyboard-aware dynamic split ──
     const remoteFlex = useRef(new RNAnimated.Value(1)).current;
@@ -230,6 +234,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const handleTextChange = useCallback((newText: string) => {
         if (newText.length > limits.textLimit) return;
         lastInputTextRef.current = newText;
+
+        // Mark typing active — freezes decay while user is actively typing
+        isTypingRef.current = true;
+        if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+        typingDebounceRef.current = setTimeout(() => { isTypingRef.current = false; }, 500);
+
         const currentJoined = vanishSegments.map(s => s.text).join('');
 
         if (vanishDuration === 0) {
@@ -241,8 +251,11 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             return;
         }
 
-        if (newText.length > currentJoined.length) {
-            // Characters were added — append to active segment or create new one
+        const isSimpleAppend = newText.length > currentJoined.length && newText.startsWith(currentJoined);
+        const isSimpleDelete = newText.length < currentJoined.length && currentJoined.startsWith(newText);
+
+        if (isSimpleAppend) {
+            // Characters were added at the end — append to active segment or create new one
             const addedChars = newText.slice(currentJoined.length);
             setVanishSegments(prev => {
                 const activeId = activeSegIdRef.current;
@@ -260,8 +273,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                     return [...prev, { id, text: addedChars, createdAt: Date.now() }];
                 }
             });
-        } else if (newText.length < currentJoined.length) {
-            // Characters were deleted (backspace) — remove from end of last non-empty segment
+        } else if (isSimpleDelete) {
+            // Characters were deleted from the end (backspace)
             const charsToRemove = currentJoined.length - newText.length;
             setVanishSegments(prev => {
                 const updated = [...prev];
@@ -278,6 +291,18 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 }
                 return updated.filter(s => s.text.length > 0);
             });
+        } else {
+            // Complex change (autocomplete, mid-text replacement, paste, etc.)
+            // Collapse everything into a single fresh segment to avoid corruption
+            const id = `seg_${++segCounterRef.current}`;
+            activeSegIdRef.current = id;
+            // Clear old segment timers
+            vanishTimerMapRef.current.forEach(({ timerId, intervalId }) => {
+                clearTimeout(timerId);
+                if (intervalId) clearInterval(intervalId);
+            });
+            vanishTimerMapRef.current.clear();
+            setVanishSegments([{ id, text: newText, createdAt: Date.now() }]);
         }
 
         setLocalText(newText);
@@ -303,6 +328,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             const timerId = setTimeout(() => {
                 // Start decaying this segment character by character
                 const intervalId = setInterval(() => {
+                    // Freeze decay while user is actively typing (prevents autocomplete interference)
+                    if (isTypingRef.current) return;
                     setVanishSegments(prev => {
                         const target = prev.find(s => s.id === seg.id);
                         if (!target || target.text.length === 0) {
@@ -350,7 +377,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         };
     }, [localText, vanishDuration]);
 
-    // ── Cleanup vanish timers on unmount or vanishDuration change to 0 ──
+    // ── Cleanup vanish timers + typing debounce on unmount ──
     useEffect(() => {
         return () => {
             vanishTimerMapRef.current.forEach(({ timerId, intervalId }) => {
@@ -358,6 +385,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 if (intervalId) clearInterval(intervalId);
             });
             vanishTimerMapRef.current.clear();
+            if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
         };
     }, []);
 
@@ -393,28 +421,23 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         }
     };
 
-    // ── Dock toggle with invite flow ──
+    // ── Dock toggle ──
     const handleDockToggle = (id: 'peep' | 'whisper' | 'reveal') => {
-        if (id === 'whisper' && activeOverlay !== 'whisper') {
-            sendInvite('whisper');
-            return;
-        }
         setActiveOverlay(prev => prev === id ? null : id);
     };
 
     // ── Handle invite acceptance ──
     useEffect(() => {
         if (inviteStatus === 'accepted') {
-            if (inviteFeature === 'whisper') {
-                setActiveOverlay('whisper');
-            } else if (inviteFeature === 'live_glass') {
-                onOpenLiveGlass();
+            if (inviteFeature === 'live_glass') {
+                // Panel is already open in 'calling' mode — signal partner accepted
+                setLiveGlassPartnerAccepted(true);
             } else if (inviteFeature === 'screen_share') {
                 onOpenScreenShare(true); // Your invite was accepted = you're the sharer
             }
             clearInviteStatus();
         }
-    }, [inviteStatus, inviteFeature, clearInviteStatus, onOpenLiveGlass, onOpenScreenShare]);
+    }, [inviteStatus, inviteFeature, clearInviteStatus, onOpenScreenShare]);
 
     const isLinked = linkStatus === 'LINKED';
     const partnerConnected = linkStatus === 'LINKED';
@@ -445,7 +468,11 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 </View>
 
                 <View style={st.headerRight}>
-                    <TouchableOpacity onPress={() => sendInvite('live_glass')} style={st.headerIconBtn} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={() => {
+                        setLiveGlassInitialMode('lobby');
+                        setLiveGlassPartnerAccepted(false);
+                        onOpenLiveGlass();
+                    }} style={st.headerIconBtn} activeOpacity={0.7}>
                         <Ionicons name="camera-outline" size={18} color={THEME.muted} />
                     </TouchableOpacity>
 
@@ -577,6 +604,9 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                         if (pendingInvite.feature === 'whisper') {
                             setActiveOverlay('whisper');
                         } else if (pendingInvite.feature === 'live_glass') {
+                            // Receiver: skip lobby, go straight to calling/WebRTC
+                            setLiveGlassInitialMode('calling');
+                            setLiveGlassPartnerAccepted(false);
                             onOpenLiveGlass();
                         } else if (pendingInvite.feature === 'screen_share') {
                             onOpenScreenShare(false); // Accepting invite = you're the viewer
@@ -608,6 +638,8 @@ export default function RoomScreen() {
     const [paywallFeature, setPaywallFeature] = useState('multi_room');
     const [showSettings, setShowSettings] = useState(false);
     const [showLiveGlass, setShowLiveGlass] = useState(false);
+    const [liveGlassInitialMode, setLiveGlassInitialMode] = useState<'lobby' | 'calling'>('lobby');
+    const [liveGlassPartnerAccepted, setLiveGlassPartnerAccepted] = useState(false);
     const [showScreenShare, setShowScreenShare] = useState(false);
     const [isScreenSharer, setIsScreenSharer] = useState(false);
 
@@ -687,6 +719,8 @@ export default function RoomScreen() {
                     setIsScreenSharer(asSharer);
                     setShowScreenShare(true);
                 }}
+                setLiveGlassPartnerAccepted={setLiveGlassPartnerAccepted}
+                setLiveGlassInitialMode={setLiveGlassInitialMode}
             />
 
             <SettingsPanel
@@ -698,9 +732,18 @@ export default function RoomScreen() {
             {/* Live Glass */}
             <LiveGlassPanel
                 visible={showLiveGlass}
-                onClose={() => setShowLiveGlass(false)}
+                onClose={() => {
+                    setShowLiveGlass(false);
+                    setLiveGlassPartnerAccepted(false);
+                }}
                 socket={socket}
                 roomId={activeRoomId}
+                onSendInvite={() => {
+                    // RoomContent's sendInvite is scoped to the room — we need socket here
+                    socket?.emit('send_invite', { roomId: activeRoomId, feature: 'live_glass' });
+                }}
+                partnerAccepted={liveGlassPartnerAccepted}
+                initialMode={liveGlassInitialMode}
             />
 
             {/* Screen Share */}
