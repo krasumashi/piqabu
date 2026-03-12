@@ -2,6 +2,7 @@ import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as ScreenCapture from 'expo-screen-capture';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import 'react-native-reanimated';
@@ -36,6 +37,13 @@ export default function RootLayout() {
             SplashScreen.hideAsync();
         }
     }, [loaded]);
+
+    // Block screenshots & screen recording on native (FLAG_SECURE on Android)
+    useEffect(() => {
+        if (Platform.OS !== 'web') {
+            ScreenCapture.preventScreenCaptureAsync();
+        }
+    }, []);
 
     if (!loaded) {
         return null;

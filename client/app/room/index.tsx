@@ -25,6 +25,7 @@ import PresencePulse from '../../components/PresencePulse';
 import SandText from '../../components/SandText';
 import { usePresence } from '../../hooks/usePresence';
 import Paywall from '../../components/Paywall';
+import * as ScreenCapture from 'expo-screen-capture';
 import { THEME } from '../../constants/Theme';
 
 // ─── Typing Indicator ───
@@ -84,6 +85,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const [incomingWhisper, setIncomingWhisper] = useState(false);
     const [whisperPartnerAccepted, setWhisperPartnerAccepted] = useState(false);
     const [whisperInitialState, setWhisperInitialState] = useState<'idle' | 'accepted'>('idle');
+    const [screenshotAlert, setScreenshotAlert] = useState(false);
 
     // ── Sand dissipation vanish (replaces segment-based untyping) ──
     const [sandOverlayText, setSandOverlayText] = useState<string | null>(null);
@@ -216,6 +218,28 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         return () => { socket.off('whisper_ptt', handlePtt); };
     }, [socket, roomId]);
 
+    // ── Screenshot detection → notify partner ──
+    useEffect(() => {
+        if (Platform.OS === 'web') return;
+        const subscription = ScreenCapture.addScreenshotListener(() => {
+            socket?.emit('screenshot_taken', { roomId });
+        });
+        return () => subscription.remove();
+    }, [socket, roomId]);
+
+    // ── Screenshot alert from partner ──
+    useEffect(() => {
+        if (!socket || !roomId) return;
+        const handleAlert = (data: { roomId: string }) => {
+            if (data.roomId === roomId) {
+                setScreenshotAlert(true);
+                setTimeout(() => setScreenshotAlert(false), 3000);
+            }
+        };
+        socket.on('screenshot_alert', handleAlert);
+        return () => { socket.off('screenshot_alert', handleAlert); };
+    }, [socket, roomId]);
+
     // ── Whisper send invite ──
     const handleWhisperInvite = useCallback(() => {
         sendInvite('whisper');
@@ -257,6 +281,14 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 
     return (
         <View style={st.roomContent}>
+            {/* ─── Screenshot Alert Banner ─── */}
+            {screenshotAlert && (
+                <View style={st.screenshotBanner}>
+                    <Ionicons name="warning" size={14} color="#000" />
+                    <Text style={st.screenshotBannerText}>PARTNER CAPTURED SCREEN</Text>
+                </View>
+            )}
+
             {/* ─── Session Header ─── */}
             <View style={st.header}>
                 <View style={st.headerLeft}>
@@ -657,6 +689,16 @@ const st = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 50 : 30,
     },
     roomContent: { flex: 1 },
+
+    // Screenshot alert banner
+    screenshotBanner: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+        backgroundColor: THEME.bad, paddingVertical: 8, paddingHorizontal: 16,
+    },
+    screenshotBannerText: {
+        fontFamily: THEME.mono, fontSize: 10, fontWeight: '900', letterSpacing: 2,
+        color: '#000', textTransform: 'uppercase',
+    },
 
     // Header
     header: {

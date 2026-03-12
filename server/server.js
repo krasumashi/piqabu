@@ -463,6 +463,15 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('whisper_ptt', { roomId, speaking });
     });
 
+    // --- Screenshot Detection ---
+    socket.on('screenshot_taken', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        socket.to(roomId).emit('screenshot_alert', { roomId });
+    });
+
     // --- Screen Share Signaling ---
     socket.on('screen_share_signal', (data) => {
         const participant = getParticipant(socket.id);

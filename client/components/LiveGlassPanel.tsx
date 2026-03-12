@@ -10,6 +10,7 @@ import {
     PermissionsAndroid,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
@@ -55,6 +56,44 @@ function GrayscaleWrap({ children }: { children: React.ReactNode }) {
     }
     if (NativeGrayscale) return <NativeGrayscale>{children}</NativeGrayscale>;
     return <>{children}</>;
+}
+
+/* ─────────── noir film overlay (native desaturation workaround) ────────── */
+
+function NoirOverlay() {
+    if (Platform.OS === 'web') return null; // Web uses CSS grayscale
+    return (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            {/* Dark tint — reduces color vibrancy */}
+            <View style={[StyleSheet.absoluteFill, {
+                backgroundColor: 'rgba(0, 0, 0, 0.35)',
+            }]} />
+            {/* Vertical vignette — dark top/bottom edges */}
+            <LinearGradient
+                colors={[
+                    'rgba(0, 0, 0, 0.7)',
+                    'rgba(0, 0, 0, 0.0)',
+                    'rgba(0, 0, 0, 0.0)',
+                    'rgba(0, 0, 0, 0.7)',
+                ]}
+                locations={[0, 0.3, 0.7, 1]}
+                style={StyleSheet.absoluteFill}
+            />
+            {/* Horizontal vignette — dark left/right edges */}
+            <LinearGradient
+                colors={[
+                    'rgba(0, 0, 0, 0.5)',
+                    'rgba(0, 0, 0, 0.0)',
+                    'rgba(0, 0, 0, 0.0)',
+                    'rgba(0, 0, 0, 0.5)',
+                ]}
+                locations={[0, 0.25, 0.75, 1]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={StyleSheet.absoluteFill}
+            />
+        </View>
+    );
 }
 
 /* ─────────────────────────────── constants ───────────────────────────────── */
@@ -775,12 +814,15 @@ export default function LiveGlassPanel({
                                         />
                                     </View>
                                 ) : RTCViewNative ? (
-                                    <RTCViewNative
-                                        streamURL={remoteStream.toURL()}
-                                        style={{ width: '100%', height: '100%' }}
-                                        objectFit="cover"
-                                        zOrder={0}
-                                    />
+                                    <>
+                                        <RTCViewNative
+                                            streamURL={remoteStream.toURL()}
+                                            style={{ width: '100%', height: '100%' }}
+                                            objectFit="cover"
+                                            zOrder={0}
+                                        />
+                                        <NoirOverlay />
+                                    </>
                                 ) : (
                                     <View style={styles.noSignal}>
                                         <Text style={styles.noSignalText}>
@@ -833,13 +875,16 @@ export default function LiveGlassPanel({
                                     />
                                 </View>
                             ) : RTCViewNative ? (
-                                <RTCViewNative
-                                    streamURL={localStream.toURL()}
-                                    style={{ width: '100%', height: '100%' }}
-                                    objectFit="cover"
-                                    mirror
-                                    zOrder={1}
-                                />
+                                <View style={{ flex: 1 }}>
+                                    <RTCViewNative
+                                        streamURL={localStream.toURL()}
+                                        style={{ width: '100%', height: '100%' }}
+                                        objectFit="cover"
+                                        mirror
+                                        zOrder={1}
+                                    />
+                                    <NoirOverlay />
+                                </View>
                             ) : (
                                 <View style={styles.noSignal}>
                                     <Text style={styles.noSignalText}>
