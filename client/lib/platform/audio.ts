@@ -73,6 +73,11 @@ function createWebAudioRecorder(): AudioRecorder {
 }
 
 // --- Native Implementation ---
+
+// Module-level lock: tracks in-flight stopAndUnloadAsync() so a new
+// Recording is never created while the previous one is still cleaning up.
+let pendingStop: Promise<void> | null = null;
+
 function createNativeAudioRecorder(): AudioRecorder {
     const { Audio } = require('expo-av');
     const FileSystem = require('expo-file-system');
@@ -80,6 +85,12 @@ function createNativeAudioRecorder(): AudioRecorder {
 
     return {
         start: async () => {
+            // Wait for any previous recording cleanup to finish
+            if (pendingStop) {
+                try { await pendingStop; } catch {}
+                pendingStop = null;
+            }
+
             const permResult = await Audio.requestPermissionsAsync();
             if (permResult.status !== 'granted') {
                 throw new Error('PERMISSION_DENIED');
@@ -98,7 +109,21 @@ function createNativeAudioRecorder(): AudioRecorder {
             if (!recording) return null;
             const rec = recording;
             recording = null;
-            await rec.stopAndUnloadAsync();
+
+            // Wrap cleanup in pendingStop so concurrent starts can await it
+            const doStop = async () => {
+                await rec.stopAndUnloadAsync();
+                // Release recording mode so next createAsync succeeds
+                await Audio.setAudioModeAsync({
+                    allowsRecordingIOS: false,
+                    playsInSilentModeIOS: true,
+                });
+            };
+
+            pendingStop = doStop();
+            await pendingStop;
+            pendingStop = null;
+
             const uri = rec.getURI();
             if (!uri) return null;
             const base64 = await FileSystem.readAsStringAsync(uri, {

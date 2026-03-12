@@ -22,68 +22,10 @@ import ListeningIndicator from '../../components/ListeningIndicator';
 import LiveGlassPanel from '../../components/LiveGlassPanel';
 import ScreenSharePanel from '../../components/ScreenSharePanel';
 import PresencePulse from '../../components/PresencePulse';
+import SandText from '../../components/SandText';
 import { usePresence } from '../../hooks/usePresence';
 import Paywall from '../../components/Paywall';
 import { THEME } from '../../constants/Theme';
-import type { VoiceFilter } from '../../components/WhisperPanel';
-
-// ─── Vanish Decay Text Renderer ───
-function DecayText({ text, isDecaying }: { text: string; isDecaying: boolean }) {
-    const [displayChars, setDisplayChars] = useState<string[]>([]);
-    const [decayIndex, setDecayIndex] = useState(-1);
-    const decayIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-    useEffect(() => {
-        if (!isDecaying) {
-            setDisplayChars(text.split(''));
-            setDecayIndex(-1);
-        }
-    }, [text, isDecaying]);
-
-    useEffect(() => {
-        if (isDecaying && displayChars.length > 0) {
-            let idx = displayChars.length - 1;
-            setDecayIndex(idx);
-
-            decayIntervalRef.current = setInterval(() => {
-                idx--;
-                if (idx < 0) {
-                    if (decayIntervalRef.current) clearInterval(decayIntervalRef.current);
-                    setDisplayChars([]);
-                    setDecayIndex(-1);
-                } else {
-                    setDecayIndex(idx);
-                }
-            }, 30);
-        }
-
-        return () => {
-            if (decayIntervalRef.current) clearInterval(decayIntervalRef.current);
-        };
-    }, [isDecaying]);
-
-    if (displayChars.length === 0 && !isDecaying) return null;
-
-    return (
-        <Text style={st.decayText}>
-            {displayChars.map((char, i) => {
-                const isPendingDecay = isDecaying && decayIndex >= 0 && i >= decayIndex;
-                const isPreFade = isDecaying && decayIndex >= 0 && i >= decayIndex - 8 && i < decayIndex;
-                return (
-                    <Text
-                        key={i}
-                        style={{
-                            color: isPendingDecay ? 'transparent' : isPreFade ? THEME.faint : THEME.ink,
-                            opacity: isPendingDecay ? 0 : isPreFade ? 0.3 : 0.92,
-                        }}
-                    >
-                        {char}
-                    </Text>
-                );
-            })}
-        </Text>
-    );
-}
 
 // ─── Typing Indicator ───
 function TypingIndicator({ isTyping }: { isTyping: boolean }) {
@@ -127,7 +69,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const { socket, deviceId, limits } = useRoomContext();
     const { partnerPresence, sendPulseTap } = usePresence(socket, roomId);
     const {
-        linkStatus, remoteText, remoteReveal, remoteWhisper,
+        linkStatus, remoteText, remoteReveal,
         sendText, sendVanish, sendReveal,
         pendingInvite, inviteStatus, inviteFeature,
         sendInvite, acceptInvite, declineInvite, clearInviteStatus,
@@ -135,22 +77,24 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 
     const [localText, setLocalText] = useState('');
     const [activeOverlay, setActiveOverlay] = useState<'peep' | 'whisper' | 'reveal' | null>(null);
-    const [isRemoteDecaying, setIsRemoteDecaying] = useState(false);
     const [isPartnerTyping, setIsPartnerTyping] = useState(false);
     const [whisperBadge, setWhisperBadge] = useState(0);
     const [roomCodeCopied, setRoomCodeCopied] = useState(false);
     const [vanishDuration, setVanishDuration] = useState(0);
     const [incomingWhisper, setIncomingWhisper] = useState(false);
+    const [whisperPartnerAccepted, setWhisperPartnerAccepted] = useState(false);
+    const [whisperInitialState, setWhisperInitialState] = useState<'idle' | 'accepted'>('idle');
 
-    // ── Auto-vanish segment tracking (isolated segments prevent typing interference) ──
-    type VanishSegment = { id: string; text: string; createdAt: number };
-    const [vanishSegments, setVanishSegments] = useState<VanishSegment[]>([]);
-    const activeSegIdRef = useRef<string | null>(null);
-    const vanishTimerMapRef = useRef<Map<string, { timerId: ReturnType<typeof setTimeout>; intervalId?: ReturnType<typeof setInterval> }>>(new Map());
-    const segCounterRef = useRef(0);
-    const lastInputTextRef = useRef('');
-    const isTypingRef = useRef(false);
-    const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // ── Sand dissipation vanish (replaces segment-based untyping) ──
+    const [sandOverlayText, setSandOverlayText] = useState<string | null>(null);
+    const [sandOverlayActive, setSandOverlayActive] = useState(false);
+    const [remoteDecayText, setRemoteDecayText] = useState<string | null>(null);
+    const [remoteSandActive, setRemoteSandActive] = useState(false);
+    const vanishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const localTextRef = useRef(localText);
+
+    // Keep ref in sync so vanish timer always reads current text
+    useEffect(() => { localTextRef.current = localText; }, [localText]);
 
     // ── Keyboard-aware dynamic split ──
     const remoteFlex = useRef(new RNAnimated.Value(1)).current;
@@ -197,19 +141,20 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         }
     }, [sendText]);
 
-    // ── Vanish: remote decay ──
+    // ── Vanish: remote sand dissipation ──
     useEffect(() => {
         if (!socket || !roomId) return;
         const handleVanish = (data: { roomId: string } | undefined) => {
             if (!data || (typeof data === 'object' && data.roomId === roomId)) {
-                setIsRemoteDecaying(true);
-                const decayTime = Math.max(remoteText.length * 30, 500) + 300;
-                setTimeout(() => setIsRemoteDecaying(false), decayTime);
+                if (remoteText) {
+                    setRemoteDecayText(remoteText);
+                    setRemoteSandActive(true);
+                }
             }
         };
         socket.on('remote_vanish', handleVanish);
         return () => { socket.off('remote_vanish', handleVanish); };
-    }, [socket, roomId, remoteText.length]);
+    }, [socket, roomId, remoteText]);
 
     // ── Vanish cycle: Off → 5s → 10s → 15s → 20s → 25s → 30s → Off ──
     const VANISH_CYCLE = [0, 5000, 10000, 15000, 20000, 25000, 30000];
@@ -219,196 +164,62 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         setVanishDuration(next);
     };
 
-    // ── Derive localText from segments ──
-    const segmentText = vanishSegments.map(s => s.text).join('');
+    // ── Vanish trigger: snapshot text → sand dissipation → clear input ──
+    // Reads from localTextRef (not state) so setTimeout closures always get current text
+    const handleVanishTrigger = useCallback(() => {
+        const currentText = localTextRef.current;
+        if (!currentText) return;
+        // Emit vanish event so partner sees the sand effect
+        sendVanish();
+        // Snapshot for sand animation overlay
+        setSandOverlayText(currentText);
+        setSandOverlayActive(true);
+        // Clear input in one operation (no char-by-char — no autocomplete interference)
+        setLocalText('');
+        batchSendText('');
+    }, [sendVanish, batchSendText]);
 
-    // ── Sync localText with segment-derived text ──
-    useEffect(() => {
-        if (localText !== segmentText) {
-            setLocalText(segmentText);
-            batchSendText(segmentText);
-        }
-    }, [segmentText]);
-
-    // ── Handle text input changes — diff against segments ──
+    // ── Handle text input changes — simple, no segment tracking ──
     const handleTextChange = useCallback((newText: string) => {
         if (newText.length > limits.textLimit) return;
-        lastInputTextRef.current = newText;
-
-        // Mark typing active — freezes decay while user is actively typing
-        isTypingRef.current = true;
-        if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
-        typingDebounceRef.current = setTimeout(() => { isTypingRef.current = false; }, 500);
-
-        const currentJoined = vanishSegments.map(s => s.text).join('');
-
-        if (vanishDuration === 0) {
-            // No vanish — just use flat text
-            setLocalText(newText);
-            batchSendText(newText);
-            setVanishSegments([]);
-            activeSegIdRef.current = null;
-            return;
-        }
-
-        const isSimpleAppend = newText.length > currentJoined.length && newText.startsWith(currentJoined);
-        const isSimpleDelete = newText.length < currentJoined.length && currentJoined.startsWith(newText);
-
-        if (isSimpleAppend) {
-            // Characters were added at the end — append to active segment or create new one
-            const addedChars = newText.slice(currentJoined.length);
-            setVanishSegments(prev => {
-                const activeId = activeSegIdRef.current;
-                const lastSeg = prev.length > 0 ? prev[prev.length - 1] : null;
-
-                if (activeId && lastSeg && lastSeg.id === activeId) {
-                    // Extend active segment
-                    return prev.map(s =>
-                        s.id === activeId ? { ...s, text: s.text + addedChars } : s
-                    );
-                } else {
-                    // Create new segment
-                    const id = `seg_${++segCounterRef.current}`;
-                    activeSegIdRef.current = id;
-                    return [...prev, { id, text: addedChars, createdAt: Date.now() }];
-                }
-            });
-        } else if (isSimpleDelete) {
-            // Characters were deleted from the end (backspace)
-            const charsToRemove = currentJoined.length - newText.length;
-            setVanishSegments(prev => {
-                const updated = [...prev];
-                let remaining = charsToRemove;
-                for (let i = updated.length - 1; i >= 0 && remaining > 0; i--) {
-                    const seg = updated[i];
-                    if (seg.text.length <= remaining) {
-                        remaining -= seg.text.length;
-                        updated[i] = { ...seg, text: '' };
-                    } else {
-                        updated[i] = { ...seg, text: seg.text.slice(0, seg.text.length - remaining) };
-                        remaining = 0;
-                    }
-                }
-                return updated.filter(s => s.text.length > 0);
-            });
-        } else {
-            // Complex change (autocomplete, mid-text replacement, paste, etc.)
-            // Collapse everything into a single fresh segment to avoid corruption
-            const id = `seg_${++segCounterRef.current}`;
-            activeSegIdRef.current = id;
-            // Clear old segment timers
-            vanishTimerMapRef.current.forEach(({ timerId, intervalId }) => {
-                clearTimeout(timerId);
-                if (intervalId) clearInterval(intervalId);
-            });
-            vanishTimerMapRef.current.clear();
-            setVanishSegments([{ id, text: newText, createdAt: Date.now() }]);
-        }
-
         setLocalText(newText);
         batchSendText(newText);
-    }, [vanishDuration, vanishSegments, batchSendText, limits.textLimit]);
 
-    // ── Schedule vanish timers for new/growing segments ──
-    useEffect(() => {
-        if (vanishDuration === 0) {
-            // Clear all timers
-            vanishTimerMapRef.current.forEach(({ timerId, intervalId }) => {
-                clearTimeout(timerId);
-                if (intervalId) clearInterval(intervalId);
-            });
-            vanishTimerMapRef.current.clear();
-            return;
-        }
-
-        // Check each segment — if it doesn't have a timer yet, schedule one
-        vanishSegments.forEach(seg => {
-            if (vanishTimerMapRef.current.has(seg.id)) return; // Already scheduled
-
-            const timerId = setTimeout(() => {
-                // Start decaying this segment character by character
-                const intervalId = setInterval(() => {
-                    // Freeze decay while user is actively typing (prevents autocomplete interference)
-                    if (isTypingRef.current) return;
-                    setVanishSegments(prev => {
-                        const target = prev.find(s => s.id === seg.id);
-                        if (!target || target.text.length === 0) {
-                            // Segment fully decayed — clear interval and remove
-                            const timer = vanishTimerMapRef.current.get(seg.id);
-                            if (timer?.intervalId) clearInterval(timer.intervalId);
-                            vanishTimerMapRef.current.delete(seg.id);
-                            return prev.filter(s => s.id !== seg.id);
-                        }
-                        // Remove last character of THIS segment only
-                        return prev.map(s =>
-                            s.id === seg.id ? { ...s, text: s.text.slice(0, -1) } : s
-                        );
-                    });
-                }, 30);
-
-                // Store intervalId
-                const entry = vanishTimerMapRef.current.get(seg.id);
-                if (entry) entry.intervalId = intervalId;
+        // Reset vanish timer on each keystroke
+        if (vanishDuration > 0 && newText.length > 0) {
+            if (vanishTimerRef.current) clearTimeout(vanishTimerRef.current);
+            vanishTimerRef.current = setTimeout(() => {
+                handleVanishTrigger();
             }, vanishDuration);
+        } else if (vanishTimerRef.current) {
+            clearTimeout(vanishTimerRef.current);
+            vanishTimerRef.current = null;
+        }
+    }, [vanishDuration, batchSendText, limits.textLimit, handleVanishTrigger]);
 
-            vanishTimerMapRef.current.set(seg.id, { timerId });
-        });
-
-        // Clean up timers for segments that no longer exist
-        vanishTimerMapRef.current.forEach(({ timerId, intervalId }, id) => {
-            if (!vanishSegments.find(s => s.id === id)) {
-                clearTimeout(timerId);
-                if (intervalId) clearInterval(intervalId);
-                vanishTimerMapRef.current.delete(id);
-            }
-        });
-    }, [vanishSegments, vanishDuration]);
-
-    // ── Create new segment on typing pause (300ms idle = new segment) ──
-    const segmentPauseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    useEffect(() => {
-        if (vanishDuration === 0) return;
-        if (segmentPauseRef.current) clearTimeout(segmentPauseRef.current);
-        segmentPauseRef.current = setTimeout(() => {
-            activeSegIdRef.current = null; // Next keystroke creates new segment
-        }, 300);
-        return () => {
-            if (segmentPauseRef.current) clearTimeout(segmentPauseRef.current);
-        };
-    }, [localText, vanishDuration]);
-
-    // ── Cleanup vanish timers + typing debounce on unmount ──
+    // ── Cleanup vanish timer on unmount ──
     useEffect(() => {
         return () => {
-            vanishTimerMapRef.current.forEach(({ timerId, intervalId }) => {
-                clearTimeout(timerId);
-                if (intervalId) clearInterval(intervalId);
-            });
-            vanishTimerMapRef.current.clear();
-            if (typingDebounceRef.current) clearTimeout(typingDebounceRef.current);
+            if (vanishTimerRef.current) clearTimeout(vanishTimerRef.current);
         };
     }, []);
 
-    // ── Whisper playback + badge ──
+    // ── Whisper PTT indicator (partner speaking via walkie-talkie) ──
     useEffect(() => {
-        if (remoteWhisper) {
-            setWhisperBadge(prev => prev + 1);
-            setIncomingWhisper(true);
-            import('../../lib/platform/audio').then(({ playAudioFromDataUri }) => {
-                playAudioFromDataUri(remoteWhisper, 0.85);
-                setTimeout(() => {
-                    setWhisperBadge(0);
-                    setIncomingWhisper(false);
-                }, 5000);
-            });
-        }
-    }, [remoteWhisper]);
-
-    // ── Whisper send ──
-    const handleWhisperSend = useCallback((payload: string, _filter: VoiceFilter) => {
-        socket?.emit('transmit_whisper', { roomId, payload, filter: _filter });
-        setActiveOverlay(null);
+        if (!socket || !roomId) return;
+        const handlePtt = (data: { roomId: string; speaking: boolean }) => {
+            if (data.roomId === roomId) {
+                setIncomingWhisper(data.speaking);
+            }
+        };
+        socket.on('whisper_ptt', handlePtt);
+        return () => { socket.off('whisper_ptt', handlePtt); };
     }, [socket, roomId]);
+
+    // ── Whisper send invite ──
+    const handleWhisperInvite = useCallback(() => {
+        sendInvite('whisper');
+    }, [sendInvite]);
 
     // ── Room code copy ──
     const handleCopyRoomCode = async () => {
@@ -434,6 +245,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 setLiveGlassPartnerAccepted(true);
             } else if (inviteFeature === 'screen_share') {
                 onOpenScreenShare(true); // Your invite was accepted = you're the sharer
+            } else if (inviteFeature === 'whisper') {
+                setWhisperPartnerAccepted(true);
             }
             clearInviteStatus();
         }
@@ -516,8 +329,17 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                     <View style={st.cardBody}>
                         <LinearGradient colors={['rgba(15,17,20,0.95)', 'transparent']} style={st.fadeTop} pointerEvents="none" />
                         <ScrollView style={st.cardScroll} showsVerticalScrollIndicator={false}>
-                            {remoteText || isRemoteDecaying ? (
-                                <DecayText text={remoteText} isDecaying={isRemoteDecaying} />
+                            {remoteSandActive && remoteDecayText ? (
+                                <SandText
+                                    text={remoteDecayText}
+                                    trigger={true}
+                                    onComplete={() => {
+                                        setRemoteDecayText(null);
+                                        setRemoteSandActive(false);
+                                    }}
+                                />
+                            ) : remoteText ? (
+                                <Text style={st.decayText}>{remoteText}</Text>
                             ) : (
                                 <Text style={st.placeholderText}>SIGNAL WAITING...</Text>
                             )}
@@ -550,6 +372,19 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                                 placeholderTextColor={THEME.faint}
                                 style={st.textArea}
                             />
+                            {/* Sand dissipation overlay */}
+                            {sandOverlayText && (
+                                <View style={[StyleSheet.absoluteFill, { padding: 12, zIndex: 10 }]} pointerEvents="none">
+                                    <SandText
+                                        text={sandOverlayText}
+                                        trigger={sandOverlayActive}
+                                        onComplete={() => {
+                                            setSandOverlayText(null);
+                                            setSandOverlayActive(false);
+                                        }}
+                                    />
+                                </View>
+                            )}
                             <LinearGradient colors={['transparent', 'rgba(15,17,20,0.95)']} style={st.fadeBottom} pointerEvents="none" />
                         </View>
                     </RNAnimated.View>
@@ -584,9 +419,16 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             />
             <WhisperPanel
                 visible={activeOverlay === 'whisper'}
-                onClose={() => setActiveOverlay(null)}
-                onWhisperSend={handleWhisperSend}
-                maxDurationSec={limits.whisperDurationSec}
+                onClose={() => {
+                    setActiveOverlay(null);
+                    setWhisperPartnerAccepted(false);
+                    setWhisperInitialState('idle');
+                }}
+                socket={socket}
+                roomId={roomId}
+                onSendInvite={handleWhisperInvite}
+                partnerAccepted={whisperPartnerAccepted}
+                initialState={whisperInitialState}
                 whisperBadge={whisperBadge}
             />
 
@@ -602,6 +444,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                     if (pendingInvite) {
                         acceptInvite(pendingInvite.feature);
                         if (pendingInvite.feature === 'whisper') {
+                            setWhisperInitialState('accepted');
                             setActiveOverlay('whisper');
                         } else if (pendingInvite.feature === 'live_glass') {
                             // Receiver: skip lobby, go straight to calling/WebRTC

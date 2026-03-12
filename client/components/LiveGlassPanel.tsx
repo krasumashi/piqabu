@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     Platform,
     ActivityIndicator,
+    PermissionsAndroid,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Slider from '@react-native-community/slider';
@@ -20,7 +21,10 @@ let RNWebRTC: any = null;
 if (Platform.OS !== 'web') {
     try {
         RNWebRTC = require('react-native-webrtc');
-    } catch {}
+        console.log('[LiveGlass] react-native-webrtc loaded OK');
+    } catch (e) {
+        console.warn('[LiveGlass] react-native-webrtc FAILED to load:', e);
+    }
 }
 
 const NativeRTCPeerConnection: typeof RTCPeerConnection | undefined =
@@ -181,6 +185,8 @@ export default function LiveGlassPanel({
 
     const acquireMedia = useCallback(
         async (useFrontCamera: boolean): Promise<any | null> => {
+            console.log('[LiveGlass] acquireMedia — platform:', Platform.OS, 'nativeMediaDevices:', !!nativeMediaDevices, 'RTCView:', !!RTCViewNative);
+
             const constraints: MediaStreamConstraints = {
                 audio: true,
                 video: {
@@ -194,10 +200,34 @@ export default function LiveGlassPanel({
                 if (Platform.OS === 'web') {
                     return await navigator.mediaDevices.getUserMedia(constraints);
                 }
-                if (nativeMediaDevices) {
-                    return await nativeMediaDevices.getUserMedia(constraints as any);
+
+                /* Android: request permissions explicitly before getUserMedia */
+                if (Platform.OS === 'android') {
+                    try {
+                        const cam = await PermissionsAndroid.request(
+                            PermissionsAndroid.PERMISSIONS.CAMERA,
+                            { title: 'Camera', message: 'Piqabu needs camera access for Live Glass', buttonPositive: 'Allow' },
+                        );
+                        const mic = await PermissionsAndroid.request(
+                            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+                            { title: 'Microphone', message: 'Piqabu needs mic access for Live Glass', buttonPositive: 'Allow' },
+                        );
+                        console.log('[LiveGlass] Android perms — camera:', cam, 'mic:', mic);
+                        if (cam !== PermissionsAndroid.RESULTS.GRANTED || mic !== PermissionsAndroid.RESULTS.GRANTED) {
+                            setError('Camera / microphone permission denied. Please allow in Settings.');
+                            return null;
+                        }
+                    } catch (permErr: any) {
+                        console.warn('[LiveGlass] Android permission request error:', permErr);
+                    }
                 }
-                throw new Error('Media devices API is not available.');
+
+                if (nativeMediaDevices) {
+                    const stream = await nativeMediaDevices.getUserMedia(constraints as any);
+                    console.log('[LiveGlass] Native stream acquired, tracks:', stream?.getTracks?.()?.length);
+                    return stream;
+                }
+                throw new Error('Media devices API is not available. react-native-webrtc may not be installed in this build.');
             } catch (err: any) {
                 const msg = err?.message ?? String(err);
                 if (
@@ -685,7 +715,29 @@ export default function LiveGlassPanel({
                     <View style={styles.errorBanner}>
                         <Ionicons name="warning-outline" size={16} color="#EF4444" />
                         <Text style={styles.errorText}>{error}</Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                setError(null);
+                                acquireMedia(facingFront).then(stream => {
+                                    if (stream) {
+                                        localStreamRef.current = stream;
+                                        setLocalStream(stream);
+                                    }
+                                });
+                            }}
+                            style={styles.retryBtn}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={styles.retryBtnText}>RETRY</Text>
+                        </TouchableOpacity>
                     </View>
+                )}
+
+                {/* ── dev debug info ──────────────────────────────────── */}
+                {__DEV__ && (
+                    <Text style={{ fontFamily: THEME.mono, fontSize: 8, color: THEME.faint, marginBottom: 4 }}>
+                        {`P:${Platform.OS} | WebRTC:${!!RNWebRTC ? 'OK' : 'NO'} | Media:${!!nativeMediaDevices ? 'OK' : 'NO'} | RTC:${!!RTCViewNative ? 'OK' : 'NO'} | Stream:${!!localStream ? 'LIVE' : '-'}`}
+                    </Text>
                 )}
 
                 {/* ── connection status ──────────────────────────────── */}
@@ -723,14 +775,12 @@ export default function LiveGlassPanel({
                                         />
                                     </View>
                                 ) : RTCViewNative ? (
-                                    <GrayscaleWrap>
-                                        <RTCViewNative
-                                            streamURL={remoteStream.toURL()}
-                                            style={StyleSheet.absoluteFill}
-                                            objectFit="cover"
-                                            zOrder={0}
-                                        />
-                                    </GrayscaleWrap>
+                                    <RTCViewNative
+                                        streamURL={remoteStream.toURL()}
+                                        style={{ width: '100%', height: '100%' }}
+                                        objectFit="cover"
+                                        zOrder={0}
+                                    />
                                 ) : (
                                     <View style={styles.noSignal}>
                                         <Text style={styles.noSignalText}>
@@ -783,15 +833,13 @@ export default function LiveGlassPanel({
                                     />
                                 </View>
                             ) : RTCViewNative ? (
-                                <GrayscaleWrap>
-                                    <RTCViewNative
-                                        streamURL={localStream.toURL()}
-                                        style={StyleSheet.absoluteFill}
-                                        objectFit="cover"
-                                        mirror
-                                        zOrder={1}
-                                    />
-                                </GrayscaleWrap>
+                                <RTCViewNative
+                                    streamURL={localStream.toURL()}
+                                    style={{ width: '100%', height: '100%' }}
+                                    objectFit="cover"
+                                    mirror
+                                    zOrder={1}
+                                />
                             ) : (
                                 <View style={styles.noSignal}>
                                     <Text style={styles.noSignalText}>
@@ -978,6 +1026,20 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: '#EF4444',
         flex: 1,
+    },
+    retryBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.25)',
+    },
+    retryBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 9,
+        fontWeight: '900',
+        color: '#fff',
+        letterSpacing: 1,
     },
 
     /* feeds */

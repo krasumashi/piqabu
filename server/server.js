@@ -432,6 +432,37 @@ io.on('connection', (socket) => {
         });
     });
 
+    // --- Whisper WebRTC Signaling (walkie-talkie audio) ---
+    socket.on('whisper_signal', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        if (!data.signal || typeof data.signal.type !== 'string') return;
+        socket.to(roomId).emit('whisper_signal', {
+            roomId,
+            signal: data.signal,
+            from: socket.id,
+        });
+    });
+
+    socket.on('whisper_ready', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        socket.to(roomId).emit('whisper_ready', { roomId });
+    });
+
+    socket.on('whisper_ptt', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        const speaking = data.speaking === true;
+        socket.to(roomId).emit('whisper_ptt', { roomId, speaking });
+    });
+
     // --- Screen Share Signaling ---
     socket.on('screen_share_signal', (data) => {
         const participant = getParticipant(socket.id);
