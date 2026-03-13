@@ -44,7 +44,6 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     const [biometricEnabled, _setBiometricEnabled] = useState(false);
     const [panicActive, setPanicActive] = useState(false);
     const [biometricLocked, setBiometricLocked] = useState(false);
-    const [loaded, setLoaded] = useState(false);
 
     const shakeCountRef = useRef(0);
     const cooldownRef = useRef(false);
@@ -63,7 +62,6 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
             if (bio === 'true' && Platform.OS !== 'web') {
                 setBiometricLocked(true);
             }
-            setLoaded(true);
         })();
     }, []);
 
@@ -169,8 +167,6 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
         });
         return () => sub.remove();
     }, [biometricEnabled]);
-
-    if (!loaded) return null;
 
     return (
         <SecurityContext.Provider value={{
