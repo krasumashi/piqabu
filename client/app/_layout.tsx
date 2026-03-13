@@ -8,6 +8,9 @@ import { Platform } from 'react-native';
 import 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 import { RoomProvider } from '../contexts/RoomContext';
+import { SecurityProvider, useSecurity } from '../contexts/SecurityContext';
+import PanicCalculator from '../components/PanicCalculator';
+import BiometricLockScreen from '../components/BiometricLockScreen';
 
 // Web Tailwind CSS
 if (Platform.OS === 'web') {
@@ -51,14 +54,28 @@ export default function RootLayout() {
 
     return (
         <ThemeProvider value={PiqabuTheme}>
-            <RoomProvider>
-                <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="index" options={{ animation: 'fade' }} />
-                    <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
-                    <Stack.Screen name="room/index" options={{ animation: 'fade' }} />
-                </Stack>
-                <StatusBar style="light" />
-            </RoomProvider>
+            <SecurityProvider>
+                <RoomProvider>
+                    <Stack screenOptions={{ headerShown: false }}>
+                        <Stack.Screen name="index" options={{ animation: 'fade' }} />
+                        <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
+                        <Stack.Screen name="room/index" options={{ animation: 'fade' }} />
+                    </Stack>
+                    <StatusBar style="light" />
+                    <SecurityOverlays />
+                </RoomProvider>
+            </SecurityProvider>
         </ThemeProvider>
+    );
+}
+
+/* Security overlays rendered above everything */
+function SecurityOverlays() {
+    const { panicActive, biometricLocked, dismissPanic, authenticate } = useSecurity();
+    return (
+        <>
+            <PanicCalculator visible={panicActive} onDismiss={dismissPanic} />
+            <BiometricLockScreen visible={biometricLocked && !panicActive} onAuthenticate={authenticate} />
+        </>
     );
 }

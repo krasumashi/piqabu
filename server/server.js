@@ -413,7 +413,7 @@ io.on('connection', (socket) => {
         if (!participant) return;
         const roomId = extractRoomId(data);
         if (!roomId || !participant.rooms.has(roomId)) return;
-        socket.to(roomId).emit('webrtc_ready', { roomId });
+        socket.to(roomId).emit('webrtc_ready', { roomId, from: socket.id });
     });
 
     // --- WebRTC Signaling (Live Glass peer-to-peer video) ---

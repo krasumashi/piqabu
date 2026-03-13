@@ -4,7 +4,7 @@ import { Socket } from 'socket.io-client';
 export type LinkStatus = 'WAITING' | 'LINKED' | 'SIGNAL LOST' | 'DISCONNECTED';
 
 const MAX_TEXT_LENGTH = 10000;
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // base64 strings are ~1.37x larger than binary
 const MAX_AUDIO_SIZE = 1 * 1024 * 1024;
 
 export function useRoom(roomId: string, socket: Socket | null, deviceId: string | null) {

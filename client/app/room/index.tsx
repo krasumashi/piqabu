@@ -441,7 +441,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 onReveal={sendReveal}
                 onOpenLiveMirror={() => {
                     setActiveOverlay(null);
-                    onOpenScreenShare(true); // You initiated = you're the sharer
+                    sendInvite('screen_share'); // Send invite first
+                    onOpenScreenShare(true);    // Open panel in waiting state
                 }}
             />
             <PeepDeck
@@ -766,7 +767,7 @@ const st = StyleSheet.create({
         lineHeight: 20, color: THEME.ink, textAlignVertical: 'top', opacity: 0.92,
     },
     placeholderText: { fontFamily: THEME.mono, fontSize: 13, color: THEME.faint, textTransform: 'uppercase' },
-    decayText: { fontFamily: THEME.mono, fontSize: 13, lineHeight: 20 },
+    decayText: { fontFamily: THEME.mono, fontSize: 13, lineHeight: 20, color: THEME.ink },
     typingText: { fontFamily: THEME.mono, fontSize: 8, color: THEME.live, marginLeft: 8, textTransform: 'uppercase' },
 
     // Add Room Modal

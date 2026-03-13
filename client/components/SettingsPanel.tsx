@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
+import { useSecurity } from '../contexts/SecurityContext';
 
 interface SettingsPanelProps {
     visible: boolean;
@@ -15,6 +16,7 @@ interface SettingsPanelProps {
 export default function SettingsPanel({
     visible, onClose, roomId, linkStatus, onRegenerateKey, onLeaveChannel,
 }: SettingsPanelProps) {
+    const { panicEnabled, biometricEnabled, setPanicEnabled, setBiometricEnabled } = useSecurity();
     const slideAnim = useRef(new RNAnimated.Value(300)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
@@ -84,6 +86,39 @@ export default function SettingsPanel({
                         {isLive ? 'LIVE' : 'WAITING'}
                     </Text>
                 </View>
+
+                {/* ── Security ── */}
+                <Text style={styles.sectionLabel}>SECURITY</Text>
+
+                <TouchableOpacity
+                    onPress={() => setPanicEnabled(!panicEnabled)}
+                    style={styles.item}
+                    activeOpacity={0.7}
+                >
+                    <View style={styles.itemRow}>
+                        <Ionicons name="shield-outline" size={14} color={panicEnabled ? THEME.live : THEME.muted} />
+                        <Text style={styles.itemLabel}>PANIC MODE</Text>
+                    </View>
+                    <Text style={[styles.itemValueBold, panicEnabled && { color: THEME.live }]}>
+                        {panicEnabled ? 'ON' : 'OFF'}
+                    </Text>
+                </TouchableOpacity>
+
+                {Platform.OS !== 'web' && (
+                    <TouchableOpacity
+                        onPress={() => setBiometricEnabled(!biometricEnabled)}
+                        style={styles.item}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.itemRow}>
+                            <Ionicons name="finger-print" size={14} color={biometricEnabled ? THEME.live : THEME.muted} />
+                            <Text style={styles.itemLabel}>BIOMETRIC LOCK</Text>
+                        </View>
+                        <Text style={[styles.itemValueBold, biometricEnabled && { color: THEME.live }]}>
+                            {biometricEnabled ? 'ON' : 'OFF'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* Regenerate Key */}
                 <TouchableOpacity onPress={onRegenerateKey} style={styles.item} activeOpacity={0.7}>
@@ -172,6 +207,20 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(245,243,235,0.16)',
         backgroundColor: 'rgba(0,0,0,0.12)',
+    },
+    sectionLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 9,
+        letterSpacing: 9 * 0.28,
+        fontWeight: '900',
+        color: THEME.faint,
+        textTransform: 'uppercase',
+        marginTop: 8,
+    },
+    itemRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     itemLabel: {
         fontFamily: THEME.mono,
