@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Platform, AppState } from 'react-native';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { getSecureItem, setSecureItem } from '../lib/platform/storage';
 
 /* ─────────────────── types ─────────────────── */
@@ -73,16 +72,18 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
 
     const setBiometricEnabled = useCallback(async (v: boolean) => {
         if (v && Platform.OS !== 'web') {
-            const compatible = await LocalAuthentication.hasHardwareAsync();
-            const enrolled = await LocalAuthentication.isEnrolledAsync();
-            if (!compatible || !enrolled) return;
-            // Verify with a test authentication
-            const result = await LocalAuthentication.authenticateAsync({
-                promptMessage: 'Verify to enable biometric lock',
-                cancelLabel: 'Cancel',
-                disableDeviceFallback: false,
-            });
-            if (!result.success) return;
+            try {
+                const LocalAuthentication = await import('expo-local-authentication');
+                const compatible = await LocalAuthentication.hasHardwareAsync();
+                const enrolled = await LocalAuthentication.isEnrolledAsync();
+                if (!compatible || !enrolled) return;
+                const result = await LocalAuthentication.authenticateAsync({
+                    promptMessage: 'Verify to enable biometric lock',
+                    cancelLabel: 'Cancel',
+                    disableDeviceFallback: false,
+                });
+                if (!result.success) return;
+            } catch { return; }
         }
         _setBiometricEnabled(v);
         await setSecureItem('piqabu_biometric_enabled', v ? 'true' : 'false');
@@ -95,6 +96,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
             return true;
         }
         try {
+            const LocalAuthentication = await import('expo-local-authentication');
             const result = await LocalAuthentication.authenticateAsync({
                 promptMessage: 'Authenticate to access Piqabu',
                 cancelLabel: 'Cancel',
