@@ -451,7 +451,7 @@ io.on('connection', (socket) => {
         if (!participant) return;
         const roomId = extractRoomId(data);
         if (!roomId || !participant.rooms.has(roomId)) return;
-        socket.to(roomId).emit('whisper_ready', { roomId });
+        socket.to(roomId).emit('whisper_ready', { roomId, from: socket.id });
     });
 
     socket.on('whisper_ptt', (data) => {

@@ -600,12 +600,19 @@ export default function LiveGlassPanel({
         socket.on('webrtc_ready', (data: any) => {
             if (!partnerReady.current) {
                 partnerReady.current = true;
-                // Deterministic caller: smaller socket.id creates the offer
-                if (socket.id && socket.id < (data?.from ?? '')) {
+                const from = data?.from;
+                if (from && socket.id) {
+                    // Deterministic caller: smaller socket.id creates the offer
+                    if (socket.id < from) {
+                        isCaller.current = true;
+                        createOffer();
+                    }
+                    // else: wait for the other peer's offer
+                } else {
+                    // Fallback (server not redeployed): first to receive = caller
                     isCaller.current = true;
                     createOffer();
                 }
-                // else: wait for the other peer's offer
             }
         });
 

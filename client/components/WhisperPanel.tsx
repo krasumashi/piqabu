@@ -272,11 +272,22 @@ export default function WhisperPanel({
         socket.off('whisper_signal');
         socket.off('whisper_ready');
         socket.on('whisper_signal', handleSignal);
-        socket.on('whisper_ready', () => {
+        socket.on('whisper_ready', (data: any) => {
             if (!partnerReady.current) {
                 partnerReady.current = true;
-                isCaller.current = true;
-                createOffer();
+                const from = data?.from;
+                if (from && socket.id) {
+                    // Deterministic caller: smaller socket.id creates the offer
+                    if (socket.id < from) {
+                        isCaller.current = true;
+                        createOffer();
+                    }
+                    // else: wait for the other peer's offer
+                } else {
+                    // Fallback (server not redeployed): first to receive = caller
+                    isCaller.current = true;
+                    createOffer();
+                }
             }
         });
 
