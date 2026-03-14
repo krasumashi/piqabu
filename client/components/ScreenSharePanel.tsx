@@ -9,25 +9,6 @@ import { THEME } from '../constants/Theme';
 import type { Socket } from 'socket.io-client';
 
 // ---------------------------------------------------------------------------
-// Grayscale wrapper: native uses color-matrix-image-filters, web uses CSS
-// ---------------------------------------------------------------------------
-let NativeGrayscale: any = null;
-if (Platform.OS !== 'web') {
-    try {
-        NativeGrayscale = require('react-native-color-matrix-image-filters').Grayscale;
-    } catch (e) { }
-}
-
-function GrayscaleWrap({ children }: { children: React.ReactNode }) {
-    if (Platform.OS === 'web') {
-        return <View style={{ filter: 'grayscale(100%)' } as any}>{children}</View>;
-    }
-    if (NativeGrayscale) {
-        return <NativeGrayscale>{children}</NativeGrayscale>;
-    }
-    return <>{children}</>;
-}
-
 // ---------------------------------------------------------------------------
 // Conditionally import RTCView for native viewer rendering
 // ---------------------------------------------------------------------------
@@ -634,13 +615,13 @@ export default function ScreenSharePanel({
                             style={styles.webVideoContainer}
                         />
                     ) : nativeStreamURL && RTCView ? (
-                        <GrayscaleWrap>
+                        <View style={{ flex: 1 }}>
                             <RTCView
                                 streamURL={nativeStreamURL}
                                 style={styles.nativeVideo}
                                 objectFit="contain"
                             />
-                        </GrayscaleWrap>
+                        </View>
                     ) : (
                         <View style={styles.noSignal}>
                             <Ionicons name="videocam-off-outline" size={32} color={THEME.faint} />

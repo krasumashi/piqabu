@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { Platform, AppState } from 'react-native';
+import { Platform, AppState, Alert } from 'react-native';
+import Constants from 'expo-constants';
 import { getSecureItem, setSecureItem } from '../lib/platform/storage';
 
 /* ─────────────────── types ─────────────────── */
@@ -36,6 +37,8 @@ const SHAKE_THRESHOLD = 1.8; // G-force
 const SHAKE_COUNT = 3;       // consecutive readings above threshold
 const SHAKE_COOLDOWN = 2000; // ms cooldown after trigger
 
+const isExpoGo = Constants.appOwnership === 'expo';
+
 /* ═══════════════ PROVIDER ══════════════════════ */
 
 export function SecurityProvider({ children }: { children: React.ReactNode }) {
@@ -57,8 +60,8 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
             ]);
             _setPanicEnabled(panic === 'true');
             _setBiometricEnabled(bio === 'true');
-            // Lock on first load if biometric is enabled
-            if (bio === 'true' && Platform.OS !== 'web') {
+            // Lock on first load if biometric is enabled (not in Expo Go)
+            if (bio === 'true' && Platform.OS !== 'web' && !isExpoGo) {
                 setBiometricLocked(true);
             }
         })();
@@ -72,11 +75,18 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
 
     const setBiometricEnabled = useCallback(async (v: boolean) => {
         if (v && Platform.OS !== 'web') {
+            if (isExpoGo) {
+                Alert.alert('Production Build Required', 'Biometric lock requires a production build. It will not work in Expo Go.');
+                return;
+            }
             try {
                 const LocalAuthentication = await import('expo-local-authentication');
                 const compatible = await LocalAuthentication.hasHardwareAsync();
                 const enrolled = await LocalAuthentication.isEnrolledAsync();
-                if (!compatible || !enrolled) return;
+                if (!compatible || !enrolled) {
+                    Alert.alert('Unavailable', 'No biometric hardware or enrollment found on this device.');
+                    return;
+                }
                 const result = await LocalAuthentication.authenticateAsync({
                     promptMessage: 'Verify to enable biometric lock',
                     cancelLabel: 'Cancel',
@@ -91,7 +101,8 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
 
     /* ── Biometric authentication ── */
     const authenticate = useCallback(async (): Promise<boolean> => {
-        if (Platform.OS === 'web') {
+        if (Platform.OS === 'web' || isExpoGo) {
+            // In Expo Go or web, just unlock without biometric
             setBiometricLocked(false);
             return true;
         }
@@ -128,8 +139,10 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     }, [biometricEnabled, authenticate]);
 
     /* ── Shake detection via Accelerometer ── */
+    // In __DEV__ mode (Expo Go), shake opens the dev menu instead.
+    // Shake-to-panic only works in production; use TEST PANIC button in dev.
     useEffect(() => {
-        if (Platform.OS === 'web' || !panicEnabled) return;
+        if (Platform.OS === 'web' || !panicEnabled || __DEV__) return;
 
         let sub: { remove: () => void } | null = null;
 
@@ -157,7 +170,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
 
     /* ── App state → biometric lock on resume ── */
     useEffect(() => {
-        if (Platform.OS === 'web' || !biometricEnabled) return;
+        if (Platform.OS === 'web' || !biometricEnabled || isExpoGo) return;
         const sub = AppState.addEventListener('change', (nextState) => {
             if (
                 appStateRef.current.match(/inactive|background/) &&

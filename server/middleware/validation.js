@@ -10,7 +10,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const BASE64_DATA_URI_REGEX = /^data:[a-z]+\/[a-z0-9.+-]+;base64,/i;
 
 const MAX_TEXT_LENGTH = 10000;
-const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB base64 string length
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB base64 string length
 const MAX_AUDIO_SIZE = 1 * 1024 * 1024; // 1MB base64 string length
 
 function validateRoomId(roomId) {

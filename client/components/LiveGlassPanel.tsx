@@ -176,6 +176,7 @@ export default function LiveGlassPanel({
     const [mode, setMode] = useState<Mode>(initialMode);
     const [localStream, setLocalStream] = useState<any>(null);
     const [remoteStream, setRemoteStream] = useState<any>(null);
+    const [nativeStreamURL, setNativeStreamURL] = useState<string | null>(null);
     const [blurIntensity, setBlurIntensity] = useState(0);
     const [audioEnabled, setAudioEnabled] = useState(true);
     const [facingFront, setFacingFront] = useState(true);
@@ -344,6 +345,7 @@ export default function LiveGlassPanel({
         /* reset state */
         setLocalStream(null);
         setRemoteStream(null);
+        setNativeStreamURL(null);
         setMode('lobby');
         setBlurIntensity(0);
         setAudioEnabled(true);
@@ -541,12 +543,18 @@ export default function LiveGlassPanel({
         pc.ontrack = (event: any) => {
             if (event.streams?.[0]) {
                 setRemoteStream(event.streams[0]);
+                if (Platform.OS !== 'web') {
+                    const url = (event.streams[0] as any).toURL?.();
+                    if (url) setNativeStreamURL(url);
+                }
             }
         };
         if (Platform.OS !== 'web') {
             pc.onaddstream = (event: any) => {
                 if (event.stream) {
                     setRemoteStream(event.stream);
+                    const url = (event.stream as any).toURL?.();
+                    if (url) setNativeStreamURL(url);
                 }
             };
         }
@@ -625,6 +633,26 @@ export default function LiveGlassPanel({
             setMode('calling');
         }
     }, [visible, initialMode]);
+
+    /* ──────────────────── blur sync over socket ─────────────────────── */
+
+    const [remoteBlur, setRemoteBlur] = useState(0);
+
+    // Emit local blur changes to partner
+    useEffect(() => {
+        if (!socket || !roomId || !visible || mode !== 'calling') return;
+        socket.emit('transmit_live_glass_controls', { roomId, controls: { blur: blurIntensity } });
+    }, [blurIntensity, socket, roomId, visible, mode]);
+
+    // Listen for partner's blur setting
+    useEffect(() => {
+        if (!socket || !roomId || !visible) return;
+        const handler = (data: any) => {
+            if (data.roomId === roomId) setRemoteBlur(data.controls?.blur ?? 0);
+        };
+        socket.on('remote_live_glass_controls', handler);
+        return () => { socket.off('remote_live_glass_controls', handler); };
+    }, [socket, roomId, visible]);
 
     /* ──────────────────── audio mute toggle ──────────────────────────── */
 
@@ -817,10 +845,10 @@ export default function LiveGlassPanel({
                                             muted={false}
                                         />
                                     </View>
-                                ) : RTCViewNative ? (
+                                ) : RTCViewNative && nativeStreamURL ? (
                                     <>
                                         <RTCViewNative
-                                            streamURL={remoteStream.toURL()}
+                                            streamURL={nativeStreamURL}
                                             style={{ width: '100%', height: '100%' }}
                                             objectFit="cover"
                                             zOrder={0}

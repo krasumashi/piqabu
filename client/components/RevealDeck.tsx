@@ -4,16 +4,23 @@ import {
     Animated as RNAnimated, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 
-const MAX_IMAGE_SIZE = 1.5 * 1024 * 1024;
+const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 5MB base64 data URI
 
-type EvidenceItem = { id: string; uri: string };
+type MediaType = 'image' | 'video';
+type EvidenceItem = { id: string; uri: string; type: MediaType };
 
 let _idCounter = 0;
 function nextId(): string {
     return `ev_${Date.now()}_${++_idCounter}`;
+}
+
+function isVideoUri(uri: string): boolean {
+    return uri.startsWith('data:video/');
 }
 
 export default function RevealDeck({
@@ -25,7 +32,7 @@ export default function RevealDeck({
     onOpenLiveMirror?: () => void;
     maxImages?: number;
 }) {
-    const [images, setImages] = useState<EvidenceItem[]>([]);
+    const [items, setItems] = useState<EvidenceItem[]>([]);
     const [exposedId, setExposedId] = useState<string | null>(null);
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
@@ -42,31 +49,64 @@ export default function RevealDeck({
         }
     }, [visible]);
 
-    const pickImage = async () => {
-        if (images.length >= maxImages) {
-            Alert.alert('Limit Reached', `Maximum ${maxImages} images allowed.`);
+    const pickMedia = async () => {
+        if (items.length >= maxImages) {
+            Alert.alert('Limit Reached', `Maximum ${maxImages} items allowed.`);
             return;
         }
 
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images', 'videos'],
             base64: true,
             quality: 0.5,
+            videoMaxDuration: 30, // 30 seconds max
         });
 
-        if (!result.canceled && result.assets[0].base64) {
-            let dataUri = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        if (result.canceled || !result.assets?.[0]) return;
 
-            if (dataUri.length > MAX_IMAGE_SIZE) {
-                // Try lower quality
+        const asset = result.assets[0];
+        const isVideo = asset.type === 'video';
+
+        if (isVideo) {
+            // Video: read file as base64
+            if (!asset.uri) return;
+            try {
+                const info = await FileSystem.getInfoAsync(asset.uri);
+                if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
+                    // 3.5MB binary ≈ 4.8MB base64
+                    Alert.alert('File Too Large', 'Video must be under ~3.5MB. Try a shorter clip.');
+                    return;
+                }
+                const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
+                const mime = asset.mimeType || 'video/mp4';
+                const dataUri = `data:${mime};base64,${base64}`;
+                if (dataUri.length > MAX_MEDIA_SIZE) {
+                    Alert.alert('File Too Large', 'Video is too large. Try a shorter clip.');
+                    return;
+                }
+                setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: 'video' }]);
+            } catch (e: any) {
+                Alert.alert('Error', 'Could not read video file.');
+            }
+        } else {
+            // Image: use base64 from picker
+            if (!asset.base64) return;
+            const mime = asset.mimeType || 'image/jpeg';
+            let dataUri = `data:${mime};base64,${asset.base64}`;
+
+            if (dataUri.length > MAX_MEDIA_SIZE) {
+                // Retry at lower quality
                 const lowRes = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                    mediaTypes: ['images'],
                     base64: true,
                     quality: 0.2,
                 });
-                if (!lowRes.canceled && lowRes.assets[0].base64) {
-                    const lowUri = `data:image/jpeg;base64,${lowRes.assets[0].base64}`;
-                    if (lowUri.length > MAX_IMAGE_SIZE) {
+                if (!lowRes.canceled && lowRes.assets[0]?.base64) {
+                    const lowMime = lowRes.assets[0].mimeType || 'image/jpeg';
+                    const lowUri = `data:${lowMime};base64,${lowRes.assets[0].base64}`;
+                    if (lowUri.length > MAX_MEDIA_SIZE) {
                         Alert.alert('File Too Large', 'Image is too large even at low quality. Choose a smaller image.');
                         return;
                     }
@@ -76,26 +116,24 @@ export default function RevealDeck({
                 }
             }
 
-            setImages(prev => [...prev, { id: nextId(), uri: dataUri }]);
+            setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: 'image' }]);
         }
     };
 
-    // Radio-style expose: only ONE image exposed at a time
+    // Radio-style expose: only ONE item exposed at a time
     const toggleExpose = (id: string) => {
         if (exposedId === id) {
-            // Already exposed → cover it
             setExposedId(null);
             onReveal(null);
         } else {
-            // Expose this one (covers previous)
             setExposedId(id);
-            const item = images.find(i => i.id === id);
+            const item = items.find(i => i.id === id);
             if (item) onReveal(item.uri);
         }
     };
 
-    const removeImage = (id: string) => {
-        setImages(prev => prev.filter(i => i.id !== id));
+    const removeItem = (id: string) => {
+        setItems(prev => prev.filter(i => i.id !== id));
         if (exposedId === id) {
             setExposedId(null);
             onReveal(null);
@@ -103,7 +141,7 @@ export default function RevealDeck({
     };
 
     const clearAll = () => {
-        setImages([]);
+        setItems([]);
         setExposedId(null);
         onReveal(null);
     };
@@ -124,7 +162,7 @@ export default function RevealDeck({
                     <View>
                         <Text style={styles.headerTitle}>REVEAL VAULT</Text>
                         <Text style={styles.headerSub}>
-                            LOADED: {images.length} • EXPOSED: {exposedId ? '1' : '0'}
+                            LOADED: {items.length} • EXPOSED: {exposedId ? '1' : '0'}
                         </Text>
                     </View>
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -134,7 +172,7 @@ export default function RevealDeck({
 
                 {/* Actions */}
                 <View style={styles.actions}>
-                    <TouchableOpacity onPress={pickImage} style={styles.actionBtn} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={pickMedia} style={styles.actionBtn} activeOpacity={0.7}>
                         <Text style={styles.actionBtnText}>+ ADD EVIDENCE</Text>
                     </TouchableOpacity>
 
@@ -145,7 +183,7 @@ export default function RevealDeck({
                         </TouchableOpacity>
                     )}
 
-                    {images.length > 0 && (
+                    {items.length > 0 && (
                         <TouchableOpacity onPress={clearAll} style={[styles.actionBtn, { marginLeft: 'auto' }]} activeOpacity={0.7}>
                             <Text style={[styles.actionBtnText, { color: THEME.bad }]}>CLEAR ALL</Text>
                         </TouchableOpacity>
@@ -154,26 +192,34 @@ export default function RevealDeck({
 
                 {/* Content */}
                 <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-                    {images.length === 0 ? (
+                    {items.length === 0 ? (
                         <View style={styles.emptyState}>
                             <Ionicons name="folder-open-outline" size={32} color={THEME.faint} />
                             <Text style={styles.emptyText}>NO EVIDENCE LOADED</Text>
                         </View>
                     ) : (
-                        images.map((item, idx) => {
+                        items.map((item, idx) => {
                             const isExposed = exposedId === item.id;
                             return (
                                 <View key={item.id} style={styles.evidenceRow}>
                                     {/* Thumbnail */}
                                     <View style={styles.thumb}>
-                                        <Image source={{ uri: item.uri }} style={styles.thumbImage} resizeMode="cover" />
+                                        {item.type === 'video' ? (
+                                            <View style={styles.videoThumb}>
+                                                <Ionicons name="videocam" size={22} color={THEME.muted} />
+                                            </View>
+                                        ) : (
+                                            <Image source={{ uri: item.uri }} style={styles.thumbImage} resizeMode="cover" />
+                                        )}
                                     </View>
 
                                     {/* Meta */}
                                     <View style={styles.meta}>
                                         <Text style={styles.metaTitle}>EVIDENCE {idx + 1}</Text>
                                         <View style={styles.metaRow}>
-                                            <Text style={styles.metaType}>IMAGE</Text>
+                                            <Text style={styles.metaType}>
+                                                {item.type === 'video' ? 'VIDEO' : 'IMAGE'}
+                                            </Text>
                                             <Text style={styles.metaDivider}>•</Text>
                                             <Text style={[styles.metaStatus, isExposed && { color: THEME.accEmerald }]}>
                                                 {isExposed ? 'EXPOSED' : 'HIDDEN'}
@@ -181,9 +227,9 @@ export default function RevealDeck({
                                         </View>
                                     </View>
 
-                                    {/* Actions: Expose/Cover + Delete */}
+                                    {/* Actions: Delete + Expose/Cover */}
                                     <TouchableOpacity
-                                        onPress={() => removeImage(item.id)}
+                                        onPress={() => removeItem(item.id)}
                                         style={styles.deleteBtn}
                                         activeOpacity={0.7}
                                     >
@@ -204,6 +250,19 @@ export default function RevealDeck({
                         })
                     )}
                 </ScrollView>
+
+                {/* Video Preview for exposed video */}
+                {exposedId && items.find(i => i.id === exposedId)?.type === 'video' && (
+                    <View style={styles.videoPreview}>
+                        <Video
+                            source={{ uri: items.find(i => i.id === exposedId)!.uri }}
+                            style={styles.videoPlayer}
+                            useNativeControls
+                            resizeMode={ResizeMode.CONTAIN}
+                            isLooping={false}
+                        />
+                    </View>
+                )}
 
                 {/* Footer */}
                 <View style={styles.footer}>
@@ -359,6 +418,13 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
+    videoThumb: {
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+    },
     meta: {
         flex: 1,
         minWidth: 0,
@@ -428,6 +494,18 @@ const styles = StyleSheet.create({
     },
     toggleTextActive: {
         color: THEME.accEmerald,
+    },
+    videoPreview: {
+        height: 140,
+        marginHorizontal: 14,
+        marginBottom: 6,
+        borderRadius: 16,
+        overflow: 'hidden',
+        backgroundColor: '#000',
+    },
+    videoPlayer: {
+        width: '100%',
+        height: '100%',
     },
     footer: {
         padding: 14,

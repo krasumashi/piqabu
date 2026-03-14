@@ -439,10 +439,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 visible={activeOverlay === 'reveal'}
                 onClose={() => setActiveOverlay(null)}
                 onReveal={sendReveal}
-                onOpenLiveMirror={() => {
+                onOpenLiveMirror={Platform.OS === 'web' ? () => {
                     setActiveOverlay(null);
-                    sendInvite('screen_share'); // Send invite first
-                    onOpenScreenShare(true);    // Open panel in waiting state
+                    sendInvite('screen_share');
+                    onOpenScreenShare(true);
+                } : () => {
+                    Alert.alert('Web Only', 'Screen sharing is only available on the web version.');
                 }}
             />
             <PeepDeck

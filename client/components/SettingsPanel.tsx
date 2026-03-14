@@ -16,7 +16,7 @@ interface SettingsPanelProps {
 export default function SettingsPanel({
     visible, onClose, roomId, linkStatus, onRegenerateKey, onLeaveChannel,
 }: SettingsPanelProps) {
-    const { panicEnabled, biometricEnabled, setPanicEnabled, setBiometricEnabled } = useSecurity();
+    const { panicEnabled, biometricEnabled, setPanicEnabled, setBiometricEnabled, triggerPanic } = useSecurity();
     const slideAnim = useRef(new RNAnimated.Value(300)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
@@ -103,6 +103,22 @@ export default function SettingsPanel({
                         {panicEnabled ? 'ON' : 'OFF'}
                     </Text>
                 </TouchableOpacity>
+
+                {panicEnabled && (
+                    <TouchableOpacity
+                        onPress={() => { onClose(); triggerPanic(); }}
+                        style={styles.item}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.itemRow}>
+                            <Ionicons name="flash-outline" size={14} color={THEME.warn} />
+                            <Text style={styles.itemLabel}>TEST PANIC</Text>
+                        </View>
+                        <Text style={[styles.itemValueBold, { color: THEME.faint }]}>
+                            {__DEV__ ? 'TAP TO TRIGGER' : 'SHAKE OR TAP'}
+                        </Text>
+                    </TouchableOpacity>
+                )}
 
                 {Platform.OS !== 'web' && (
                     <TouchableOpacity

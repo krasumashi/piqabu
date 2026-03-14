@@ -74,7 +74,7 @@ const io = new Server(server, {
     },
     allowEIO3: true,
     transports: ['websocket', 'polling'],
-    maxHttpBufferSize: 2e6,
+    maxHttpBufferSize: 10e6,
     pingTimeout: 60000,
     pingInterval: 25000,
 });
@@ -495,6 +495,19 @@ io.on('connection', (socket) => {
         if (!roomId || !participant.rooms.has(roomId)) return;
         if (typeof data.controls !== 'object' || data.controls === null) return;
         socket.to(roomId).emit('transmit_screen_share_controls', {
+            roomId,
+            controls: { blur: Number(data.controls.blur) || 0 },
+        });
+    });
+
+    // --- Live Glass Controls (blur relay) ---
+    socket.on('transmit_live_glass_controls', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        if (typeof data.controls !== 'object' || data.controls === null) return;
+        socket.to(roomId).emit('remote_live_glass_controls', {
             roomId,
             controls: { blur: Number(data.controls.blur) || 0 },
         });

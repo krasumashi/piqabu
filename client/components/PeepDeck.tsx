@@ -2,7 +2,12 @@ import React, { useRef, useEffect, useState } from 'react';
 import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
+import { Video, ResizeMode } from 'expo-av';
 import { THEME } from '../constants/Theme';
+
+function isVideoUri(uri: string): boolean {
+    return uri.startsWith('data:video/');
+}
 
 export default function PeepDeck({
     remoteImage, visible, onClose,
@@ -33,7 +38,7 @@ export default function PeepDeck({
         if (!remoteImage) setFocusedItem(null);
     }, [remoteImage]);
 
-    // Prevent screenshots when viewing revealed images
+    // Prevent screenshots when viewing revealed media
     useEffect(() => {
         if (Platform.OS === 'web') return;
         if (visible && remoteImage) {
@@ -48,6 +53,8 @@ export default function PeepDeck({
 
     if (!visible) return null;
 
+    const isVideo = remoteImage ? isVideoUri(remoteImage) : false;
+
     // Watermark overlay component
     const Watermark = () => (
         <View style={styles.watermarkOverlay} pointerEvents="none">
@@ -57,8 +64,9 @@ export default function PeepDeck({
         </View>
     );
 
-    // Focus modal
+    // Focus modal (expanded view)
     if (focusedItem) {
+        const focusIsVideo = isVideoUri(focusedItem);
         return (
             <Modal visible={true} animationType="fade" transparent>
                 <View style={styles.focusModal}>
@@ -68,7 +76,18 @@ export default function PeepDeck({
                         </TouchableOpacity>
                     </View>
                     <View style={styles.focusBody}>
-                        <Image source={{ uri: focusedItem }} style={styles.focusImage} resizeMode="contain" />
+                        {focusIsVideo ? (
+                            <Video
+                                source={{ uri: focusedItem }}
+                                style={styles.focusImage}
+                                resizeMode={ResizeMode.CONTAIN}
+                                shouldPlay
+                                isLooping={false}
+                                useNativeControls={false}
+                            />
+                        ) : (
+                            <Image source={{ uri: focusedItem }} style={styles.focusImage} resizeMode="contain" />
+                        )}
                         <Watermark />
                     </View>
                 </View>
@@ -103,7 +122,31 @@ export default function PeepDeck({
                             <Ionicons name="eye-off-outline" size={32} color={THEME.faint} />
                             <Text style={styles.emptyText}>NOTHING EXPOSED... YET</Text>
                         </View>
+                    ) : isVideo ? (
+                        /* Video exposed */
+                        <View style={styles.videoContainer}>
+                            <Video
+                                source={{ uri: remoteImage }}
+                                style={styles.videoPlayer}
+                                resizeMode={ResizeMode.CONTAIN}
+                                shouldPlay
+                                isLooping={false}
+                                useNativeControls={false}
+                            />
+                            <Watermark />
+                            <TouchableOpacity
+                                onPress={() => setFocusedItem(remoteImage)}
+                                style={styles.expandBtn}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="expand-outline" size={18} color="#fff" />
+                            </TouchableOpacity>
+                            <View style={styles.gridItemLabel}>
+                                <Text style={styles.gridItemType}>VIDEO</Text>
+                            </View>
+                        </View>
                     ) : (
+                        /* Image exposed */
                         <TouchableOpacity
                             onPress={() => setFocusedItem(remoteImage)}
                             style={styles.gridItem}
@@ -229,6 +272,30 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         opacity: 0.8,
+    },
+    videoContainer: {
+        width: '100%',
+        aspectRatio: 16 / 9,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: '#000',
+        overflow: 'hidden',
+    },
+    videoPlayer: {
+        width: '100%',
+        height: '100%',
+    },
+    expandBtn: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     gridItemLabel: {
         position: 'absolute',
