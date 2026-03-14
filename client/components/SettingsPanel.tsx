@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
 
@@ -17,6 +18,7 @@ export default function SettingsPanel({
     visible, onClose, roomId, linkStatus, onRegenerateKey, onLeaveChannel,
 }: SettingsPanelProps) {
     const { panicEnabled, biometricEnabled, setPanicEnabled, setBiometricEnabled, triggerPanic } = useSecurity();
+    const insets = useSafeAreaInsets();
     const slideAnim = useRef(new RNAnimated.Value(300)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
@@ -58,7 +60,7 @@ export default function SettingsPanel({
             </RNAnimated.View>
 
             {/* Drawer */}
-            <RNAnimated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }] }]}>
+            <RNAnimated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }], paddingTop: Math.max(insets.top + 10, 20) }]}>
                 {/* Header */}
                 <View style={styles.drawerHeader}>
                     <Text style={styles.drawerTitle}>SETTINGS</Text>
@@ -175,7 +177,7 @@ const styles = StyleSheet.create({
         borderLeftColor: THEME.edge,
         zIndex: 100,
         padding: 18,
-        paddingTop: 50,
+        // paddingTop is now dynamic via useSafeAreaInsets in the component
         gap: 12,
         shadowColor: '#000',
         shadowOffset: { width: -10, height: 0 },

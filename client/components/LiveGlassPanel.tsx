@@ -181,6 +181,7 @@ export default function LiveGlassPanel({
     const [audioEnabled, setAudioEnabled] = useState(true);
     const [facingFront, setFacingFront] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [displayMode, setDisplayMode] = useState<'expanded' | 'pip'>('expanded');
 
     /* ── refs ──────────────────────────────────────────────────────────── */
     const pcRef = useRef<any>(null);
@@ -196,6 +197,7 @@ export default function LiveGlassPanel({
         if (visible) {
             setMode(initialMode);
             webrtcStarted.current = false;
+            setDisplayMode('expanded');
         }
     }, [visible, initialMode]);
 
@@ -620,12 +622,12 @@ export default function LiveGlassPanel({
         socket.emit('webrtc_ready', { roomId });
     }, [socket, roomId, createPeerConnection, handleSignal, createOffer, serialiseCandidate]);
 
-    /* Trigger WebRTC when mode becomes 'calling' */
+    /* Trigger WebRTC when mode becomes 'calling' AND camera is ready */
     useEffect(() => {
-        if (mode === 'calling' && visible) {
+        if (mode === 'calling' && visible && localStream) {
             startWebRTC();
         }
-    }, [mode, visible, startWebRTC]);
+    }, [mode, visible, localStream, startWebRTC]);
 
     /* ── When partner accepts our invite, transition lobby → calling ──── */
     useEffect(() => {
@@ -761,14 +763,48 @@ export default function LiveGlassPanel({
 
     /* ═══════════════════════════ RENDER ═══════════════════════════════ */
 
+    if (!visible) return null;
+
+    /* ── PiP (minimised) mode ──────────────────────────────────────── */
+    if (displayMode === 'pip') {
+        return (
+            <TouchableOpacity
+                onPress={() => setDisplayMode('expanded')}
+                style={styles.pipContainer}
+                activeOpacity={0.9}
+            >
+                {remoteStream && Platform.OS !== 'web' && nativeStreamURL && RTCViewNative ? (
+                    <RTCViewNative
+                        streamURL={nativeStreamURL}
+                        style={styles.pipVideo}
+                        objectFit="cover"
+                        zOrder={1}
+                    />
+                ) : remoteStream && Platform.OS === 'web' ? (
+                    <View style={[StyleSheet.absoluteFill, { filter: 'grayscale(100%)' } as any]}>
+                        <WebVideo stream={remoteStream} muted={false} />
+                    </View>
+                ) : (
+                    <View style={styles.pipPlaceholder}>
+                        <Ionicons name="videocam" size={20} color={THEME.muted} />
+                        <Text style={styles.pipStatusText}>
+                            {mode === 'connected' ? 'LIVE' : 'CALLING...'}
+                        </Text>
+                    </View>
+                )}
+                {/* Expand icon overlay */}
+                <View style={styles.pipExpandIcon}>
+                    <Ionicons name="expand-outline" size={14} color="#fff" />
+                </View>
+                {/* Live dot */}
+                {mode === 'connected' && <View style={styles.pipLiveDot} />}
+            </TouchableOpacity>
+        );
+    }
+
+    /* ── Expanded (full-screen) mode ───────────────────────────────── */
     return (
-        <Modal
-            visible={visible}
-            animationType="slide"
-            transparent={false}
-            onRequestClose={handleClose}
-            statusBarTranslucent
-        >
+        <View style={[StyleSheet.absoluteFill, { zIndex: 60 }]}>
             <View style={styles.root}>
                 {/* ── header ─────────────────────────────────────────── */}
                 <View style={styles.header}>
@@ -778,14 +814,28 @@ export default function LiveGlassPanel({
                         />
                         <Text style={styles.title}>LIVE GLASS</Text>
                     </View>
-                    <TouchableOpacity
-                        onPress={handleClose}
-                        style={styles.closeBtn}
-                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="close" size={16} color="#fff" />
-                    </TouchableOpacity>
+                    <View style={styles.headerRight}>
+                        {/* Minimise to PiP */}
+                        {(mode === 'calling' || mode === 'connected') && (
+                            <TouchableOpacity
+                                onPress={() => setDisplayMode('pip')}
+                                style={styles.closeBtn}
+                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name="remove-outline" size={18} color="#fff" />
+                            </TouchableOpacity>
+                        )}
+                        {/* Close */}
+                        <TouchableOpacity
+                            onPress={handleClose}
+                            style={styles.closeBtn}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons name="close" size={16} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 {/* ── error banner ───────────────────────────────────── */}
@@ -1027,7 +1077,7 @@ export default function LiveGlassPanel({
                     </TouchableOpacity>
                 )}
             </View>
-        </Modal>
+        </View>
     );
 }
 
@@ -1050,6 +1100,11 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    headerRight: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
@@ -1265,5 +1320,68 @@ const styles = StyleSheet.create({
         letterSpacing: 2.2,
         color: THEME.muted,
         textTransform: 'uppercase',
+    },
+
+    /* ── PiP (minimised) ──────────────────────────────────────────── */
+    pipContainer: {
+        position: 'absolute',
+        bottom: 90,
+        right: 16,
+        width: 120,
+        height: 170,
+        borderRadius: 16,
+        overflow: 'hidden',
+        backgroundColor: '#000',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.2)',
+        zIndex: 50,
+        elevation: 50,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.5,
+        shadowRadius: 16,
+    },
+    pipVideo: {
+        width: '100%',
+        height: '100%',
+    },
+    pipPlaceholder: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        gap: 6,
+    },
+    pipStatusText: {
+        fontFamily: THEME.mono,
+        fontSize: 8,
+        fontWeight: '900',
+        letterSpacing: 1,
+        color: THEME.faint,
+        textTransform: 'uppercase',
+    },
+    pipExpandIcon: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    pipLiveDot: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#4ADE80',
+        shadowColor: '#4ADE80',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: 6,
     },
 });

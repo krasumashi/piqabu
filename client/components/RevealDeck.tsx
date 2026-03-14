@@ -68,18 +68,22 @@ export default function RevealDeck({
         const isVideo = asset.type === 'video';
 
         if (isVideo) {
-            // Video: read file as base64
+            // Video: copy to cache first (Android content:// URIs can't be read directly)
             if (!asset.uri) return;
+            const cacheUri = FileSystem.cacheDirectory + 'reveal_video_' + Date.now() + '.mp4';
             try {
-                const info = await FileSystem.getInfoAsync(asset.uri);
+                await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
+                const info = await FileSystem.getInfoAsync(cacheUri);
                 if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
                     // 3.5MB binary ≈ 4.8MB base64
-                    Alert.alert('File Too Large', 'Video must be under ~3.5MB. Try a shorter clip.');
+                    Alert.alert('File Too Large', 'Video must be under ~3.5 MB. Try a shorter clip.');
+                    await FileSystem.deleteAsync(cacheUri, { idempotent: true });
                     return;
                 }
-                const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+                const base64 = await FileSystem.readAsStringAsync(cacheUri, {
                     encoding: FileSystem.EncodingType.Base64,
                 });
+                await FileSystem.deleteAsync(cacheUri, { idempotent: true });
                 const mime = asset.mimeType || 'video/mp4';
                 const dataUri = `data:${mime};base64,${base64}`;
                 if (dataUri.length > MAX_MEDIA_SIZE) {
@@ -88,7 +92,9 @@ export default function RevealDeck({
                 }
                 setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: 'video' }]);
             } catch (e: any) {
-                Alert.alert('Error', 'Could not read video file.');
+                console.warn('[RevealDeck] Video read error:', e);
+                await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
+                Alert.alert('Error', 'Could not read video file. Try a shorter or smaller video.');
             }
         } else {
             // Image: use base64 from picker

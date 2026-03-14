@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useRoomContext } from '../../contexts/RoomContext';
 import { useRoom, LinkStatus } from '../../hooks/useRoom';
@@ -444,7 +445,11 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                     sendInvite('screen_share');
                     onOpenScreenShare(true);
                 } : () => {
-                    Alert.alert('Web Only', 'Screen sharing is only available on the web version.');
+                    // On native: open LiveGlass (video call) instead of screen share
+                    setActiveOverlay(null);
+                    setLiveGlassInitialMode('lobby');
+                    setLiveGlassPartnerAccepted(false);
+                    onOpenLiveGlass();
                 }}
             />
             <PeepDeck
@@ -504,6 +509,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 // ═══════════════════════════════════════════
 export default function RoomScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const {
         rooms, activeRoomId, addRoom, removeRoom, switchRoom,
         socket, deviceId, requestRoomCode, isConnected,
@@ -582,7 +588,7 @@ export default function RoomScreen() {
     if (!activeRoomId) return null;
 
     return (
-        <RNAnimated.View style={[st.screen, { opacity: screenFade }]}>
+        <RNAnimated.View style={[st.screen, { opacity: screenFade, paddingTop: insets.top || 30 }]}>
             <RoomTabBar
                 rooms={rooms} activeRoomId={activeRoomId} roomStatuses={roomStatuses}
                 onSwitchRoom={switchRoom} onAddRoom={() => setShowAddModal(true)}
@@ -689,7 +695,7 @@ const st = StyleSheet.create({
     screen: {
         flex: 1,
         backgroundColor: THEME.bg,
-        paddingTop: Platform.OS === 'ios' ? 50 : 30,
+        // paddingTop is now dynamic via useSafeAreaInsets in the component
     },
     roomContent: { flex: 1 },
 
