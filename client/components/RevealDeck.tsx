@@ -67,22 +67,40 @@ export default function RevealDeck({
         const isVideo = asset.type === 'video';
 
         if (isVideo) {
-            // Video: copy to cache first (Android content:// URIs can't be read directly)
+            // Video: read as base64 data URI
             if (!asset.uri) return;
-            const cacheUri = FileSystem.cacheDirectory + 'reveal_video_' + Date.now() + '.mp4';
             try {
-                await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
-                const info = await FileSystem.getInfoAsync(cacheUri);
+                let readUri = asset.uri;
+
+                // Try copying to cache (needed for some Android content:// URIs)
+                const cacheDir = FileSystem.cacheDirectory;
+                if (cacheDir) {
+                    const cacheUri = cacheDir + 'reveal_video_' + Date.now() + '.mp4';
+                    try {
+                        await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
+                        readUri = cacheUri;
+                    } catch {
+                        // Fallback: try reading directly from original URI
+                    }
+                }
+
+                const info = await FileSystem.getInfoAsync(readUri);
                 if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
                     // 3.5MB binary ≈ 4.8MB base64
                     Alert.alert('File Too Large', 'Video must be under ~3.5 MB. Try a shorter clip.');
-                    await FileSystem.deleteAsync(cacheUri, { idempotent: true });
+                    if (readUri !== asset.uri) await FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
                     return;
                 }
-                const base64 = await FileSystem.readAsStringAsync(cacheUri, {
+
+                const base64 = await FileSystem.readAsStringAsync(readUri, {
                     encoding: FileSystem.EncodingType.Base64,
                 });
-                await FileSystem.deleteAsync(cacheUri, { idempotent: true });
+
+                // Clean up cache copy if we made one
+                if (readUri !== asset.uri) {
+                    await FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
+                }
+
                 const mime = asset.mimeType || 'video/mp4';
                 const dataUri = `data:${mime};base64,${base64}`;
                 if (dataUri.length > MAX_MEDIA_SIZE) {
@@ -92,7 +110,6 @@ export default function RevealDeck({
                 setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: 'video' }]);
             } catch (e: any) {
                 console.warn('[RevealDeck] Video read error:', e);
-                await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
                 Alert.alert('Error', 'Could not read video file. Try a shorter or smaller video.');
             }
         } else {
@@ -131,51 +148,45 @@ export default function RevealDeck({
             return;
         }
 
-        if (Platform.OS !== 'web') {
-            Alert.alert(
-                'Web Only',
-                'Audio and PDF upload requires the web version. Open Piqabu in a browser to upload these files.',
-            );
-            return;
+        try {
+            const DocumentPicker = require('expo-document-picker');
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['audio/*', 'application/pdf'],
+                copyToCacheDirectory: true,
+            });
+
+            if (result.canceled || !result.assets?.[0]) return;
+
+            const asset = result.assets[0];
+            if (!asset.uri) return;
+
+            // Check file size
+            const info = await FileSystem.getInfoAsync(asset.uri);
+            if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
+                Alert.alert('File Too Large', 'File must be under ~3.5 MB.');
+                return;
+            }
+
+            // Read as base64
+            const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            const mime = asset.mimeType || (asset.name?.endsWith('.pdf') ? 'application/pdf' : 'audio/mp4');
+            const dataUri = `data:${mime};base64,${base64}`;
+
+            if (dataUri.length > MAX_MEDIA_SIZE) {
+                Alert.alert('File Too Large', 'File is too large after encoding.');
+                return;
+            }
+
+            let mediaType: MediaType = 'pdf';
+            if (mime.startsWith('audio/')) mediaType = 'audio';
+
+            setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: mediaType }]);
+        } catch (e: any) {
+            console.warn('[RevealDeck] Document pick error:', e);
+            Alert.alert('Error', 'Could not read file.');
         }
-
-        // Web: use HTML5 file input (same pattern as lib/platform/imagePicker.ts)
-        return new Promise<void>((resolve) => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'audio/*,application/pdf';
-
-            input.onchange = (e) => {
-                const file = (e.target as HTMLInputElement).files?.[0];
-                if (!file) { resolve(); return; }
-
-                if (file.size > 3.5 * 1024 * 1024) {
-                    Alert.alert('File Too Large', 'File must be under ~3.5 MB.');
-                    resolve();
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = () => {
-                    const dataUri = reader.result as string;
-                    if (dataUri.length > MAX_MEDIA_SIZE) {
-                        Alert.alert('File Too Large', 'File is too large.');
-                        resolve();
-                        return;
-                    }
-
-                    let mediaType: MediaType = 'pdf';
-                    if (file.type.startsWith('audio/')) mediaType = 'audio';
-
-                    setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: mediaType }]);
-                    resolve();
-                };
-                reader.readAsDataURL(file);
-            };
-
-            input.oncancel = () => resolve();
-            input.click();
-        });
     };
 
     // Radio-style expose: only ONE item exposed at a time

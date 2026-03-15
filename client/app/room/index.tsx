@@ -440,16 +440,10 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 visible={activeOverlay === 'reveal'}
                 onClose={() => setActiveOverlay(null)}
                 onReveal={sendReveal}
-                onOpenLiveMirror={Platform.OS === 'web' ? () => {
+                onOpenLiveMirror={() => {
                     setActiveOverlay(null);
                     sendInvite('screen_share');
                     onOpenScreenShare(true);
-                } : () => {
-                    // On native: open LiveGlass (video call) instead of screen share
-                    setActiveOverlay(null);
-                    setLiveGlassInitialMode('lobby');
-                    setLiveGlassPartnerAccepted(false);
-                    onOpenLiveGlass();
                 }}
             />
             <PeepDeck
