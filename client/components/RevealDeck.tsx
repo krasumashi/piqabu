@@ -4,7 +4,6 @@ import {
     Animated as RNAnimated, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
@@ -132,49 +131,51 @@ export default function RevealDeck({
             return;
         }
 
-        try {
-            const result = await DocumentPicker.getDocumentAsync({
-                type: ['audio/*', 'application/pdf'],
-                copyToCacheDirectory: true,
-            });
-
-            if (result.canceled || !result.assets?.[0]) return;
-
-            const asset = result.assets[0];
-            const fileUri = asset.uri;
-            const mime = asset.mimeType || '';
-
-            // Check file size (binary)
-            const info = await FileSystem.getInfoAsync(fileUri);
-            if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
-                Alert.alert('File Too Large', 'File must be under ~3.5 MB.');
-                return;
-            }
-
-            // Read as base64
-            const base64 = await FileSystem.readAsStringAsync(fileUri, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-
-            const dataUri = `data:${mime};base64,${base64}`;
-            if (dataUri.length > MAX_MEDIA_SIZE) {
-                Alert.alert('File Too Large', 'File is too large. Choose a smaller file.');
-                return;
-            }
-
-            // Determine type from MIME
-            let mediaType: MediaType = 'pdf';
-            if (mime.startsWith('audio/')) {
-                mediaType = 'audio';
-            } else if (mime === 'application/pdf') {
-                mediaType = 'pdf';
-            }
-
-            setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: mediaType }]);
-        } catch (e: any) {
-            console.warn('[RevealDeck] Document pick error:', e);
-            Alert.alert('Error', 'Could not read file.');
+        if (Platform.OS !== 'web') {
+            Alert.alert(
+                'Web Only',
+                'Audio and PDF upload requires the web version. Open Piqabu in a browser to upload these files.',
+            );
+            return;
         }
+
+        // Web: use HTML5 file input (same pattern as lib/platform/imagePicker.ts)
+        return new Promise<void>((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'audio/*,application/pdf';
+
+            input.onchange = (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) { resolve(); return; }
+
+                if (file.size > 3.5 * 1024 * 1024) {
+                    Alert.alert('File Too Large', 'File must be under ~3.5 MB.');
+                    resolve();
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const dataUri = reader.result as string;
+                    if (dataUri.length > MAX_MEDIA_SIZE) {
+                        Alert.alert('File Too Large', 'File is too large.');
+                        resolve();
+                        return;
+                    }
+
+                    let mediaType: MediaType = 'pdf';
+                    if (file.type.startsWith('audio/')) mediaType = 'audio';
+
+                    setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: mediaType }]);
+                    resolve();
+                };
+                reader.readAsDataURL(file);
+            };
+
+            input.oncancel = () => resolve();
+            input.click();
+        });
     };
 
     // Radio-style expose: only ONE item exposed at a time
