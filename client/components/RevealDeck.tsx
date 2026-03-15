@@ -4,6 +4,7 @@ import {
     Animated as RNAnimated, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +12,7 @@ import { THEME } from '../constants/Theme';
 
 const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 5MB base64 data URI
 
-type MediaType = 'image' | 'video';
+type MediaType = 'image' | 'video' | 'audio' | 'pdf';
 type EvidenceItem = { id: string; uri: string; type: MediaType };
 
 let _idCounter = 0;
@@ -59,7 +60,6 @@ export default function RevealDeck({
             mediaTypes: ['images', 'videos'],
             base64: true,
             quality: 0.5,
-            videoMaxDuration: 30, // 30 seconds max
         });
 
         if (result.canceled || !result.assets?.[0]) return;
@@ -126,6 +126,57 @@ export default function RevealDeck({
         }
     };
 
+    const pickDocument = async () => {
+        if (items.length >= maxImages) {
+            Alert.alert('Limit Reached', `Maximum ${maxImages} items allowed.`);
+            return;
+        }
+
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['audio/*', 'application/pdf'],
+                copyToCacheDirectory: true,
+            });
+
+            if (result.canceled || !result.assets?.[0]) return;
+
+            const asset = result.assets[0];
+            const fileUri = asset.uri;
+            const mime = asset.mimeType || '';
+
+            // Check file size (binary)
+            const info = await FileSystem.getInfoAsync(fileUri);
+            if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
+                Alert.alert('File Too Large', 'File must be under ~3.5 MB.');
+                return;
+            }
+
+            // Read as base64
+            const base64 = await FileSystem.readAsStringAsync(fileUri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+
+            const dataUri = `data:${mime};base64,${base64}`;
+            if (dataUri.length > MAX_MEDIA_SIZE) {
+                Alert.alert('File Too Large', 'File is too large. Choose a smaller file.');
+                return;
+            }
+
+            // Determine type from MIME
+            let mediaType: MediaType = 'pdf';
+            if (mime.startsWith('audio/')) {
+                mediaType = 'audio';
+            } else if (mime === 'application/pdf') {
+                mediaType = 'pdf';
+            }
+
+            setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: mediaType }]);
+        } catch (e: any) {
+            console.warn('[RevealDeck] Document pick error:', e);
+            Alert.alert('Error', 'Could not read file.');
+        }
+    };
+
     // Radio-style expose: only ONE item exposed at a time
     const toggleExpose = (id: string) => {
         if (exposedId === id) {
@@ -182,6 +233,11 @@ export default function RevealDeck({
                         <Text style={styles.actionBtnText}>+ ADD EVIDENCE</Text>
                     </TouchableOpacity>
 
+                    <TouchableOpacity onPress={pickDocument} style={styles.actionBtn} activeOpacity={0.7}>
+                        <Ionicons name="document-attach-outline" size={12} color={THEME.ink} />
+                        <Text style={styles.actionBtnText}>+ ADD FILE</Text>
+                    </TouchableOpacity>
+
                     {onOpenLiveMirror && (
                         <TouchableOpacity onPress={onOpenLiveMirror} style={styles.actionBtn} activeOpacity={0.7}>
                             <View style={styles.liveMirrorIcon} />
@@ -214,6 +270,14 @@ export default function RevealDeck({
                                             <View style={styles.videoThumb}>
                                                 <Ionicons name="videocam" size={22} color={THEME.muted} />
                                             </View>
+                                        ) : item.type === 'audio' ? (
+                                            <View style={styles.videoThumb}>
+                                                <Ionicons name="musical-notes" size={22} color={THEME.muted} />
+                                            </View>
+                                        ) : item.type === 'pdf' ? (
+                                            <View style={styles.videoThumb}>
+                                                <Ionicons name="document-text" size={22} color={THEME.muted} />
+                                            </View>
                                         ) : (
                                             <Image source={{ uri: item.uri }} style={styles.thumbImage} resizeMode="cover" />
                                         )}
@@ -224,7 +288,7 @@ export default function RevealDeck({
                                         <Text style={styles.metaTitle}>EVIDENCE {idx + 1}</Text>
                                         <View style={styles.metaRow}>
                                             <Text style={styles.metaType}>
-                                                {item.type === 'video' ? 'VIDEO' : 'IMAGE'}
+                                                {item.type === 'video' ? 'VIDEO' : item.type === 'audio' ? 'AUDIO' : item.type === 'pdf' ? 'PDF' : 'IMAGE'}
                                             </Text>
                                             <Text style={styles.metaDivider}>•</Text>
                                             <Text style={[styles.metaStatus, isExposed && { color: THEME.accEmerald }]}>
@@ -257,8 +321,8 @@ export default function RevealDeck({
                     )}
                 </ScrollView>
 
-                {/* Video Preview for exposed video */}
-                {exposedId && items.find(i => i.id === exposedId)?.type === 'video' && (
+                {/* Video/Audio Preview for exposed media */}
+                {exposedId && (items.find(i => i.id === exposedId)?.type === 'video' || items.find(i => i.id === exposedId)?.type === 'audio') && (
                     <View style={styles.videoPreview}>
                         <Video
                             source={{ uri: items.find(i => i.id === exposedId)!.uri }}

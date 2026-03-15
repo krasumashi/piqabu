@@ -9,6 +9,14 @@ function isVideoUri(uri: string): boolean {
     return uri.startsWith('data:video/');
 }
 
+function isAudioUri(uri: string): boolean {
+    return uri.startsWith('data:audio/');
+}
+
+function isPdfUri(uri: string): boolean {
+    return uri.startsWith('data:application/pdf');
+}
+
 export default function PeepDeck({
     remoteImage, visible, onClose,
 }: {
@@ -54,6 +62,8 @@ export default function PeepDeck({
     if (!visible) return null;
 
     const isVideo = remoteImage ? isVideoUri(remoteImage) : false;
+    const isAudio = remoteImage ? isAudioUri(remoteImage) : false;
+    const isPdf = remoteImage ? isPdfUri(remoteImage) : false;
 
     // Watermark overlay component
     const Watermark = () => (
@@ -67,6 +77,7 @@ export default function PeepDeck({
     // Focus modal (expanded view)
     if (focusedItem) {
         const focusIsVideo = isVideoUri(focusedItem);
+        const focusIsAudio = isAudioUri(focusedItem);
         return (
             <Modal visible={true} animationType="fade" transparent>
                 <View style={styles.focusModal}>
@@ -85,6 +96,17 @@ export default function PeepDeck({
                                 isLooping={false}
                                 useNativeControls={false}
                             />
+                        ) : focusIsAudio ? (
+                            <View style={styles.audioFocusCard}>
+                                <Ionicons name="musical-notes" size={48} color={THEME.accSky} />
+                                <Text style={styles.audioFocusLabel}>AUDIO PLAYING</Text>
+                                <Video
+                                    source={{ uri: focusedItem }}
+                                    style={{ width: 0, height: 0 }}
+                                    shouldPlay
+                                    isLooping={false}
+                                />
+                            </View>
                         ) : (
                             <Image source={{ uri: focusedItem }} style={styles.focusImage} resizeMode="contain" />
                         )}
@@ -121,6 +143,38 @@ export default function PeepDeck({
                         <View style={styles.emptyState}>
                             <Ionicons name="eye-off-outline" size={32} color={THEME.faint} />
                             <Text style={styles.emptyText}>NOTHING EXPOSED... YET</Text>
+                        </View>
+                    ) : isAudio ? (
+                        /* Audio exposed */
+                        <TouchableOpacity
+                            onPress={() => setFocusedItem(remoteImage)}
+                            style={styles.audioContainer}
+                            activeOpacity={0.8}
+                        >
+                            <Ionicons name="musical-notes" size={36} color={THEME.accSky} />
+                            <Text style={styles.audioLabel}>AUDIO FILE</Text>
+                            <Text style={styles.audioSub}>TAP TO PLAY</Text>
+                            <Video
+                                source={{ uri: remoteImage }}
+                                style={{ width: 0, height: 0 }}
+                                shouldPlay
+                                isLooping={false}
+                            />
+                            <Watermark />
+                            <View style={styles.gridItemLabel}>
+                                <Text style={styles.gridItemType}>AUDIO</Text>
+                            </View>
+                        </TouchableOpacity>
+                    ) : isPdf ? (
+                        /* PDF exposed */
+                        <View style={styles.pdfContainer}>
+                            <Ionicons name="document-text" size={36} color={THEME.accSky} />
+                            <Text style={styles.audioLabel}>PDF DOCUMENT</Text>
+                            <Text style={styles.audioSub}>RECEIVED</Text>
+                            <Watermark />
+                            <View style={styles.gridItemLabel}>
+                                <Text style={styles.gridItemType}>PDF</Text>
+                            </View>
                         </View>
                     ) : isVideo ? (
                         /* Video exposed */
@@ -324,6 +378,58 @@ const styles = StyleSheet.create({
         fontSize: 10,
         letterSpacing: 10 * 0.12,
         color: THEME.faint,
+        textTransform: 'uppercase',
+    },
+    audioContainer: {
+        width: '100%',
+        aspectRatio: 16 / 9,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    audioLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        fontWeight: '900',
+        letterSpacing: 11 * 0.22,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    audioSub: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.14,
+        color: THEME.faint,
+        textTransform: 'uppercase',
+    },
+    pdfContainer: {
+        width: '100%',
+        aspectRatio: 16 / 9,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    audioFocusCard: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 16,
+    },
+    audioFocusLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 12,
+        fontWeight: '900',
+        letterSpacing: 12 * 0.22,
+        color: THEME.muted,
         textTransform: 'uppercase',
     },
     // Focus Modal

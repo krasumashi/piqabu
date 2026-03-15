@@ -284,9 +284,11 @@ export default function WhisperPanel({
                     }
                     // else: wait for the other peer's offer
                 } else {
-                    // Fallback (server not redeployed): first to receive = caller
-                    isCaller.current = true;
-                    createOffer();
+                    // Fallback (server not redeployed): inviter becomes caller, accepter waits
+                    if (initialState !== 'accepted') {
+                        isCaller.current = true;
+                        createOffer();
+                    }
                 }
             }
         });

@@ -611,9 +611,11 @@ export default function LiveGlassPanel({
                     }
                     // else: wait for the other peer's offer
                 } else {
-                    // Fallback (server not redeployed): first to receive = caller
-                    isCaller.current = true;
-                    createOffer();
+                    // Fallback (server not redeployed): inviter becomes caller, accepter waits
+                    if (initialMode !== 'calling') {
+                        isCaller.current = true;
+                        createOffer();
+                    }
                 }
             }
         });
@@ -649,7 +651,7 @@ export default function LiveGlassPanel({
 
     // Emit local blur changes to partner
     useEffect(() => {
-        if (!socket || !roomId || !visible || mode !== 'calling') return;
+        if (!socket || !roomId || !visible || (mode !== 'calling' && mode !== 'connected')) return;
         socket.emit('transmit_live_glass_controls', { roomId, controls: { blur: blurIntensity } });
     }, [blurIntensity, socket, roomId, visible, mode]);
 
@@ -920,9 +922,9 @@ export default function LiveGlassPanel({
                                     </View>
                                 )}
 
-                                {blurIntensity > 0 && (
+                                {remoteBlur > 0 && (
                                     <BlurView
-                                        intensity={blurIntensity}
+                                        intensity={remoteBlur}
                                         tint="dark"
                                         style={StyleSheet.absoluteFill}
                                     />
