@@ -44,6 +44,7 @@
       "expo-secure-store",
       "expo-font",
       "expo-document-picker",
+      "expo-local-authentication",
       ["@config-plugins/react-native-webrtc", {
         "cameraPermission": "Piqabu uses the camera for the Live Glass feature",
         "microphonePermission": "Piqabu uses the microphone for Whisper and Live Glass"

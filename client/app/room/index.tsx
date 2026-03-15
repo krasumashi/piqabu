@@ -504,6 +504,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 export default function RoomScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const stableTop = useRef(insets.top).current;
     const {
         rooms, activeRoomId, addRoom, removeRoom, switchRoom,
         socket, deviceId, requestRoomCode, isConnected,
@@ -582,7 +583,7 @@ export default function RoomScreen() {
     if (!activeRoomId) return null;
 
     return (
-        <RNAnimated.View style={[st.screen, { opacity: screenFade, paddingTop: insets.top || 30 }]}>
+        <RNAnimated.View style={[st.screen, { opacity: screenFade, paddingTop: stableTop || 30 }]}>
             <RoomTabBar
                 rooms={rooms} activeRoomId={activeRoomId} roomStatuses={roomStatuses}
                 onSwitchRoom={switchRoom} onAddRoom={() => setShowAddModal(true)}

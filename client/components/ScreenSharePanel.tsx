@@ -13,9 +13,14 @@ import type { Socket } from 'socket.io-client';
 // Conditionally import RTCView for native viewer rendering
 // ---------------------------------------------------------------------------
 let RTCView: any = null;
+let NativeRTCSessionDescription: any = null;
+let NativeRTCIceCandidate: any = null;
 if (Platform.OS !== 'web') {
     try {
-        RTCView = require('react-native-webrtc').RTCView;
+        const RNWebRTC = require('react-native-webrtc');
+        RTCView = RNWebRTC.RTCView;
+        NativeRTCSessionDescription = RNWebRTC.RTCSessionDescription;
+        NativeRTCIceCandidate = RNWebRTC.RTCIceCandidate;
     } catch (e) { }
 }
 
@@ -71,6 +76,23 @@ export default function ScreenSharePanel({
 
     // Track whether we already created an offer/answer to avoid duplicates
     const hasNegotiatedRef = useRef(false);
+
+    // Platform-aware WebRTC constructors
+    const wrapSD = useCallback((payload: any) => {
+        if (Platform.OS === 'web') {
+            const SD = typeof RTCSessionDescription !== 'undefined' ? RTCSessionDescription : null;
+            return SD ? new SD(payload) : payload;
+        }
+        return NativeRTCSessionDescription ? new NativeRTCSessionDescription(payload) : payload;
+    }, []);
+
+    const wrapICE = useCallback((payload: any) => {
+        if (Platform.OS === 'web') {
+            const IC = typeof RTCIceCandidate !== 'undefined' ? RTCIceCandidate : null;
+            return IC ? new IC(payload) : payload;
+        }
+        return NativeRTCIceCandidate ? new NativeRTCIceCandidate(payload) : payload;
+    }, []);
 
     // Pending ICE candidates received before remote description is set
     const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
@@ -312,12 +334,12 @@ export default function ScreenSharePanel({
             if (data.type === 'offer' && !isSharer && pc) {
                 try {
                     await pc.setRemoteDescription(
-                        new RTCSessionDescription({ type: 'offer', sdp: data.sdp! }),
+                        wrapSD({ type: 'offer', sdp: data.sdp! }),
                     );
 
                     // Flush any pending ICE candidates
                     for (const c of pendingCandidatesRef.current) {
-                        try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { }
+                        try { await pc.addIceCandidate(wrapICE(c)); } catch { }
                     }
                     pendingCandidatesRef.current = [];
 
@@ -340,12 +362,12 @@ export default function ScreenSharePanel({
             if (data.type === 'answer' && isSharer && pc) {
                 try {
                     await pc.setRemoteDescription(
-                        new RTCSessionDescription({ type: 'answer', sdp: data.sdp! }),
+                        wrapSD({ type: 'answer', sdp: data.sdp! }),
                     );
 
                     // Flush any pending ICE candidates
                     for (const c of pendingCandidatesRef.current) {
-                        try { await pc.addIceCandidate(new RTCIceCandidate(c)); } catch { }
+                        try { await pc.addIceCandidate(wrapICE(c)); } catch { }
                     }
                     pendingCandidatesRef.current = [];
                 } catch (e: any) {
@@ -358,7 +380,7 @@ export default function ScreenSharePanel({
             if (data.type === 'ice-candidate' && data.candidate && pc) {
                 try {
                     if (pc.remoteDescription) {
-                        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                        await pc.addIceCandidate(wrapICE(data.candidate));
                     } else {
                         // Queue until remote description is set
                         pendingCandidatesRef.current.push(data.candidate);

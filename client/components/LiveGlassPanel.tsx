@@ -905,17 +905,15 @@ export default function LiveGlassPanel({
                                         />
                                     </View>
                                 ) : RTCViewNative && nativeStreamURL ? (
-                                    <GrayscaleWrap>
-                                        <View style={{ flex: 1 }}>
-                                            <RTCViewNative
-                                                streamURL={nativeStreamURL}
-                                                style={{ width: '100%', height: '100%' }}
-                                                objectFit="cover"
-                                                zOrder={0}
-                                            />
-                                            <NoirOverlay />
-                                        </View>
-                                    </GrayscaleWrap>
+                                    <>
+                                        <RTCViewNative
+                                            streamURL={nativeStreamURL}
+                                            style={{ width: '100%', height: '100%' }}
+                                            objectFit="cover"
+                                            zOrder={0}
+                                        />
+                                        <NoirOverlay />
+                                    </>
                                 ) : (
                                     <View style={styles.noSignal}>
                                         <Text style={styles.noSignalText}>
@@ -968,26 +966,24 @@ export default function LiveGlassPanel({
                                     />
                                 </View>
                             ) : RTCViewNative ? (
-                                <GrayscaleWrap>
-                                    <View style={{ flex: 1 }}>
-                                        <RTCViewNative
-                                            streamURL={localStream.toURL()}
-                                            style={{ width: '100%', height: '100%' }}
-                                            objectFit="cover"
-                                            mirror
-                                            zOrder={1}
+                                <View style={{ flex: 1 }}>
+                                    <RTCViewNative
+                                        streamURL={localStream.toURL()}
+                                        style={{ width: '100%', height: '100%' }}
+                                        objectFit="cover"
+                                        mirror
+                                        zOrder={1}
+                                    />
+                                    <NoirOverlay />
+                                    {/* Blur preview — see your own blur intensity */}
+                                    {blurIntensity > 0 && (
+                                        <BlurView
+                                            intensity={blurIntensity}
+                                            tint="dark"
+                                            style={StyleSheet.absoluteFill}
                                         />
-                                        <NoirOverlay />
-                                        {/* Blur preview — see your own blur intensity */}
-                                        {blurIntensity > 0 && (
-                                            <BlurView
-                                                intensity={blurIntensity}
-                                                tint="dark"
-                                                style={StyleSheet.absoluteFill}
-                                            />
-                                        )}
-                                    </View>
-                                </GrayscaleWrap>
+                                    )}
+                                </View>
                             ) : (
                                 <View style={styles.noSignal}>
                                     <Text style={styles.noSignalText}>

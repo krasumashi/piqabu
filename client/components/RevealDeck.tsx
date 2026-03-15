@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import Constants from 'expo-constants';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
@@ -145,6 +146,15 @@ export default function RevealDeck({
     const pickDocument = async () => {
         if (items.length >= maxImages) {
             Alert.alert('Limit Reached', `Maximum ${maxImages} items allowed.`);
+            return;
+        }
+
+        // Guard: expo-document-picker crashes in Expo Go (no native module)
+        if (Constants.appOwnership === 'expo') {
+            Alert.alert(
+                'Production Build Required',
+                'Audio/PDF upload requires the production build (APK). Use the installed APK on your phone.',
+            );
             return;
         }
 

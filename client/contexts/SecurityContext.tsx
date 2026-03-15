@@ -75,25 +75,53 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
 
     const setBiometricEnabled = useCallback(async (v: boolean) => {
         if (v && Platform.OS !== 'web') {
-            // Biometric requires expo-local-authentication which needs a production build.
-            // In Expo Go / dev, show an alert and skip.
-            Alert.alert(
-                'Production Build Required',
-                'Biometric lock requires a production build (expo-local-authentication). It will not work in Expo Go.',
-            );
-            return;
+            if (isExpoGo) {
+                Alert.alert(
+                    'Production Build Required',
+                    'Biometric lock requires the production build (APK). Use the installed APK on your phone.',
+                );
+                return;
+            }
+            // Check hardware support
+            try {
+                const LocalAuth = require('expo-local-authentication');
+                const compatible = await LocalAuth.hasHardwareAsync();
+                if (!compatible) {
+                    Alert.alert('Not Available', 'This device does not support biometric authentication.');
+                    return;
+                }
+            } catch {
+                Alert.alert('Not Available', 'Biometric authentication is unavailable.');
+                return;
+            }
         }
         _setBiometricEnabled(v);
         await setSecureItem('piqabu_biometric_enabled', v ? 'true' : 'false');
     }, []);
 
     /* ── Biometric authentication ── */
-    // NOTE: expo-local-authentication is removed for Expo Go compatibility.
-    // In production builds, re-add the package and restore native auth here.
     const authenticate = useCallback(async (): Promise<boolean> => {
-        // Without expo-local-authentication, just unlock directly.
-        setBiometricLocked(false);
-        return true;
+        if (isExpoGo) {
+            // Expo Go: no native module, just unlock
+            setBiometricLocked(false);
+            return true;
+        }
+        try {
+            const LocalAuth = require('expo-local-authentication');
+            const result = await LocalAuth.authenticateAsync({
+                promptMessage: 'Unlock Piqabu',
+                fallbackLabel: 'Use PIN',
+            });
+            if (result.success) {
+                setBiometricLocked(false);
+                return true;
+            }
+            return false;
+        } catch {
+            // Fallback: unlock if auth unavailable
+            setBiometricLocked(false);
+            return true;
+        }
     }, []);
 
     /* ── Panic mode ── */
