@@ -99,12 +99,18 @@ app.get('/ice-servers', (req, res) => {
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
     ];
-    if (process.env.TURN_URL) {
-        iceServers.push({
-            urls: process.env.TURN_URL,
-            username: process.env.TURN_USERNAME || '',
-            credential: process.env.TURN_CREDENTIAL || '',
-        });
+    if (process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
+        const user = process.env.TURN_USERNAME;
+        const cred = process.env.TURN_CREDENTIAL;
+        // Add all Metered TURN relay variants for maximum connectivity
+        iceServers.push(
+            { urls: 'stun:stun.relay.metered.ca:80', username: user, credential: cred },
+            { urls: 'turn:global.relay.metered.ca:80', username: user, credential: cred },
+            { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: user, credential: cred },
+            { urls: 'turn:global.relay.metered.ca:443', username: user, credential: cred },
+            { urls: 'turn:global.relay.metered.ca:443?transport=tcp', username: user, credential: cred },
+            { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: user, credential: cred },
+        );
     }
     res.json({ iceServers });
 });
