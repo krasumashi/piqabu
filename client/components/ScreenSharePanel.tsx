@@ -8,6 +8,7 @@ import Slider from '@react-native-community/slider';
 import { BlurView } from 'expo-blur';
 import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
+import { fetchIceServers } from '../lib/iceServers';
 import type { Socket } from 'socket.io-client';
 
 // ---------------------------------------------------------------------------
@@ -26,13 +27,7 @@ if (Platform.OS !== 'web') {
     } catch (e) { }
 }
 
-// ---------------------------------------------------------------------------
-// ICE servers
-// ---------------------------------------------------------------------------
-const ICE_SERVERS = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-];
+// ICE servers are fetched dynamically from the server (includes TURN)
 
 // ---------------------------------------------------------------------------
 // Props
@@ -157,7 +152,7 @@ export default function ScreenSharePanel({
     // ------------------------------------------------------------------
     // Create RTCPeerConnection and wire up handlers
     // ------------------------------------------------------------------
-    const createPeerConnection = useCallback(() => {
+    const createPeerConnection = useCallback(async () => {
         const PeerConn = getRTCPeerConnection();
         if (!PeerConn) {
             setStatus('unsupported');
@@ -165,7 +160,8 @@ export default function ScreenSharePanel({
             return null;
         }
 
-        const pc = new PeerConn({ iceServers: ICE_SERVERS });
+        const iceServers = await fetchIceServers();
+        const pc = new PeerConn({ iceServers });
 
         // ICE candidates -> send to remote via signaling
         pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
@@ -182,12 +178,20 @@ export default function ScreenSharePanel({
 
         pc.oniceconnectionstatechange = () => {
             const state = pc.iceConnectionState;
+            console.log(`[ScreenShare] ICE state: ${state}`);
             if (state === 'connected' || state === 'completed') {
                 setStatus('active');
-            } else if (state === 'failed' || state === 'disconnected') {
+            } else if (state === 'failed') {
+                setStatus('error');
+                setErrorMsg('Connection failed. Both devices may need to be on the same network, or a relay server is required.');
+            } else if (state === 'disconnected') {
                 setStatus('error');
                 setErrorMsg('Connection lost. Please try again.');
             }
+        };
+
+        (pc as any).onconnectionstatechange = () => {
+            console.log(`[ScreenShare] Connection state: ${(pc as any).connectionState}`);
         };
 
         // Viewer side: receive remote stream
@@ -269,7 +273,7 @@ export default function ScreenSharePanel({
                 });
             });
 
-            const pc = createPeerConnection();
+            const pc = await createPeerConnection();
             if (!pc) return;
 
             nativeStream.getTracks().forEach(track => {
@@ -314,7 +318,7 @@ export default function ScreenSharePanel({
                 handleStopSharing();
             });
 
-            const pc = createPeerConnection();
+            const pc = await createPeerConnection();
             if (!pc) return;
 
             stream.getTracks().forEach(track => {
@@ -345,13 +349,13 @@ export default function ScreenSharePanel({
     // ------------------------------------------------------------------
     // Viewer: prepare to receive an offer
     // ------------------------------------------------------------------
-    const prepareViewer = useCallback(() => {
+    const prepareViewer = useCallback(async () => {
         if (!socket || !roomId) return;
 
         setStatus('connecting');
         // Just create the peer connection; the actual answer happens in the
         // signal handler when an offer arrives.
-        createPeerConnection();
+        await createPeerConnection();
     }, [socket, roomId, createPeerConnection]);
 
     // ------------------------------------------------------------------
@@ -368,9 +372,13 @@ export default function ScreenSharePanel({
         }) => {
             if (data.roomId !== roomId) return;
 
-            const pc = pcRef.current;
+            let pc = pcRef.current;
 
             // --- Offer (viewer receives this) ---
+            // If PC isn't ready yet (timing issue), create it now
+            if (data.type === 'offer' && !isSharer && !pc) {
+                pc = await createPeerConnection();
+            }
             if (data.type === 'offer' && !isSharer && pc) {
                 try {
                     await pc.setRemoteDescription(

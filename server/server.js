@@ -7,6 +7,8 @@ const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 require('dotenv').config();
 
+const multer = require('multer');
+const fs = require('fs');
 const { createSocketRateLimiter, checkBruteForce, recordFailedJoin, clearBruteForceRecord } = require('./middleware/rateLimiter');
 const {
     validateJoinRoom,
@@ -52,6 +54,59 @@ const healthLimiter = rateLimit({
 
 app.get('/health', healthLimiter, (req, res) => {
     res.status(200).send('SIGNAL TOWER ACTIVE');
+});
+
+// --- File Upload (Multer) ---
+const uploadDir = '/tmp/uploads';
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname) || '';
+        cb(null, uniqueSuffix + ext);
+    },
+});
+
+const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } }); // 15MB max
+
+// Serve uploaded files
+app.use('/uploads', express.static(uploadDir));
+
+// Upload endpoint
+const uploadLimiter = rateLimit({ windowMs: 60000, max: 20, standardHeaders: true, legacyHeaders: false });
+app.post('/upload', uploadLimiter, upload.single('file'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
+    const roomId = req.body.roomId;
+    if (roomId && typeof roomId === 'string') {
+        if (!roomFiles.has(roomId)) roomFiles.set(roomId, new Set());
+        roomFiles.get(roomId).add(req.file.path);
+    }
+    res.json({ url: `/uploads/${req.file.filename}` });
+});
+
+// Track uploaded files per room for cleanup
+const roomFiles = new Map();
+
+// --- ICE Servers (TURN credentials) ---
+app.get('/ice-servers', (req, res) => {
+    const iceServers = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+    ];
+    if (process.env.TURN_URL) {
+        iceServers.push({
+            urls: process.env.TURN_URL,
+            username: process.env.TURN_USERNAME || '',
+            credential: process.env.TURN_CREDENTIAL || '',
+        });
+    }
+    res.json({ iceServers });
 });
 
 // Stripe subscription routes (checkout, status, webhook)
@@ -544,6 +599,19 @@ io.on('connection', (socket) => {
     });
 });
 
+// Clean up uploaded files for a room
+function cleanupRoomFiles(roomId) {
+    const files = roomFiles.get(roomId);
+    if (!files) return;
+    for (const filePath of files) {
+        fs.unlink(filePath, (err) => {
+            if (err && err.code !== 'ENOENT') console.warn(`[CLEANUP] Failed to delete ${filePath}:`, err.message);
+        });
+    }
+    roomFiles.delete(roomId);
+    console.log(`[CLEANUP] Deleted ${files.size} files for room ${roomId}`);
+}
+
 // Leave a single room
 function leaveRoom(socket, roomId) {
     const participant = getParticipant(socket.id);
@@ -557,6 +625,7 @@ function leaveRoom(socket, roomId) {
         room.delete(socket.id);
         if (room.size === 0) {
             rooms.delete(roomId);
+            cleanupRoomFiles(roomId);
             console.log(`[ROOM DELETED] ${roomId} is empty`);
         } else {
             io.to(roomId).emit('link_status', {
@@ -587,6 +656,7 @@ function handleFullDisconnect(socket) {
             room.delete(socket.id);
             if (room.size === 0) {
                 rooms.delete(roomId);
+                cleanupRoomFiles(roomId);
                 console.log(`[ROOM DELETED] ${roomId} is empty`);
             } else {
                 io.to(roomId).emit('link_status', {

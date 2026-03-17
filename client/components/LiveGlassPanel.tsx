@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
+import { fetchIceServers } from '../lib/iceServers';
 import type { Socket } from 'socket.io-client';
 
 /* ────────────────────────── platform-specific WebRTC imports ─────────────── */
@@ -98,10 +99,7 @@ function NoirOverlay() {
 
 /* ─────────────────────────────── constants ───────────────────────────────── */
 
-const ICE_SERVERS: RTCIceServer[] = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-];
+// ICE servers are fetched dynamically from the server (includes TURN)
 
 type Mode = 'lobby' | 'calling' | 'connected';
 
@@ -203,7 +201,7 @@ export default function LiveGlassPanel({
 
     /* ────────────────── helper: build RTCPeerConnection ──────────────── */
 
-    const createPeerConnection = useCallback((): any | null => {
+    const createPeerConnection = useCallback(async (): Promise<any | null> => {
         const PC =
             Platform.OS === 'web'
                 ? (window as any).RTCPeerConnection ||
@@ -216,7 +214,8 @@ export default function LiveGlassPanel({
         }
 
         try {
-            return new PC({ iceServers: ICE_SERVERS });
+            const iceServers = await fetchIceServers();
+            return new PC({ iceServers });
         } catch (err: any) {
             setError(`Failed to create peer connection: ${err?.message ?? err}`);
             return null;
@@ -527,7 +526,7 @@ export default function LiveGlassPanel({
         const stream = localStreamRef.current;
 
         /* create peer connection */
-        const pc = createPeerConnection();
+        const pc = await createPeerConnection();
         if (!pc) return;
         pcRef.current = pc;
 

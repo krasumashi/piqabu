@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     View, Image, TouchableOpacity, Text, StyleSheet, Alert, ScrollView,
-    Animated as RNAnimated, Platform,
+    Animated as RNAnimated, Platform, ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -9,6 +9,7 @@ import Constants from 'expo-constants';
 import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
+import { uploadFile } from '../lib/uploadFile';
 
 const MAX_MEDIA_SIZE = 12 * 1024 * 1024; // 12MB base64 data URI (~8MB binary)
 
@@ -21,7 +22,7 @@ function nextId(): string {
 }
 
 function isVideoUri(uri: string): boolean {
-    return uri.startsWith('data:video/');
+    return uri.startsWith('data:video/') || /\.(mp4|mov|avi|webm)$/i.test(uri);
 }
 
 function getMimeFromExtension(ext?: string): string {
@@ -58,17 +59,27 @@ function getMimeFromExtension(ext?: string): string {
     return map[ext.toLowerCase()] || 'application/octet-stream';
 }
 
+function getMediaTypeFromMime(mime: string): MediaType {
+    if (mime === 'application/pdf') return 'pdf';
+    if (mime.startsWith('audio/')) return 'audio';
+    if (mime.startsWith('video/')) return 'video';
+    if (mime.startsWith('image/')) return 'image';
+    return 'document';
+}
+
 export default function RevealDeck({
-    visible, onClose, onReveal, onOpenLiveMirror, maxImages = 10,
+    visible, onClose, onReveal, onOpenLiveMirror, roomId, maxImages = 10,
 }: {
     visible: boolean;
     onClose: () => void;
     onReveal: (payload: string | null) => void;
     onOpenLiveMirror?: () => void;
+    roomId: string;
     maxImages?: number;
 }) {
     const [items, setItems] = useState<EvidenceItem[]>([]);
     const [exposedId, setExposedId] = useState<string | null>(null);
+    const [uploading, setUploading] = useState(false);
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
@@ -84,57 +95,7 @@ export default function RevealDeck({
         }
     }, [visible]);
 
-    const readFileAsBase64 = async (uri: string, fallbackName?: string): Promise<string | null> => {
-        const cacheDir = FileSystem.cacheDirectory;
-        const ext = fallbackName?.split('.').pop() || 'bin';
-        const cacheUri = cacheDir ? cacheDir + 'reveal_tmp_' + Date.now() + '.' + ext : null;
-
-        // Strategy 1: Direct read (works for file:// URIs)
-        try {
-            return await FileSystem.readAsStringAsync(uri, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-        } catch { /* content:// or other URI scheme — try copy */ }
-
-        if (!cacheUri) throw new Error('No cache directory');
-
-        // Strategy 2: copyAsync to cache then read
-        try {
-            await FileSystem.copyAsync({ from: uri, to: cacheUri });
-            const data = await FileSystem.readAsStringAsync(cacheUri, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-            await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
-            return data;
-        } catch { /* copy failed — try downloadAsync */ }
-
-        // Strategy 3: downloadAsync handles content:// URIs on Android
-        try {
-            const dl = await FileSystem.downloadAsync(uri, cacheUri);
-            if (!dl.uri) throw new Error('Download returned no URI');
-            const data = await FileSystem.readAsStringAsync(dl.uri, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-            await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
-            return data;
-        } catch { /* all strategies failed */ }
-
-        // Strategy 4: Try creating a copy with a different name
-        const altCacheUri = cacheDir + 'reveal_alt_' + Date.now() + '.' + ext;
-        try {
-            await FileSystem.copyAsync({ from: uri, to: altCacheUri });
-            const data = await FileSystem.readAsStringAsync(altCacheUri, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-            await FileSystem.deleteAsync(altCacheUri, { idempotent: true }).catch(() => {});
-            return data;
-        } catch {
-            await FileSystem.deleteAsync(altCacheUri, { idempotent: true }).catch(() => {});
-        }
-
-        return null;
-    };
-
+    // --- Pick media (images/videos) ---
     const pickMedia = async () => {
         if (items.length >= maxImages) {
             Alert.alert('Limit Reached', `Maximum ${maxImages} items allowed.`);
@@ -152,7 +113,7 @@ export default function RevealDeck({
                 mediaTypes: ['images', 'videos'],
                 base64: true,
                 quality: 0.5,
-                videoMaxDuration: 30, // 30 seconds max to keep file size manageable
+                videoMaxDuration: 30,
             });
 
             if (result.canceled || !result.assets?.[0]) return;
@@ -163,37 +124,31 @@ export default function RevealDeck({
             if (isVideo) {
                 if (!asset.uri) return;
                 const mime = asset.mimeType || 'video/mp4';
-                const originalUri = asset.uri;
+                const fileName = asset.fileName || `video_${Date.now()}.mp4`;
 
-                // Check file size before reading as base64
-                try {
-                    const info = await FileSystem.getInfoAsync(asset.uri);
-                    if (info.exists && info.size && info.size > 8 * 1024 * 1024) {
-                        Alert.alert('Video Too Large', 'Videos must be under ~8 MB. Try a shorter clip (under 15 seconds).');
-                        return;
-                    }
-                } catch { /* size check failed, proceed and check base64 size later */ }
+                // Upload video via HTTP (much more reliable than base64 through socket)
+                setUploading(true);
+                const uploadResult = await uploadFile(asset.uri, fileName, mime, roomId);
+                setUploading(false);
 
-                const base64 = await readFileAsBase64(asset.uri, 'video.mp4');
-                if (!base64) {
-                    Alert.alert('Error', 'Could not read video file. Try a different video.');
+                if ('error' in uploadResult) {
+                    Alert.alert('Upload Failed', uploadResult.error);
                     return;
                 }
 
-                const dataUri = `data:${mime};base64,${base64}`;
-                if (dataUri.length > MAX_MEDIA_SIZE) {
-                    Alert.alert('Video Too Large', 'Video exceeds the size limit. Try a shorter clip (under 15 seconds).');
-                    return;
-                }
-                setItems(prev => [...prev, { id: nextId(), uri: dataUri, localUri: originalUri, type: 'video' }]);
+                setItems(prev => [...prev, {
+                    id: nextId(),
+                    uri: uploadResult.url,        // Server URL for socket transmission
+                    localUri: asset.uri,           // Local URI for preview playback
+                    type: 'video',
+                }]);
             } else {
-                // Image: use base64 from picker
+                // Image: use base64 from picker (small enough for socket)
                 if (!asset.base64) return;
                 const mime = asset.mimeType || 'image/jpeg';
                 let dataUri = `data:${mime};base64,${asset.base64}`;
 
                 if (dataUri.length > MAX_MEDIA_SIZE) {
-                    // Retry at lower quality
                     const lowRes = await ImagePicker.launchImageLibraryAsync({
                         mediaTypes: ['images'],
                         base64: true,
@@ -215,18 +170,19 @@ export default function RevealDeck({
                 setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: 'image' }]);
             }
         } catch (e: any) {
+            setUploading(false);
             console.warn('[RevealDeck] pickMedia error:', e?.message, e);
             Alert.alert('Error', 'Could not load media. Please try again.');
         }
     };
 
+    // --- Pick document (any file type) ---
     const pickDocument = async () => {
         if (items.length >= maxImages) {
             Alert.alert('Limit Reached', `Maximum ${maxImages} items allowed.`);
             return;
         }
 
-        // Guard: expo-document-picker crashes in Expo Go (no native module)
         if (Constants.appOwnership === 'expo') {
             Alert.alert(
                 'Production Build Required',
@@ -259,41 +215,30 @@ export default function RevealDeck({
                 return;
             }
 
-            // Check file size first
-            try {
-                const info = await FileSystem.getInfoAsync(asset.uri);
-                if (info.exists && info.size && info.size > 8 * 1024 * 1024) {
-                    Alert.alert('File Too Large', 'File must be under ~8 MB.');
-                    return;
-                }
-            } catch { /* size check failed, proceed anyway */ }
-
-            // Read file as base64 using robust strategy
             const fileName = asset.name || 'file.bin';
-            const base64 = await readFileAsBase64(asset.uri, fileName);
-
-            if (!base64) {
-                Alert.alert('Error', 'Could not read file. The file may be protected or in an unsupported format.');
-                return;
-            }
-
             const ext = fileName.split('.').pop()?.toLowerCase();
             const mime = asset.mimeType || getMimeFromExtension(ext);
-            const dataUri = `data:${mime};base64,${base64}`;
 
-            if (dataUri.length > MAX_MEDIA_SIZE) {
-                Alert.alert('File Too Large', 'File exceeds the maximum size (~8 MB).');
+            // Upload document via HTTP
+            setUploading(true);
+            const uploadResult = await uploadFile(asset.uri, fileName, mime, roomId);
+            setUploading(false);
+
+            if ('error' in uploadResult) {
+                Alert.alert('Upload Failed', uploadResult.error);
                 return;
             }
 
-            let mediaType: MediaType = 'document';
-            if (mime === 'application/pdf') mediaType = 'pdf';
-            else if (mime.startsWith('audio/')) mediaType = 'audio';
-            else if (mime.startsWith('video/')) mediaType = 'video';
-            else if (mime.startsWith('image/')) mediaType = 'image';
+            const mediaType = getMediaTypeFromMime(mime);
 
-            setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: mediaType }]);
+            setItems(prev => [...prev, {
+                id: nextId(),
+                uri: uploadResult.url,     // Server URL
+                localUri: asset.uri,       // Local URI for preview
+                type: mediaType,
+            }]);
         } catch (e: any) {
+            setUploading(false);
             console.warn('[RevealDeck] Document pick error:', e?.message, e);
             Alert.alert('Error', 'Could not read file. Try a different file.');
         }
@@ -349,13 +294,21 @@ export default function RevealDeck({
                     </TouchableOpacity>
                 </View>
 
+                {/* Upload indicator */}
+                {uploading && (
+                    <View style={styles.uploadingBar}>
+                        <ActivityIndicator size="small" color={THEME.ink} />
+                        <Text style={styles.uploadingText}>UPLOADING...</Text>
+                    </View>
+                )}
+
                 {/* Actions */}
                 <View style={styles.actions}>
-                    <TouchableOpacity onPress={pickMedia} style={styles.actionBtn} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={pickMedia} style={styles.actionBtn} activeOpacity={0.7} disabled={uploading}>
                         <Text style={styles.actionBtnText}>+ ADD EVIDENCE</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={pickDocument} style={styles.actionBtn} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={pickDocument} style={styles.actionBtn} activeOpacity={0.7} disabled={uploading}>
                         <Ionicons name="document-attach-outline" size={12} color={THEME.ink} />
                         <Text style={styles.actionBtnText}>+ ADD FILE</Text>
                     </TouchableOpacity>
@@ -448,8 +401,9 @@ export default function RevealDeck({
                 </ScrollView>
 
                 {/* Video/Audio Preview for exposed media */}
-                {exposedId && (items.find(i => i.id === exposedId)?.type === 'video' || items.find(i => i.id === exposedId)?.type === 'audio') && (() => {
-                    const exposedItem = items.find(i => i.id === exposedId)!;
+                {exposedId && (() => {
+                    const exposedItem = items.find(i => i.id === exposedId);
+                    if (!exposedItem || (exposedItem.type !== 'video' && exposedItem.type !== 'audio')) return null;
                     const playbackUri = exposedItem.localUri || exposedItem.uri;
                     return (
                         <View style={styles.videoPreview}>
@@ -536,6 +490,22 @@ const styles = StyleSheet.create({
         fontFamily: THEME.mono,
         fontSize: 10,
         letterSpacing: 10 * 0.22,
+        fontWeight: '900',
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    uploadingBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 8,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+    },
+    uploadingText: {
+        fontFamily: THEME.mono,
+        fontSize: 9,
+        letterSpacing: 9 * 0.22,
         fontWeight: '900',
         color: THEME.muted,
         textTransform: 'uppercase',

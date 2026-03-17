@@ -153,7 +153,8 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
     }, [socket, roomId]);
 
     const sendReveal = useCallback((payload: string | null) => {
-        if (payload !== null && payload.length > MAX_IMAGE_SIZE) return;
+        // Server upload URLs are short strings — skip size check for those
+        if (payload !== null && !payload.startsWith('/uploads/') && payload.length > MAX_IMAGE_SIZE) return;
         socket?.emit('transmit_reveal', { roomId, payload });
     }, [socket, roomId]);
 

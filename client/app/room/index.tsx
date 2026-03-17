@@ -441,6 +441,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 visible={activeOverlay === 'reveal'}
                 onClose={() => setActiveOverlay(null)}
                 onReveal={sendReveal}
+                roomId={roomId}
                 onOpenLiveMirror={() => {
                     setActiveOverlay(null);
                     sendInvite('screen_share');

@@ -8,6 +8,7 @@ const validator = require('validator');
 const ROOM_ID_REGEX = /^[A-Z2-9]{6}$/;
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BASE64_DATA_URI_REGEX = /^data:[a-z]+\/[a-z0-9.+-]+;base64,/i;
+const UPLOAD_URL_REGEX = /^\/uploads\/[\w.-]+$/;
 
 const MAX_TEXT_LENGTH = 10000;
 const MAX_IMAGE_SIZE = 12 * 1024 * 1024; // 12MB base64 string length (~8MB binary)
@@ -54,11 +55,16 @@ function validateRevealPayload(payload) {
     if (typeof payload !== 'string') {
         return { valid: false, error: 'reveal payload must be a string or null' };
     }
+    // Accept server upload URLs (short strings like /uploads/1234567890-123456789.pdf)
+    if (UPLOAD_URL_REGEX.test(payload)) {
+        return { valid: true, sanitized: payload };
+    }
+    // Accept base64 data URIs (images, small files)
     if (payload.length > MAX_IMAGE_SIZE) {
         return { valid: false, error: `image exceeds max size of ${MAX_IMAGE_SIZE} bytes` };
     }
     if (!BASE64_DATA_URI_REGEX.test(payload)) {
-        return { valid: false, error: 'reveal payload must be a valid data URI' };
+        return { valid: false, error: 'reveal payload must be a valid data URI or upload URL' };
     }
     return { valid: true, sanitized: payload };
 }

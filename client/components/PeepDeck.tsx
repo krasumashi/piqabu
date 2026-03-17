@@ -5,17 +5,31 @@ import * as ScreenCapture from 'expo-screen-capture';
 import * as FileSystem from 'expo-file-system';
 import { Video, ResizeMode } from 'expo-av';
 import { THEME } from '../constants/Theme';
+import { CONFIG } from '../constants/Config';
 
+// Detect media type from URI (supports both data URIs and server URLs)
 function isVideoUri(uri: string): boolean {
-    return uri.startsWith('data:video/');
+    return uri.startsWith('data:video/') || /\.(mp4|mov|avi|webm)$/i.test(uri);
 }
 
 function isAudioUri(uri: string): boolean {
-    return uri.startsWith('data:audio/');
+    return uri.startsWith('data:audio/') || /\.(mp3|wav|m4a|aac|ogg)$/i.test(uri);
 }
 
 function isPdfUri(uri: string): boolean {
-    return uri.startsWith('data:application/pdf');
+    return uri.startsWith('data:application/pdf') || /\.pdf$/i.test(uri);
+}
+
+function isDocUri(uri: string): boolean {
+    return /\.(doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|json|xml|zip)$/i.test(uri);
+}
+
+// Resolve server URLs to full URLs
+function resolveUri(uri: string): string {
+    if (uri.startsWith('/uploads/')) {
+        return `${CONFIG.SIGNAL_TOWER_URL}${uri}`;
+    }
+    return uri;
 }
 
 export default function PeepDeck({
@@ -62,9 +76,11 @@ export default function PeepDeck({
 
     if (!visible) return null;
 
+    const resolvedUri = remoteImage ? resolveUri(remoteImage) : null;
     const isVideo = remoteImage ? isVideoUri(remoteImage) : false;
     const isAudio = remoteImage ? isAudioUri(remoteImage) : false;
     const isPdf = remoteImage ? isPdfUri(remoteImage) : false;
+    const isDoc = remoteImage ? isDocUri(remoteImage) : false;
 
     // Watermark overlay component
     const Watermark = () => (
@@ -76,43 +92,72 @@ export default function PeepDeck({
     );
 
     // Helper: open PDF with system viewer via expo-sharing
-    const openPdf = async (dataUri: string) => {
+    const openDocument = async (uri: string, ext: string = 'pdf') => {
         try {
-            const base64Data = dataUri.split(',')[1];
-            if (!base64Data) {
-                Alert.alert('Error', 'Invalid PDF data.');
-                return;
+            const fullUrl = resolveUri(uri);
+            const cacheUri = (FileSystem.cacheDirectory || '') + 'piqabu_received_' + Date.now() + '.' + ext;
+
+            if (fullUrl.startsWith('http')) {
+                // Download from server
+                const dl = await FileSystem.downloadAsync(fullUrl, cacheUri);
+                if (!dl.uri) {
+                    Alert.alert('Error', 'Could not download file.');
+                    return;
+                }
+            } else {
+                // Base64 data URI
+                const base64Data = fullUrl.split(',')[1];
+                if (!base64Data) {
+                    Alert.alert('Error', 'Invalid file data.');
+                    return;
+                }
+                await FileSystem.writeAsStringAsync(cacheUri, base64Data, {
+                    encoding: FileSystem.EncodingType.Base64,
+                });
             }
-            const cacheUri = (FileSystem.cacheDirectory || '') + 'piqabu_received_' + Date.now() + '.pdf';
-            await FileSystem.writeAsStringAsync(cacheUri, base64Data, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
+
             try {
                 const Sharing = require('expo-sharing');
                 if (await Sharing.isAvailableAsync()) {
-                    await Sharing.shareAsync(cacheUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+                    const mimeMap: Record<string, string> = {
+                        pdf: 'application/pdf',
+                        doc: 'application/msword',
+                        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        xls: 'application/vnd.ms-excel',
+                        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    };
+                    await Sharing.shareAsync(cacheUri, {
+                        mimeType: mimeMap[ext] || 'application/octet-stream',
+                    });
                 } else {
                     Alert.alert('Unavailable', 'Sharing is not available on this device.');
                 }
             } catch (shareErr: any) {
                 console.warn('[PeepDeck] Share error:', shareErr?.message);
-                Alert.alert('Error', 'Could not open PDF.');
+                Alert.alert('Error', 'Could not open file.');
             }
-            // Clean up after a delay to give the share dialog time to read the file
             setTimeout(() => {
                 FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
             }, 30000);
         } catch (e: any) {
-            console.warn('[PeepDeck] PDF open error:', e?.message);
-            Alert.alert('Error', 'Could not open PDF.');
+            console.warn('[PeepDeck] Document open error:', e?.message);
+            Alert.alert('Error', 'Could not open file.');
         }
+    };
+
+    // Get file extension from URI
+    const getExt = (uri: string): string => {
+        const match = uri.match(/\.(\w+)$/);
+        return match ? match[1].toLowerCase() : 'pdf';
     };
 
     // Focus modal (expanded view)
     if (focusedItem) {
+        const focusResolved = resolveUri(focusedItem);
         const focusIsVideo = isVideoUri(focusedItem);
         const focusIsAudio = isAudioUri(focusedItem);
         const focusIsPdf = isPdfUri(focusedItem);
+        const focusIsDoc = isDocUri(focusedItem);
         return (
             <Modal visible={true} animationType="fade" transparent>
                 <View style={styles.focusModal}>
@@ -124,7 +169,7 @@ export default function PeepDeck({
                     <View style={styles.focusBody}>
                         {focusIsVideo ? (
                             <Video
-                                source={{ uri: focusedItem }}
+                                source={{ uri: focusResolved }}
                                 style={styles.focusImage}
                                 resizeMode={ResizeMode.CONTAIN}
                                 shouldPlay
@@ -136,30 +181,30 @@ export default function PeepDeck({
                                 <Ionicons name="musical-notes" size={48} color={THEME.accSky} />
                                 <Text style={styles.audioFocusLabel}>AUDIO PLAYING</Text>
                                 <Video
-                                    source={{ uri: focusedItem }}
+                                    source={{ uri: focusResolved }}
                                     style={{ width: 0, height: 0 }}
                                     shouldPlay
                                     isLooping={false}
                                 />
                             </View>
-                        ) : focusIsPdf ? (
+                        ) : (focusIsPdf || focusIsDoc) ? (
                             <View style={styles.pdfFocusCard}>
                                 <Ionicons name="document-text" size={56} color={THEME.accSky} />
-                                <Text style={styles.audioFocusLabel}>PDF DOCUMENT</Text>
+                                <Text style={styles.audioFocusLabel}>{focusIsPdf ? 'PDF DOCUMENT' : 'DOCUMENT'}</Text>
                                 <Text style={styles.pdfFocusSub}>
-                                    Open with your device's PDF viewer
+                                    Open with your device's viewer
                                 </Text>
                                 <TouchableOpacity
-                                    onPress={() => openPdf(focusedItem)}
+                                    onPress={() => openDocument(focusedItem, getExt(focusedItem))}
                                     style={styles.pdfOpenBtn}
                                     activeOpacity={0.7}
                                 >
                                     <Ionicons name="open-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
-                                    <Text style={styles.pdfOpenBtnText}>OPEN PDF</Text>
+                                    <Text style={styles.pdfOpenBtnText}>OPEN FILE</Text>
                                 </TouchableOpacity>
                             </View>
                         ) : (
-                            <Image source={{ uri: focusedItem }} style={styles.focusImage} resizeMode="contain" />
+                            <Image source={{ uri: focusResolved }} style={styles.focusImage} resizeMode="contain" />
                         )}
                         <Watermark />
                     </View>
@@ -190,13 +235,12 @@ export default function PeepDeck({
 
                 {/* Grid */}
                 <ScrollView style={styles.grid} contentContainerStyle={styles.gridContent}>
-                    {!remoteImage ? (
+                    {!remoteImage || !resolvedUri ? (
                         <View style={styles.emptyState}>
                             <Ionicons name="eye-off-outline" size={32} color={THEME.faint} />
                             <Text style={styles.emptyText}>NOTHING EXPOSED... YET</Text>
                         </View>
                     ) : isAudio ? (
-                        /* Audio exposed */
                         <TouchableOpacity
                             onPress={() => setFocusedItem(remoteImage)}
                             style={styles.audioContainer}
@@ -206,7 +250,7 @@ export default function PeepDeck({
                             <Text style={styles.audioLabel}>AUDIO FILE</Text>
                             <Text style={styles.audioSub}>TAP TO PLAY</Text>
                             <Video
-                                source={{ uri: remoteImage }}
+                                source={{ uri: resolvedUri }}
                                 style={{ width: 0, height: 0 }}
                                 shouldPlay
                                 isLooping={false}
@@ -216,26 +260,24 @@ export default function PeepDeck({
                                 <Text style={styles.gridItemType}>AUDIO</Text>
                             </View>
                         </TouchableOpacity>
-                    ) : isPdf ? (
-                        /* PDF exposed */
+                    ) : isPdf || isDoc ? (
                         <TouchableOpacity
                             onPress={() => setFocusedItem(remoteImage)}
                             style={styles.pdfContainer}
                             activeOpacity={0.8}
                         >
                             <Ionicons name="document-text" size={36} color={THEME.accSky} />
-                            <Text style={styles.audioLabel}>PDF DOCUMENT</Text>
+                            <Text style={styles.audioLabel}>{isPdf ? 'PDF DOCUMENT' : 'DOCUMENT'}</Text>
                             <Text style={styles.audioSub}>TAP TO OPEN</Text>
                             <Watermark />
                             <View style={styles.gridItemLabel}>
-                                <Text style={styles.gridItemType}>PDF</Text>
+                                <Text style={styles.gridItemType}>{isPdf ? 'PDF' : 'DOC'}</Text>
                             </View>
                         </TouchableOpacity>
                     ) : isVideo ? (
-                        /* Video exposed */
                         <View style={styles.videoContainer}>
                             <Video
-                                source={{ uri: remoteImage }}
+                                source={{ uri: resolvedUri }}
                                 style={styles.videoPlayer}
                                 resizeMode={ResizeMode.CONTAIN}
                                 shouldPlay
@@ -255,13 +297,12 @@ export default function PeepDeck({
                             </View>
                         </View>
                     ) : (
-                        /* Image exposed */
                         <TouchableOpacity
                             onPress={() => setFocusedItem(remoteImage)}
                             style={styles.gridItem}
                             activeOpacity={0.8}
                         >
-                            <Image source={{ uri: remoteImage }} style={styles.gridImage} resizeMode="cover" />
+                            <Image source={{ uri: resolvedUri }} style={styles.gridImage} resizeMode="cover" />
                             <Watermark />
                             <View style={styles.gridItemLabel}>
                                 <Text style={styles.gridItemType}>IMAGE</Text>
@@ -520,7 +561,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         textTransform: 'uppercase',
     },
-    // Focus Modal
     focusModal: {
         flex: 1,
         backgroundColor: '#000',
