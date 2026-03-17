@@ -95,16 +95,25 @@ export default function PeepDeck({
     const openDocument = async (uri: string, ext: string = 'pdf') => {
         try {
             const fullUrl = resolveUri(uri);
-            const cacheUri = (FileSystem.cacheDirectory || '') + 'piqabu_received_' + Date.now() + '.' + ext;
+            const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
+            const cacheUri = (FileSystem.cacheDirectory || '') + 'piqabu_received_' + Date.now() + '.' + safeExt;
 
             if (fullUrl.startsWith('http')) {
                 // Download from server
+                console.log('[PeepDeck] Downloading file from:', fullUrl);
                 const dl = await FileSystem.downloadAsync(fullUrl, cacheUri);
-                if (!dl.uri) {
-                    Alert.alert('Error', 'Could not download file.');
+                console.log('[PeepDeck] Download result:', dl.status, dl.uri, dl.headers?.['content-type']);
+                if (!dl.uri || dl.status !== 200) {
+                    Alert.alert('Error', `Could not download file (status: ${dl.status}).`);
                     return;
                 }
-            } else {
+                // Verify the file has content
+                const fileInfo = await FileSystem.getInfoAsync(dl.uri);
+                if (!fileInfo.exists || (fileInfo.size !== undefined && fileInfo.size === 0)) {
+                    Alert.alert('Error', 'Downloaded file is empty.');
+                    return;
+                }
+            } else if (fullUrl.startsWith('data:')) {
                 // Base64 data URI
                 const base64Data = fullUrl.split(',')[1];
                 if (!base64Data) {
@@ -114,34 +123,66 @@ export default function PeepDeck({
                 await FileSystem.writeAsStringAsync(cacheUri, base64Data, {
                     encoding: FileSystem.EncodingType.Base64,
                 });
+            } else {
+                Alert.alert('Error', 'Unsupported file format.');
+                return;
             }
 
+            const mimeMap: Record<string, string> = {
+                pdf: 'application/pdf',
+                doc: 'application/msword',
+                docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                xls: 'application/vnd.ms-excel',
+                xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ppt: 'application/vnd.ms-powerpoint',
+                pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                txt: 'text/plain',
+                csv: 'text/csv',
+                rtf: 'application/rtf',
+                json: 'application/json',
+                xml: 'application/xml',
+                zip: 'application/zip',
+            };
+
+            // Try expo-sharing first (opens Android share sheet / file viewer)
             try {
                 const Sharing = require('expo-sharing');
                 if (await Sharing.isAvailableAsync()) {
-                    const mimeMap: Record<string, string> = {
-                        pdf: 'application/pdf',
-                        doc: 'application/msword',
-                        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                        xls: 'application/vnd.ms-excel',
-                        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    };
                     await Sharing.shareAsync(cacheUri, {
-                        mimeType: mimeMap[ext] || 'application/octet-stream',
+                        mimeType: mimeMap[safeExt] || 'application/octet-stream',
+                        dialogTitle: 'Open with...',
                     });
                 } else {
-                    Alert.alert('Unavailable', 'Sharing is not available on this device.');
+                    // Fallback: try IntentLauncher on Android
+                    if (Platform.OS === 'android') {
+                        try {
+                            const IntentLauncher = require('expo-intent-launcher');
+                            const contentUri = await FileSystem.getContentUriAsync(cacheUri);
+                            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+                                data: contentUri,
+                                flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+                                type: mimeMap[safeExt] || 'application/octet-stream',
+                            });
+                        } catch (intentErr: any) {
+                            console.warn('[PeepDeck] IntentLauncher fallback error:', intentErr?.message);
+                            Alert.alert('No App Found', 'No app available to open this file type.');
+                        }
+                    } else {
+                        Alert.alert('Unavailable', 'Cannot open this file type on this device.');
+                    }
                 }
             } catch (shareErr: any) {
                 console.warn('[PeepDeck] Share error:', shareErr?.message);
-                Alert.alert('Error', 'Could not open file.');
+                Alert.alert('Error', 'Could not open file: ' + (shareErr?.message || 'unknown error'));
             }
+
+            // Clean up cache after 60 seconds
             setTimeout(() => {
                 FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
-            }, 30000);
+            }, 60000);
         } catch (e: any) {
             console.warn('[PeepDeck] Document open error:', e?.message);
-            Alert.alert('Error', 'Could not open file.');
+            Alert.alert('Error', 'Could not open file: ' + (e?.message || 'unknown error'));
         }
     };
 
@@ -174,7 +215,7 @@ export default function PeepDeck({
                                 resizeMode={ResizeMode.CONTAIN}
                                 shouldPlay
                                 isLooping={false}
-                                useNativeControls={false}
+                                useNativeControls={true}
                             />
                         ) : focusIsAudio ? (
                             <View style={styles.audioFocusCard}>
@@ -282,7 +323,7 @@ export default function PeepDeck({
                                 resizeMode={ResizeMode.CONTAIN}
                                 shouldPlay
                                 isLooping={false}
-                                useNativeControls={false}
+                                useNativeControls={true}
                             />
                             <Watermark />
                             <TouchableOpacity

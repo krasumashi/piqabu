@@ -30,7 +30,11 @@ const path = require('path');
 const app = express();
 
 // --- Security Middleware ---
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false,
+}));
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:8081,http://localhost:19006,http://localhost:19000,https://piqabu.onrender.com').split(',');
 
@@ -73,8 +77,52 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage, limits: { fileSize: 15 * 1024 * 1024 } }); // 15MB max
 
-// Serve uploaded files
-app.use('/uploads', express.static(uploadDir));
+// Serve uploaded files with permissive CORS headers so mobile app can download
+app.use('/uploads', (req, res, next) => {
+    // Override helmet's restrictive CORP/COEP headers for file downloads
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    // Set cache to short-lived (files are ephemeral)
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    next();
+}, express.static(uploadDir, {
+    // Ensure correct MIME types for all file types
+    setHeaders: (res, filePath) => {
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeMap = {
+            '.pdf': 'application/pdf',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xls': 'application/vnd.ms-excel',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.ppt': 'application/vnd.ms-powerpoint',
+            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            '.txt': 'text/plain',
+            '.csv': 'text/csv',
+            '.mp4': 'video/mp4',
+            '.mov': 'video/quicktime',
+            '.avi': 'video/x-msvideo',
+            '.webm': 'video/webm',
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.m4a': 'audio/mp4',
+            '.aac': 'audio/aac',
+            '.ogg': 'audio/ogg',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+            '.zip': 'application/zip',
+            '.json': 'application/json',
+            '.xml': 'application/xml',
+        };
+        if (mimeMap[ext]) {
+            res.setHeader('Content-Type', mimeMap[ext]);
+        }
+    },
+}));
 
 // Upload endpoint
 const uploadLimiter = rateLimit({ windowMs: 60000, max: 20, standardHeaders: true, legacyHeaders: false });
