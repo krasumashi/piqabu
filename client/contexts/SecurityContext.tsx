@@ -10,8 +10,10 @@ interface SecurityContextValue {
     biometricEnabled: boolean;
     panicActive: boolean;
     biometricLocked: boolean;
+    screenShareActive: boolean;
     setPanicEnabled: (v: boolean) => Promise<void>;
     setBiometricEnabled: (v: boolean) => Promise<void>;
+    setScreenShareActive: (v: boolean) => void;
     triggerPanic: () => void;
     dismissPanic: () => Promise<boolean>;
     authenticate: () => Promise<boolean>;
@@ -22,8 +24,10 @@ const SecurityContext = createContext<SecurityContextValue>({
     biometricEnabled: false,
     panicActive: false,
     biometricLocked: false,
+    screenShareActive: false,
     setPanicEnabled: async () => {},
     setBiometricEnabled: async () => {},
+    setScreenShareActive: () => {},
     triggerPanic: () => {},
     dismissPanic: async () => true,
     authenticate: async () => true,
@@ -46,6 +50,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     const [biometricEnabled, _setBiometricEnabled] = useState(false);
     const [panicActive, setPanicActive] = useState(false);
     const [biometricLocked, setBiometricLocked] = useState(false);
+    const [screenShareActive, setScreenShareActive] = useState(false);
 
     const shakeCountRef = useRef(0);
     const cooldownRef = useRef(false);
@@ -177,14 +182,15 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
         const sub = AppState.addEventListener('change', (nextState) => {
             if (
                 appStateRef.current.match(/inactive|background/) &&
-                nextState === 'active'
+                nextState === 'active' &&
+                !screenShareActive // Skip biometric lock during active screen share
             ) {
                 setBiometricLocked(true);
             }
             appStateRef.current = nextState;
         });
         return () => sub.remove();
-    }, [biometricEnabled]);
+    }, [biometricEnabled, screenShareActive]);
 
     return (
         <SecurityContext.Provider value={{
@@ -192,8 +198,10 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
             biometricEnabled,
             panicActive,
             biometricLocked,
+            screenShareActive,
             setPanicEnabled,
             setBiometricEnabled,
+            setScreenShareActive,
             triggerPanic,
             dismissPanic,
             authenticate,

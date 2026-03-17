@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated } from 'react-native';
+import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
+import * as FileSystem from 'expo-file-system';
 import { Video, ResizeMode } from 'expo-av';
 import { THEME } from '../constants/Theme';
 
@@ -74,10 +75,44 @@ export default function PeepDeck({
         </View>
     );
 
+    // Helper: open PDF with system viewer via expo-sharing
+    const openPdf = async (dataUri: string) => {
+        try {
+            const base64Data = dataUri.split(',')[1];
+            if (!base64Data) {
+                Alert.alert('Error', 'Invalid PDF data.');
+                return;
+            }
+            const cacheUri = (FileSystem.cacheDirectory || '') + 'piqabu_received_' + Date.now() + '.pdf';
+            await FileSystem.writeAsStringAsync(cacheUri, base64Data, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            try {
+                const Sharing = require('expo-sharing');
+                if (await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(cacheUri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
+                } else {
+                    Alert.alert('Unavailable', 'Sharing is not available on this device.');
+                }
+            } catch (shareErr: any) {
+                console.warn('[PeepDeck] Share error:', shareErr?.message);
+                Alert.alert('Error', 'Could not open PDF.');
+            }
+            // Clean up after a delay to give the share dialog time to read the file
+            setTimeout(() => {
+                FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
+            }, 30000);
+        } catch (e: any) {
+            console.warn('[PeepDeck] PDF open error:', e?.message);
+            Alert.alert('Error', 'Could not open PDF.');
+        }
+    };
+
     // Focus modal (expanded view)
     if (focusedItem) {
         const focusIsVideo = isVideoUri(focusedItem);
         const focusIsAudio = isAudioUri(focusedItem);
+        const focusIsPdf = isPdfUri(focusedItem);
         return (
             <Modal visible={true} animationType="fade" transparent>
                 <View style={styles.focusModal}>
@@ -106,6 +141,22 @@ export default function PeepDeck({
                                     shouldPlay
                                     isLooping={false}
                                 />
+                            </View>
+                        ) : focusIsPdf ? (
+                            <View style={styles.pdfFocusCard}>
+                                <Ionicons name="document-text" size={56} color={THEME.accSky} />
+                                <Text style={styles.audioFocusLabel}>PDF DOCUMENT</Text>
+                                <Text style={styles.pdfFocusSub}>
+                                    Open with your device's PDF viewer
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={() => openPdf(focusedItem)}
+                                    style={styles.pdfOpenBtn}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="open-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
+                                    <Text style={styles.pdfOpenBtnText}>OPEN PDF</Text>
+                                </TouchableOpacity>
                             </View>
                         ) : (
                             <Image source={{ uri: focusedItem }} style={styles.focusImage} resizeMode="contain" />
@@ -167,15 +218,19 @@ export default function PeepDeck({
                         </TouchableOpacity>
                     ) : isPdf ? (
                         /* PDF exposed */
-                        <View style={styles.pdfContainer}>
+                        <TouchableOpacity
+                            onPress={() => setFocusedItem(remoteImage)}
+                            style={styles.pdfContainer}
+                            activeOpacity={0.8}
+                        >
                             <Ionicons name="document-text" size={36} color={THEME.accSky} />
                             <Text style={styles.audioLabel}>PDF DOCUMENT</Text>
-                            <Text style={styles.audioSub}>RECEIVED</Text>
+                            <Text style={styles.audioSub}>TAP TO OPEN</Text>
                             <Watermark />
                             <View style={styles.gridItemLabel}>
                                 <Text style={styles.gridItemType}>PDF</Text>
                             </View>
-                        </View>
+                        </TouchableOpacity>
                     ) : isVideo ? (
                         /* Video exposed */
                         <View style={styles.videoContainer}>
@@ -430,6 +485,39 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: 12 * 0.22,
         color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    pdfFocusCard: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 16,
+    },
+    pdfFocusSub: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        letterSpacing: 10 * 0.12,
+        color: THEME.faint,
+        textTransform: 'uppercase',
+        textAlign: 'center',
+    },
+    pdfOpenBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        paddingHorizontal: 28,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.25)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        marginTop: 8,
+    },
+    pdfOpenBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        fontWeight: '900',
+        letterSpacing: 11 * 0.22,
+        color: '#fff',
         textTransform: 'uppercase',
     },
     // Focus Modal

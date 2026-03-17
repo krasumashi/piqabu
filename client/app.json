@@ -27,7 +27,11 @@
         "backgroundColor": "#060709"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.krasumashi.piqabu"
+      "package": "com.krasumashi.piqabu",
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

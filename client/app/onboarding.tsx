@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFirstLaunch } from '../lib/onboarding/useFirstLaunch';
+import GridBackground from '../components/GridBackground';
 
 const { width } = Dimensions.get('window');
 
@@ -92,6 +93,7 @@ export default function Onboarding() {
 
     return (
         <View className="flex-1" style={{ backgroundColor: '#060709' }}>
+            <GridBackground />
             {/* Skip button */}
             <TouchableOpacity
                 onPress={handleFinish}

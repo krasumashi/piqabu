@@ -12,8 +12,8 @@ import { THEME } from '../constants/Theme';
 
 const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 5MB base64 data URI
 
-type MediaType = 'image' | 'video' | 'audio' | 'pdf';
-type EvidenceItem = { id: string; uri: string; type: MediaType };
+type MediaType = 'image' | 'video' | 'audio' | 'pdf' | 'document';
+type EvidenceItem = { id: string; uri: string; localUri?: string; type: MediaType };
 
 let _idCounter = 0;
 function nextId(): string {
@@ -22,6 +22,40 @@ function nextId(): string {
 
 function isVideoUri(uri: string): boolean {
     return uri.startsWith('data:video/');
+}
+
+function getMimeFromExtension(ext?: string): string {
+    if (!ext) return 'application/octet-stream';
+    const map: Record<string, string> = {
+        pdf: 'application/pdf',
+        doc: 'application/msword',
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        xls: 'application/vnd.ms-excel',
+        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ppt: 'application/vnd.ms-powerpoint',
+        pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        txt: 'text/plain',
+        csv: 'text/csv',
+        rtf: 'application/rtf',
+        json: 'application/json',
+        xml: 'application/xml',
+        zip: 'application/zip',
+        mp3: 'audio/mpeg',
+        wav: 'audio/wav',
+        m4a: 'audio/mp4',
+        aac: 'audio/aac',
+        ogg: 'audio/ogg',
+        mp4: 'video/mp4',
+        mov: 'video/quicktime',
+        avi: 'video/x-msvideo',
+        webm: 'video/webm',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+    };
+    return map[ext.toLowerCase()] || 'application/octet-stream';
 }
 
 export default function RevealDeck({
@@ -68,50 +102,53 @@ export default function RevealDeck({
         const isVideo = asset.type === 'video';
 
         if (isVideo) {
-            // Video: read as base64 data URI
+            // Video: read as base64 data URI, keep localUri for playback
             if (!asset.uri) return;
             try {
-                let readUri = asset.uri;
+                const mime = asset.mimeType || 'video/mp4';
+                const originalUri = asset.uri;
+                let base64: string | null = null;
 
-                // Try copying to cache (needed for some Android content:// URIs)
-                const cacheDir = FileSystem.cacheDirectory;
-                if (cacheDir) {
+                // Try reading directly from the picker URI first
+                try {
+                    base64 = await FileSystem.readAsStringAsync(asset.uri, {
+                        encoding: FileSystem.EncodingType.Base64,
+                    });
+                } catch {
+                    // Fallback: copy to cache then read (handles content:// URIs on Android)
+                    const cacheDir = FileSystem.cacheDirectory;
+                    if (!cacheDir) throw new Error('No cache directory');
+
                     const cacheUri = cacheDir + 'reveal_video_' + Date.now() + '.mp4';
+
                     try {
                         await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
-                        readUri = cacheUri;
                     } catch {
-                        // Fallback: try reading directly from original URI
+                        await FileSystem.downloadAsync(asset.uri, cacheUri);
                     }
+
+                    const info = await FileSystem.getInfoAsync(cacheUri);
+                    if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
+                        Alert.alert('File Too Large', 'Video must be under ~3.5 MB. Try a shorter clip.');
+                        await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
+                        return;
+                    }
+
+                    base64 = await FileSystem.readAsStringAsync(cacheUri, {
+                        encoding: FileSystem.EncodingType.Base64,
+                    });
+                    await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
                 }
 
-                const info = await FileSystem.getInfoAsync(readUri);
-                if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
-                    // 3.5MB binary ≈ 4.8MB base64
-                    Alert.alert('File Too Large', 'Video must be under ~3.5 MB. Try a shorter clip.');
-                    if (readUri !== asset.uri) await FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
-                    return;
-                }
-
-                const base64 = await FileSystem.readAsStringAsync(readUri, {
-                    encoding: FileSystem.EncodingType.Base64,
-                });
-
-                // Clean up cache copy if we made one
-                if (readUri !== asset.uri) {
-                    await FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
-                }
-
-                const mime = asset.mimeType || 'video/mp4';
                 const dataUri = `data:${mime};base64,${base64}`;
                 if (dataUri.length > MAX_MEDIA_SIZE) {
                     Alert.alert('File Too Large', 'Video is too large. Try a shorter clip.');
                     return;
                 }
-                setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: 'video' }]);
+                setItems(prev => [...prev, { id: nextId(), uri: dataUri, localUri: originalUri, type: 'video' }]);
             } catch (e: any) {
-                console.warn('[RevealDeck] Video read error:', e);
-                Alert.alert('Error', 'Could not read video file. Try a shorter or smaller video.');
+                console.warn('[RevealDeck] Video read error:', e?.message, e);
+                Alert.alert('Error', 'Could not read video. Try a different video or shorter clip.');
             }
         } else {
             // Image: use base64 from picker
@@ -161,7 +198,7 @@ export default function RevealDeck({
         try {
             const DocumentPicker = require('expo-document-picker');
             const result = await DocumentPicker.getDocumentAsync({
-                type: ['audio/*', 'application/pdf'],
+                type: ['*/*'],
                 copyToCacheDirectory: true,
             });
 
@@ -170,18 +207,46 @@ export default function RevealDeck({
             const asset = result.assets[0];
             if (!asset.uri) return;
 
+            // Ensure we have a readable file URI
+            let readUri = asset.uri;
+            const cacheDir = FileSystem.cacheDirectory;
+            if (cacheDir) {
+                const ext = asset.name?.split('.').pop() || 'bin';
+                const cacheUri = cacheDir + 'reveal_doc_' + Date.now() + '.' + ext;
+                try {
+                    await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
+                    readUri = cacheUri;
+                } catch {
+                    try {
+                        // downloadAsync handles content:// URIs better on Android
+                        await FileSystem.downloadAsync(asset.uri, cacheUri);
+                        readUri = cacheUri;
+                    } catch {
+                        // Last resort: try reading from original URI
+                    }
+                }
+            }
+
             // Check file size
-            const info = await FileSystem.getInfoAsync(asset.uri);
+            const info = await FileSystem.getInfoAsync(readUri);
             if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
                 Alert.alert('File Too Large', 'File must be under ~3.5 MB.');
+                if (readUri !== asset.uri) await FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
                 return;
             }
 
             // Read as base64
-            const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+            const base64 = await FileSystem.readAsStringAsync(readUri, {
                 encoding: FileSystem.EncodingType.Base64,
             });
-            const mime = asset.mimeType || (asset.name?.endsWith('.pdf') ? 'application/pdf' : 'audio/mp4');
+
+            // Clean up cache copy if we made one
+            if (readUri !== asset.uri) {
+                await FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
+            }
+
+            const ext = asset.name?.split('.').pop()?.toLowerCase();
+            const mime = asset.mimeType || getMimeFromExtension(ext);
             const dataUri = `data:${mime};base64,${base64}`;
 
             if (dataUri.length > MAX_MEDIA_SIZE) {
@@ -189,13 +254,16 @@ export default function RevealDeck({
                 return;
             }
 
-            let mediaType: MediaType = 'pdf';
-            if (mime.startsWith('audio/')) mediaType = 'audio';
+            let mediaType: MediaType = 'document';
+            if (mime === 'application/pdf') mediaType = 'pdf';
+            else if (mime.startsWith('audio/')) mediaType = 'audio';
+            else if (mime.startsWith('video/')) mediaType = 'video';
+            else if (mime.startsWith('image/')) mediaType = 'image';
 
             setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: mediaType }]);
         } catch (e: any) {
-            console.warn('[RevealDeck] Document pick error:', e);
-            Alert.alert('Error', 'Could not read file.');
+            console.warn('[RevealDeck] Document pick error:', e?.message, e);
+            Alert.alert('Error', 'Could not read file. Try a different file.');
         }
     };
 
@@ -300,6 +368,10 @@ export default function RevealDeck({
                                             <View style={styles.videoThumb}>
                                                 <Ionicons name="document-text" size={22} color={THEME.muted} />
                                             </View>
+                                        ) : item.type === 'document' ? (
+                                            <View style={styles.videoThumb}>
+                                                <Ionicons name="document-outline" size={22} color={THEME.muted} />
+                                            </View>
                                         ) : (
                                             <Image source={{ uri: item.uri }} style={styles.thumbImage} resizeMode="cover" />
                                         )}
@@ -310,7 +382,7 @@ export default function RevealDeck({
                                         <Text style={styles.metaTitle}>EVIDENCE {idx + 1}</Text>
                                         <View style={styles.metaRow}>
                                             <Text style={styles.metaType}>
-                                                {item.type === 'video' ? 'VIDEO' : item.type === 'audio' ? 'AUDIO' : item.type === 'pdf' ? 'PDF' : 'IMAGE'}
+                                                {item.type === 'video' ? 'VIDEO' : item.type === 'audio' ? 'AUDIO' : item.type === 'pdf' ? 'PDF' : item.type === 'document' ? 'DOCUMENT' : 'IMAGE'}
                                             </Text>
                                             <Text style={styles.metaDivider}>•</Text>
                                             <Text style={[styles.metaStatus, isExposed && { color: THEME.accEmerald }]}>
@@ -344,17 +416,21 @@ export default function RevealDeck({
                 </ScrollView>
 
                 {/* Video/Audio Preview for exposed media */}
-                {exposedId && (items.find(i => i.id === exposedId)?.type === 'video' || items.find(i => i.id === exposedId)?.type === 'audio') && (
-                    <View style={styles.videoPreview}>
-                        <Video
-                            source={{ uri: items.find(i => i.id === exposedId)!.uri }}
-                            style={styles.videoPlayer}
-                            useNativeControls
-                            resizeMode={ResizeMode.CONTAIN}
-                            isLooping={false}
-                        />
-                    </View>
-                )}
+                {exposedId && (items.find(i => i.id === exposedId)?.type === 'video' || items.find(i => i.id === exposedId)?.type === 'audio') && (() => {
+                    const exposedItem = items.find(i => i.id === exposedId)!;
+                    const playbackUri = exposedItem.localUri || exposedItem.uri;
+                    return (
+                        <View style={styles.videoPreview}>
+                            <Video
+                                source={{ uri: playbackUri }}
+                                style={styles.videoPlayer}
+                                useNativeControls
+                                resizeMode={ResizeMode.CONTAIN}
+                                isLooping={false}
+                            />
+                        </View>
+                    );
+                })()}
 
                 {/* Footer */}
                 <View style={styles.footer}>

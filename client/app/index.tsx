@@ -16,6 +16,7 @@ import { useFirstLaunch } from '../lib/onboarding/useFirstLaunch';
 import SubscriptionBadge from '../components/SubscriptionBadge';
 import Paywall from '../components/Paywall';
 import { THEME, DASHED_BORDER } from '../constants/Theme';
+import GridBackground from '../components/GridBackground';
 
 type Mode = 'SPLASH' | 'LANDING' | 'GENERATED';
 
@@ -148,6 +149,7 @@ export default function EntryView() {
     if (mode === 'SPLASH') {
         return (
             <View style={styles.splashContainer}>
+                <GridBackground />
                 <Animated.Image
                     source={require('../assets/Splash Medium Logotype White.png')}
                     style={[styles.splashLogoImage, splashLogoStyle]}
@@ -167,6 +169,7 @@ export default function EntryView() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.container}
         >
+            <GridBackground />
             <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 <View style={styles.inner}>
                     {/* ─── Top Bar ─── */}

@@ -22,6 +22,7 @@ import InviteOverlay from '../../components/InviteOverlay';
 import ListeningIndicator from '../../components/ListeningIndicator';
 import LiveGlassPanel from '../../components/LiveGlassPanel';
 import ScreenSharePanel from '../../components/ScreenSharePanel';
+import GridBackground from '../../components/GridBackground';
 import PresencePulse from '../../components/PresencePulse';
 import SandText from '../../components/SandText';
 import { usePresence } from '../../hooks/usePresence';
@@ -521,6 +522,7 @@ export default function RoomScreen() {
     const [liveGlassPartnerAccepted, setLiveGlassPartnerAccepted] = useState(false);
     const [showScreenShare, setShowScreenShare] = useState(false);
     const [isScreenSharer, setIsScreenSharer] = useState(false);
+    const [screenShareMinimized, setScreenShareMinimized] = useState(false);
 
     const [roomStatuses, setRoomStatuses] = useState<Record<string, LinkStatus>>({});
 
@@ -584,6 +586,7 @@ export default function RoomScreen() {
 
     return (
         <RNAnimated.View style={[st.screen, { opacity: screenFade, paddingTop: stableTop || 30 }]}>
+            <GridBackground />
             <RoomTabBar
                 rooms={rooms} activeRoomId={activeRoomId} roomStatuses={roomStatuses}
                 onSwitchRoom={switchRoom} onAddRoom={() => setShowAddModal(true)}
@@ -630,12 +633,26 @@ export default function RoomScreen() {
                 visible={showScreenShare}
                 onClose={() => {
                     setShowScreenShare(false);
+                    setScreenShareMinimized(false);
                     setIsScreenSharer(false);
                 }}
                 socket={socket}
                 roomId={activeRoomId}
                 isSharer={isScreenSharer}
+                minimized={screenShareMinimized}
+                onMinimize={() => setScreenShareMinimized(true)}
+                onMaximize={() => setScreenShareMinimized(false)}
             />
+
+            {/* Screen share glow border */}
+            {showScreenShare && isScreenSharer && screenShareMinimized && (
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                    <View style={st.glowEdgeTop} />
+                    <View style={st.glowEdgeBottom} />
+                    <View style={st.glowEdgeLeft} />
+                    <View style={st.glowEdgeRight} />
+                </View>
+            )}
 
             {/* Add Room Modal */}
             <Modal visible={showAddModal} animationType="fade" transparent>
@@ -808,5 +825,31 @@ const st = StyleSheet.create({
     addModalCreateText: {
         fontFamily: THEME.mono, fontSize: 10, fontWeight: '900', letterSpacing: 2.2,
         color: THEME.ink, textTransform: 'uppercase',
+    },
+
+    // Screen share glow edges
+    glowEdgeTop: {
+        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+        backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999,
+        shadowColor: '#fff', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.8, shadowRadius: 12,
+        elevation: 10,
+    },
+    glowEdgeBottom: {
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 2,
+        backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999,
+        shadowColor: '#fff', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.8, shadowRadius: 12,
+        elevation: 10,
+    },
+    glowEdgeLeft: {
+        position: 'absolute', top: 0, bottom: 0, left: 0, width: 2,
+        backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999,
+        shadowColor: '#fff', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.8, shadowRadius: 12,
+        elevation: 10,
+    },
+    glowEdgeRight: {
+        position: 'absolute', top: 0, bottom: 0, right: 0, width: 2,
+        backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999,
+        shadowColor: '#fff', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.8, shadowRadius: 12,
+        elevation: 10,
     },
 });

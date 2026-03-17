@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import { BlurView } from 'expo-blur';
 import { THEME } from '../constants/Theme';
+import { useSecurity } from '../contexts/SecurityContext';
 import type { Socket } from 'socket.io-client';
 
 // ---------------------------------------------------------------------------
@@ -41,6 +42,9 @@ interface ScreenSharePanelProps {
     socket: Socket | null;
     roomId: string;
     isSharer: boolean; // true = this user is sharing their screen
+    minimized?: boolean;
+    onMinimize?: () => void;
+    onMaximize?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,7 +56,13 @@ export default function ScreenSharePanel({
     socket,
     roomId,
     isSharer,
+    minimized,
+    onMinimize,
+    onMaximize,
 }: ScreenSharePanelProps) {
+    // Bypass biometric lock while screen sharing is active
+    const { setScreenShareActive } = useSecurity();
+
     // WebRTC state
     const pcRef = useRef<RTCPeerConnection | null>(null);
     const localStreamRef = useRef<MediaStream | null>(null);
@@ -215,13 +225,14 @@ export default function ScreenSharePanel({
                 const { mediaDevices } = require('react-native-webrtc');
                 // react-native-webrtc's getDisplayMedia (Android only, requires foreground service)
                 nativeStream = await mediaDevices.getDisplayMedia({ video: true, audio: true });
-            } catch {
+            } catch (e: any) {
+                console.warn('[ScreenShare] getDisplayMedia failed:', e?.message, e);
                 nativeStream = null;
             }
 
             if (!nativeStream) {
-                setStatus('unsupported');
-                setErrorMsg('Screen sharing is available on web. Native screen capture is not supported on this device.');
+                setStatus('error');
+                setErrorMsg('Screen capture permission was denied or is unavailable. Please try again.');
                 return;
             }
 
@@ -427,6 +438,28 @@ export default function ScreenSharePanel({
     }, [blur, socket, roomId, visible, isSharer]);
 
     // ------------------------------------------------------------------
+    // Bypass biometric lock during active screen share (sharer side)
+    // ------------------------------------------------------------------
+    useEffect(() => {
+        if (visible && isSharer) {
+            setScreenShareActive(true);
+        }
+        return () => {
+            if (isSharer) setScreenShareActive(false);
+        };
+    }, [visible, isSharer, setScreenShareActive]);
+
+    // ------------------------------------------------------------------
+    // Auto-minimize after connection becomes active (sharer side)
+    // ------------------------------------------------------------------
+    useEffect(() => {
+        if (status === 'active' && isSharer && onMinimize && !minimized) {
+            const timer = setTimeout(() => onMinimize(), 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [status, isSharer, onMinimize, minimized]);
+
+    // ------------------------------------------------------------------
     // Init / teardown on visibility change
     // ------------------------------------------------------------------
     useEffect(() => {
@@ -508,6 +541,29 @@ export default function ScreenSharePanel({
     // Bail early if not visible
     // ------------------------------------------------------------------
     if (!visible) return null;
+
+    // ------------------------------------------------------------------
+    // Render: Minimized pill (sharer only)
+    // ------------------------------------------------------------------
+    if (isSharer && minimized) {
+        return (
+            <TouchableOpacity
+                onPress={onMaximize}
+                style={styles.minimizedPill}
+                activeOpacity={0.7}
+            >
+                <View style={styles.minimizedDot} />
+                <Text style={styles.minimizedText}>SHARING</Text>
+                <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); handleStopSharing(); }}
+                    style={styles.minimizedStop}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="stop" size={10} color={THEME.bad} />
+                </TouchableOpacity>
+            </TouchableOpacity>
+        );
+    }
 
     // ------------------------------------------------------------------
     // Render: SHARER view
@@ -849,5 +905,54 @@ const styles = StyleSheet.create({
         letterSpacing: 2.2,
         color: THEME.muted,
         textTransform: 'uppercase',
+    },
+
+    // Minimized pill
+    minimizedPill: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 56 : 36,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.85)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.25)',
+        zIndex: 9998,
+        shadowColor: '#fff',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 10,
+    },
+    minimizedDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#fff',
+        shadowColor: '#fff',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.9,
+        shadowRadius: 6,
+    },
+    minimizedText: {
+        fontFamily: THEME.mono,
+        fontSize: 9,
+        fontWeight: '900',
+        letterSpacing: 2,
+        color: '#fff',
+        textTransform: 'uppercase',
+    },
+    minimizedStop: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 4,
     },
 });
