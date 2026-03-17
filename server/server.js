@@ -74,7 +74,7 @@ const io = new Server(server, {
     },
     allowEIO3: true,
     transports: ['websocket', 'polling'],
-    maxHttpBufferSize: 10e6,
+    maxHttpBufferSize: 15e6, // 15MB to handle larger file attachments
     pingTimeout: 60000,
     pingInterval: 25000,
 });

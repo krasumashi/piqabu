@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, TouchableOpacity, StyleSheet, Platform, Modal,
+    BackHandler, AppState, AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -218,27 +219,55 @@ export default function ScreenSharePanel({
     const startSharing = useCallback(async () => {
         if (!socket || !roomId) return;
 
-        // Native platforms: screen capture is not reliably available
+        // Native platforms: use react-native-webrtc's getDisplayMedia
         if (Platform.OS !== 'web') {
+            setStatus('connecting');
+
             let nativeStream: MediaStream | null = null;
             try {
-                const { mediaDevices } = require('react-native-webrtc');
-                // react-native-webrtc's getDisplayMedia (Android only, requires foreground service)
-                nativeStream = await mediaDevices.getDisplayMedia({ video: true, audio: true });
-            } catch (e: any) {
-                console.warn('[ScreenShare] getDisplayMedia failed:', e?.message, e);
-                nativeStream = null;
-            }
+                const RNWebRTC = require('react-native-webrtc');
+                const { mediaDevices } = RNWebRTC;
 
-            if (!nativeStream) {
-                setStatus('error');
-                setErrorMsg('Screen capture permission was denied or is unavailable. Please try again.');
+                if (!mediaDevices || !mediaDevices.getDisplayMedia) {
+                    setStatus('error');
+                    setErrorMsg('Screen capture is not available on this device. Ensure you are using the latest APK build.');
+                    return;
+                }
+
+                // This triggers Android's MediaProjection permission dialog
+                // The foreground service is started automatically by react-native-webrtc
+                nativeStream = await mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: false, // audio capture from other apps requires extra setup
+                });
+            } catch (e: any) {
+                const msg = e?.message || '';
+                console.warn('[ScreenShare] getDisplayMedia failed:', msg, e);
+
+                if (msg.includes('permission') || msg.includes('denied') || msg.includes('cancel')) {
+                    setStatus('error');
+                    setErrorMsg('Screen capture permission was denied. Please try again and tap "Start now" when prompted.');
+                } else {
+                    setStatus('error');
+                    setErrorMsg('Screen capture failed: ' + (msg || 'Unknown error. Please restart the app and try again.'));
+                }
                 return;
             }
 
-            // If we did get a native stream, proceed
+            if (!nativeStream || nativeStream.getTracks().length === 0) {
+                setStatus('error');
+                setErrorMsg('No screen capture stream received. Please try again.');
+                return;
+            }
+
             localStreamRef.current = nativeStream;
-            setStatus('connecting');
+
+            // Listen for track ending (user stopped sharing via system notification)
+            nativeStream.getVideoTracks().forEach(track => {
+                track.addEventListener?.('ended', () => {
+                    handleStopSharing();
+                });
+            });
 
             const pc = createPeerConnection();
             if (!pc) return;
@@ -451,13 +480,40 @@ export default function ScreenSharePanel({
 
     // ------------------------------------------------------------------
     // Auto-minimize after connection becomes active (sharer side)
+    // On Android, minimize the app so the user can navigate to other apps
+    // while screen sharing continues via the foreground service
     // ------------------------------------------------------------------
     useEffect(() => {
         if (status === 'active' && isSharer && onMinimize && !minimized) {
-            const timer = setTimeout(() => onMinimize(), 1500);
+            const timer = setTimeout(() => {
+                onMinimize();
+                // On Android, minimize the app to background so user can share other apps
+                if (Platform.OS === 'android') {
+                    setTimeout(() => {
+                        BackHandler.exitApp(); // On Android this minimizes (doesn't kill) when foreground service is running
+                    }, 500);
+                }
+            }, 1500);
             return () => clearTimeout(timer);
         }
     }, [status, isSharer, onMinimize, minimized]);
+
+    // ------------------------------------------------------------------
+    // Keep session alive when app returns from background during screen share
+    // ------------------------------------------------------------------
+    useEffect(() => {
+        if (!visible || !isSharer) return;
+
+        const handleAppState = (nextState: AppStateStatus) => {
+            if (nextState === 'active' && status === 'active') {
+                // App returned to foreground while sharing — ensure biometric stays bypassed
+                setScreenShareActive(true);
+            }
+        };
+
+        const subscription = AppState.addEventListener('change', handleAppState);
+        return () => subscription.remove();
+    }, [visible, isSharer, status, setScreenShareActive]);
 
     // ------------------------------------------------------------------
     // Init / teardown on visibility change
@@ -590,7 +646,7 @@ export default function ScreenSharePanel({
                                 <Ionicons name="desktop-outline" size={48} color={THEME.faint} />
                                 <Text style={styles.messageTitle}>NOT AVAILABLE</Text>
                                 <Text style={styles.messageSubtitle}>
-                                    {errorMsg || 'Screen sharing is available on web.'}
+                                    {errorMsg || 'Screen sharing is not available on this device.'}
                                 </Text>
                             </View>
                         ) : status === 'error' ? (
@@ -600,13 +656,21 @@ export default function ScreenSharePanel({
                                 <Text style={styles.messageSubtitle}>
                                     {errorMsg || 'Something went wrong.'}
                                 </Text>
+                                <TouchableOpacity
+                                    onPress={() => { cleanup(); startSharing(); }}
+                                    style={styles.retryBtn}
+                                    activeOpacity={0.7}
+                                >
+                                    <Text style={styles.retryBtnText}>RETRY</Text>
+                                </TouchableOpacity>
                             </View>
                         ) : status === 'connecting' ? (
                             <View style={styles.centeredMessage}>
                                 <Ionicons name="sync-outline" size={48} color={THEME.muted} />
                                 <Text style={styles.messageTitle}>CONNECTING...</Text>
                                 <Text style={styles.messageSubtitle}>
-                                    Waiting for viewer to join.
+                                    Waiting for viewer to join.{'\n'}
+                                    Tap "Start now" if prompted.
                                 </Text>
                             </View>
                         ) : (
@@ -614,6 +678,9 @@ export default function ScreenSharePanel({
                                 <Ionicons name="desktop-outline" size={48} color={THEME.live} />
                                 <Text style={[styles.messageTitle, { color: THEME.live }]}>
                                     YOUR SCREEN IS{'\n'}BEING SHARED
+                                </Text>
+                                <Text style={styles.messageSubtitle}>
+                                    App will minimize. Your entire screen{'\n'}is visible to your partner.
                                 </Text>
                             </View>
                         )}
@@ -904,6 +971,25 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: 2.2,
         color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+
+    // Retry button
+    retryBtn: {
+        marginTop: 16,
+        paddingVertical: 10,
+        paddingHorizontal: 24,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    retryBtnText: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 2,
+        color: '#fff',
         textTransform: 'uppercase',
     },
 

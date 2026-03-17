@@ -10,7 +10,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 
-const MAX_MEDIA_SIZE = 5 * 1024 * 1024; // 5MB base64 data URI
+const MAX_MEDIA_SIZE = 12 * 1024 * 1024; // 12MB base64 data URI (~8MB binary)
 
 type MediaType = 'image' | 'video' | 'audio' | 'pdf' | 'document';
 type EvidenceItem = { id: string; uri: string; localUri?: string; type: MediaType };
@@ -84,99 +84,139 @@ export default function RevealDeck({
         }
     }, [visible]);
 
+    const readFileAsBase64 = async (uri: string, fallbackName?: string): Promise<string | null> => {
+        const cacheDir = FileSystem.cacheDirectory;
+        const ext = fallbackName?.split('.').pop() || 'bin';
+        const cacheUri = cacheDir ? cacheDir + 'reveal_tmp_' + Date.now() + '.' + ext : null;
+
+        // Strategy 1: Direct read (works for file:// URIs)
+        try {
+            return await FileSystem.readAsStringAsync(uri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+        } catch { /* content:// or other URI scheme — try copy */ }
+
+        if (!cacheUri) throw new Error('No cache directory');
+
+        // Strategy 2: copyAsync to cache then read
+        try {
+            await FileSystem.copyAsync({ from: uri, to: cacheUri });
+            const data = await FileSystem.readAsStringAsync(cacheUri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
+            return data;
+        } catch { /* copy failed — try downloadAsync */ }
+
+        // Strategy 3: downloadAsync handles content:// URIs on Android
+        try {
+            const dl = await FileSystem.downloadAsync(uri, cacheUri);
+            if (!dl.uri) throw new Error('Download returned no URI');
+            const data = await FileSystem.readAsStringAsync(dl.uri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
+            return data;
+        } catch { /* all strategies failed */ }
+
+        // Strategy 4: Try creating a copy with a different name
+        const altCacheUri = cacheDir + 'reveal_alt_' + Date.now() + '.' + ext;
+        try {
+            await FileSystem.copyAsync({ from: uri, to: altCacheUri });
+            const data = await FileSystem.readAsStringAsync(altCacheUri, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+            await FileSystem.deleteAsync(altCacheUri, { idempotent: true }).catch(() => {});
+            return data;
+        } catch {
+            await FileSystem.deleteAsync(altCacheUri, { idempotent: true }).catch(() => {});
+        }
+
+        return null;
+    };
+
     const pickMedia = async () => {
         if (items.length >= maxImages) {
             Alert.alert('Limit Reached', `Maximum ${maxImages} items allowed.`);
             return;
         }
 
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images', 'videos'],
-            base64: true,
-            quality: 0.5,
-        });
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission Required', 'Please allow access to your media library in Settings.');
+                return;
+            }
 
-        if (result.canceled || !result.assets?.[0]) return;
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images', 'videos'],
+                base64: true,
+                quality: 0.5,
+                videoMaxDuration: 30, // 30 seconds max to keep file size manageable
+            });
 
-        const asset = result.assets[0];
-        const isVideo = asset.type === 'video';
+            if (result.canceled || !result.assets?.[0]) return;
 
-        if (isVideo) {
-            // Video: read as base64 data URI, keep localUri for playback
-            if (!asset.uri) return;
-            try {
+            const asset = result.assets[0];
+            const isVideo = asset.type === 'video';
+
+            if (isVideo) {
+                if (!asset.uri) return;
                 const mime = asset.mimeType || 'video/mp4';
                 const originalUri = asset.uri;
-                let base64: string | null = null;
 
-                // Try reading directly from the picker URI first
+                // Check file size before reading as base64
                 try {
-                    base64 = await FileSystem.readAsStringAsync(asset.uri, {
-                        encoding: FileSystem.EncodingType.Base64,
-                    });
-                } catch {
-                    // Fallback: copy to cache then read (handles content:// URIs on Android)
-                    const cacheDir = FileSystem.cacheDirectory;
-                    if (!cacheDir) throw new Error('No cache directory');
-
-                    const cacheUri = cacheDir + 'reveal_video_' + Date.now() + '.mp4';
-
-                    try {
-                        await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
-                    } catch {
-                        await FileSystem.downloadAsync(asset.uri, cacheUri);
-                    }
-
-                    const info = await FileSystem.getInfoAsync(cacheUri);
-                    if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
-                        Alert.alert('File Too Large', 'Video must be under ~3.5 MB. Try a shorter clip.');
-                        await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
+                    const info = await FileSystem.getInfoAsync(asset.uri);
+                    if (info.exists && info.size && info.size > 8 * 1024 * 1024) {
+                        Alert.alert('Video Too Large', 'Videos must be under ~8 MB. Try a shorter clip (under 15 seconds).');
                         return;
                     }
+                } catch { /* size check failed, proceed and check base64 size later */ }
 
-                    base64 = await FileSystem.readAsStringAsync(cacheUri, {
-                        encoding: FileSystem.EncodingType.Base64,
-                    });
-                    await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
+                const base64 = await readFileAsBase64(asset.uri, 'video.mp4');
+                if (!base64) {
+                    Alert.alert('Error', 'Could not read video file. Try a different video.');
+                    return;
                 }
 
                 const dataUri = `data:${mime};base64,${base64}`;
                 if (dataUri.length > MAX_MEDIA_SIZE) {
-                    Alert.alert('File Too Large', 'Video is too large. Try a shorter clip.');
+                    Alert.alert('Video Too Large', 'Video exceeds the size limit. Try a shorter clip (under 15 seconds).');
                     return;
                 }
                 setItems(prev => [...prev, { id: nextId(), uri: dataUri, localUri: originalUri, type: 'video' }]);
-            } catch (e: any) {
-                console.warn('[RevealDeck] Video read error:', e?.message, e);
-                Alert.alert('Error', 'Could not read video. Try a different video or shorter clip.');
-            }
-        } else {
-            // Image: use base64 from picker
-            if (!asset.base64) return;
-            const mime = asset.mimeType || 'image/jpeg';
-            let dataUri = `data:${mime};base64,${asset.base64}`;
+            } else {
+                // Image: use base64 from picker
+                if (!asset.base64) return;
+                const mime = asset.mimeType || 'image/jpeg';
+                let dataUri = `data:${mime};base64,${asset.base64}`;
 
-            if (dataUri.length > MAX_MEDIA_SIZE) {
-                // Retry at lower quality
-                const lowRes = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ['images'],
-                    base64: true,
-                    quality: 0.2,
-                });
-                if (!lowRes.canceled && lowRes.assets[0]?.base64) {
-                    const lowMime = lowRes.assets[0].mimeType || 'image/jpeg';
-                    const lowUri = `data:${lowMime};base64,${lowRes.assets[0].base64}`;
-                    if (lowUri.length > MAX_MEDIA_SIZE) {
-                        Alert.alert('File Too Large', 'Image is too large even at low quality. Choose a smaller image.');
+                if (dataUri.length > MAX_MEDIA_SIZE) {
+                    // Retry at lower quality
+                    const lowRes = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ['images'],
+                        base64: true,
+                        quality: 0.15,
+                    });
+                    if (!lowRes.canceled && lowRes.assets[0]?.base64) {
+                        const lowMime = lowRes.assets[0].mimeType || 'image/jpeg';
+                        const lowUri = `data:${lowMime};base64,${lowRes.assets[0].base64}`;
+                        if (lowUri.length > MAX_MEDIA_SIZE) {
+                            Alert.alert('File Too Large', 'Image is too large even at low quality. Choose a smaller image.');
+                            return;
+                        }
+                        dataUri = lowUri;
+                    } else {
                         return;
                     }
-                    dataUri = lowUri;
-                } else {
-                    return;
                 }
-            }
 
-            setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: 'image' }]);
+                setItems(prev => [...prev, { id: nextId(), uri: dataUri, type: 'image' }]);
+            }
+        } catch (e: any) {
+            console.warn('[RevealDeck] pickMedia error:', e?.message, e);
+            Alert.alert('Error', 'Could not load media. Please try again.');
         }
     };
 
@@ -190,67 +230,59 @@ export default function RevealDeck({
         if (Constants.appOwnership === 'expo') {
             Alert.alert(
                 'Production Build Required',
-                'Audio/PDF upload requires the production build (APK). Use the installed APK on your phone.',
+                'File upload requires the production build (APK). Use the installed APK on your phone.',
             );
             return;
         }
 
         try {
             const DocumentPicker = require('expo-document-picker');
-            const result = await DocumentPicker.getDocumentAsync({
-                type: ['*/*'],
-                copyToCacheDirectory: true,
-            });
+
+            let result: any;
+            try {
+                result = await DocumentPicker.getDocumentAsync({
+                    type: ['*/*'],
+                    copyToCacheDirectory: true,
+                    multiple: false,
+                });
+            } catch (pickerErr: any) {
+                console.warn('[RevealDeck] Picker launch error:', pickerErr?.message);
+                Alert.alert('Error', 'Could not open file picker. Please try again.');
+                return;
+            }
 
             if (result.canceled || !result.assets?.[0]) return;
 
             const asset = result.assets[0];
-            if (!asset.uri) return;
-
-            // Ensure we have a readable file URI
-            let readUri = asset.uri;
-            const cacheDir = FileSystem.cacheDirectory;
-            if (cacheDir) {
-                const ext = asset.name?.split('.').pop() || 'bin';
-                const cacheUri = cacheDir + 'reveal_doc_' + Date.now() + '.' + ext;
-                try {
-                    await FileSystem.copyAsync({ from: asset.uri, to: cacheUri });
-                    readUri = cacheUri;
-                } catch {
-                    try {
-                        // downloadAsync handles content:// URIs better on Android
-                        await FileSystem.downloadAsync(asset.uri, cacheUri);
-                        readUri = cacheUri;
-                    } catch {
-                        // Last resort: try reading from original URI
-                    }
-                }
-            }
-
-            // Check file size
-            const info = await FileSystem.getInfoAsync(readUri);
-            if (info.exists && info.size && info.size > 3.5 * 1024 * 1024) {
-                Alert.alert('File Too Large', 'File must be under ~3.5 MB.');
-                if (readUri !== asset.uri) await FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
+            if (!asset.uri) {
+                Alert.alert('Error', 'No file URI returned. Please try a different file.');
                 return;
             }
 
-            // Read as base64
-            const base64 = await FileSystem.readAsStringAsync(readUri, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
+            // Check file size first
+            try {
+                const info = await FileSystem.getInfoAsync(asset.uri);
+                if (info.exists && info.size && info.size > 8 * 1024 * 1024) {
+                    Alert.alert('File Too Large', 'File must be under ~8 MB.');
+                    return;
+                }
+            } catch { /* size check failed, proceed anyway */ }
 
-            // Clean up cache copy if we made one
-            if (readUri !== asset.uri) {
-                await FileSystem.deleteAsync(readUri, { idempotent: true }).catch(() => {});
+            // Read file as base64 using robust strategy
+            const fileName = asset.name || 'file.bin';
+            const base64 = await readFileAsBase64(asset.uri, fileName);
+
+            if (!base64) {
+                Alert.alert('Error', 'Could not read file. The file may be protected or in an unsupported format.');
+                return;
             }
 
-            const ext = asset.name?.split('.').pop()?.toLowerCase();
+            const ext = fileName.split('.').pop()?.toLowerCase();
             const mime = asset.mimeType || getMimeFromExtension(ext);
             const dataUri = `data:${mime};base64,${base64}`;
 
             if (dataUri.length > MAX_MEDIA_SIZE) {
-                Alert.alert('File Too Large', 'File is too large after encoding.');
+                Alert.alert('File Too Large', 'File exceeds the maximum size (~8 MB).');
                 return;
             }
 

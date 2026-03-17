@@ -30,7 +30,11 @@
       "package": "com.krasumashi.piqabu",
       "permissions": [
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
       ]
     },
     "web": {
@@ -52,7 +56,8 @@
       ["@config-plugins/react-native-webrtc", {
         "cameraPermission": "Piqabu uses the camera for the Live Glass feature",
         "microphonePermission": "Piqabu uses the microphone for Whisper and Live Glass"
-      }]
+      }],
+      "./plugins/withMediaProjectionService.js"
     ]
   }
 }

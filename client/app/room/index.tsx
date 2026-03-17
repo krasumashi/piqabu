@@ -644,9 +644,9 @@ export default function RoomScreen() {
                 onMaximize={() => setScreenShareMinimized(false)}
             />
 
-            {/* Screen share glow border */}
+            {/* Screen share glow border — visible white glow around entire screen */}
             {showScreenShare && isScreenSharer && screenShareMinimized && (
-                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <View style={[StyleSheet.absoluteFill, st.glowBorderWrap]} pointerEvents="none">
                     <View style={st.glowEdgeTop} />
                     <View style={st.glowEdgeBottom} />
                     <View style={st.glowEdgeLeft} />
@@ -827,29 +827,36 @@ const st = StyleSheet.create({
         color: THEME.ink, textTransform: 'uppercase',
     },
 
-    // Screen share glow edges
+    // Screen share glow wrapper — full border glow visible on Android
+    glowBorderWrap: {
+        borderWidth: 3,
+        borderColor: 'rgba(255,255,255,0.9)',
+        borderRadius: 0,
+        zIndex: 9999,
+    },
+    // Screen share glow edges — uses thick bars with gradient-like opacity for Android visibility
     glowEdgeTop: {
-        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-        backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999,
-        shadowColor: '#fff', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.8, shadowRadius: 12,
-        elevation: 10,
+        position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+        backgroundColor: '#fff', zIndex: 9999,
+        shadowColor: '#fff', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 20,
+        elevation: 20,
     },
     glowEdgeBottom: {
-        position: 'absolute', bottom: 0, left: 0, right: 0, height: 2,
-        backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999,
-        shadowColor: '#fff', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.8, shadowRadius: 12,
-        elevation: 10,
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 4,
+        backgroundColor: '#fff', zIndex: 9999,
+        shadowColor: '#fff', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 1, shadowRadius: 20,
+        elevation: 20,
     },
     glowEdgeLeft: {
-        position: 'absolute', top: 0, bottom: 0, left: 0, width: 2,
-        backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999,
-        shadowColor: '#fff', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.8, shadowRadius: 12,
-        elevation: 10,
+        position: 'absolute', top: 0, bottom: 0, left: 0, width: 4,
+        backgroundColor: '#fff', zIndex: 9999,
+        shadowColor: '#fff', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 1, shadowRadius: 20,
+        elevation: 20,
     },
     glowEdgeRight: {
-        position: 'absolute', top: 0, bottom: 0, right: 0, width: 2,
-        backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 9999,
-        shadowColor: '#fff', shadowOffset: { width: -2, height: 0 }, shadowOpacity: 0.8, shadowRadius: 12,
-        elevation: 10,
+        position: 'absolute', top: 0, bottom: 0, right: 0, width: 4,
+        backgroundColor: '#fff', zIndex: 9999,
+        shadowColor: '#fff', shadowOffset: { width: -4, height: 0 }, shadowOpacity: 1, shadowRadius: 20,
+        elevation: 20,
     },
 });
