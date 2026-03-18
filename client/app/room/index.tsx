@@ -88,6 +88,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const [whisperPartnerAccepted, setWhisperPartnerAccepted] = useState(false);
     const [whisperInitialState, setWhisperInitialState] = useState<'idle' | 'accepted'>('idle');
     const [screenshotAlert, setScreenshotAlert] = useState(false);
+    const [videoPlaybackControl, setVideoPlaybackControl] = useState<any>(null);
 
     // ── Sand dissipation vanish (replaces segment-based untyping) ──
     const [sandOverlayText, setSandOverlayText] = useState<string | null>(null);
@@ -240,6 +241,18 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         };
         socket.on('screenshot_alert', handleAlert);
         return () => { socket.off('screenshot_alert', handleAlert); };
+    }, [socket, roomId]);
+
+    // ── Video playback controls (play/pause/seek from sender) ──
+    useEffect(() => {
+        if (!socket || !roomId) return;
+        const handler = (data: any) => {
+            if (data.roomId === roomId) {
+                setVideoPlaybackControl(data.control);
+            }
+        };
+        socket.on('remote_video_playback', handler);
+        return () => { socket.off('remote_video_playback', handler); };
     }, [socket, roomId]);
 
     // ── Whisper send invite ──
@@ -442,16 +455,13 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 onClose={() => setActiveOverlay(null)}
                 onReveal={sendReveal}
                 roomId={roomId}
-                onOpenLiveMirror={() => {
-                    setActiveOverlay(null);
-                    sendInvite('screen_share');
-                    onOpenScreenShare(true);
-                }}
+                onVideoControl={(ctrl) => socket?.emit('transmit_video_playback', { roomId, control: ctrl })}
             />
             <PeepDeck
                 visible={activeOverlay === 'peep'}
                 onClose={() => setActiveOverlay(null)}
                 remoteImage={remoteReveal}
+                videoControls={videoPlaybackControl}
             />
             <WhisperPanel
                 visible={activeOverlay === 'whisper'}

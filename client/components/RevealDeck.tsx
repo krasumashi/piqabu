@@ -68,18 +68,20 @@ function getMediaTypeFromMime(mime: string): MediaType {
 }
 
 export default function RevealDeck({
-    visible, onClose, onReveal, onOpenLiveMirror, roomId, maxImages = 10,
+    visible, onClose, onReveal, roomId, maxImages = 10, onVideoControl,
 }: {
     visible: boolean;
     onClose: () => void;
     onReveal: (payload: string | null) => void;
-    onOpenLiveMirror?: () => void;
     roomId: string;
     maxImages?: number;
+    onVideoControl?: (controls: { action: string; position?: number }) => void;
 }) {
     const [items, setItems] = useState<EvidenceItem[]>([]);
     const [exposedId, setExposedId] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(true);
+    const videoRef = useRef<any>(null);
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
@@ -313,13 +315,6 @@ export default function RevealDeck({
                         <Text style={styles.actionBtnText}>+ ADD FILE</Text>
                     </TouchableOpacity>
 
-                    {onOpenLiveMirror && (
-                        <TouchableOpacity onPress={onOpenLiveMirror} style={styles.actionBtn} activeOpacity={0.7}>
-                            <View style={styles.liveMirrorIcon} />
-                            <Text style={[styles.actionBtnText, { color: THEME.live }]}>LIVE MIRROR</Text>
-                        </TouchableOpacity>
-                    )}
-
                     {items.length > 0 && (
                         <TouchableOpacity onPress={clearAll} style={[styles.actionBtn, { marginLeft: 'auto' }]} activeOpacity={0.7}>
                             <Text style={[styles.actionBtnText, { color: THEME.bad }]}>CLEAR ALL</Text>
@@ -408,12 +403,48 @@ export default function RevealDeck({
                     return (
                         <View style={styles.videoPreview}>
                             <Video
+                                ref={videoRef}
                                 source={{ uri: playbackUri }}
                                 style={styles.videoPlayer}
-                                useNativeControls
+                                useNativeControls={false}
                                 resizeMode={ResizeMode.CONTAIN}
                                 isLooping={false}
+                                shouldPlay={isPlaying}
+                                onPlaybackStatusUpdate={(status: any) => {
+                                    if (status.isLoaded) {
+                                        setIsPlaying(status.isPlaying);
+                                    }
+                                }}
                             />
+                            <View style={styles.videoControlBar}>
+                                <TouchableOpacity
+                                    onPress={async () => {
+                                        if (!videoRef.current) return;
+                                        if (isPlaying) {
+                                            await videoRef.current.pauseAsync();
+                                            onVideoControl?.({ action: 'pause' });
+                                        } else {
+                                            await videoRef.current.playAsync();
+                                            onVideoControl?.({ action: 'play' });
+                                        }
+                                    }}
+                                    style={styles.videoControlBtn}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name={isPlaying ? 'pause' : 'play'} size={16} color="#fff" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    onPress={async () => {
+                                        if (!videoRef.current) return;
+                                        await videoRef.current.setPositionAsync(0);
+                                        onVideoControl?.({ action: 'seek', position: 0 });
+                                    }}
+                                    style={styles.videoControlBtn}
+                                    activeOpacity={0.7}
+                                >
+                                    <Ionicons name="play-skip-back" size={14} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     );
                 })()}
@@ -535,13 +566,6 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: THEME.ink,
         textTransform: 'uppercase',
-    },
-    liveMirrorIcon: {
-        width: 8,
-        height: 8,
-        borderWidth: 1.5,
-        borderColor: THEME.live,
-        borderRadius: 2,
     },
     list: {
         flex: 1,
@@ -676,6 +700,26 @@ const styles = StyleSheet.create({
     videoPlayer: {
         width: '100%',
         height: '100%',
+    },
+    videoControlBar: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 16,
+        paddingVertical: 8,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+    },
+    videoControlBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     footer: {
         padding: 14,

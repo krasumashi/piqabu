@@ -465,6 +465,22 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- Video Playback Controls (play/pause/seek) ---
+    socket.on('transmit_video_playback', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        if (typeof data.control !== 'object' || data.control === null) return;
+        socket.to(roomId).emit('remote_video_playback', {
+            roomId,
+            control: {
+                action: String(data.control.action || '').substring(0, 10),
+                position: typeof data.control.position === 'number' ? data.control.position : undefined,
+            },
+        });
+    });
+
     // --- INVITE System ---
     socket.on('send_invite', (data) => {
         const participant = getParticipant(socket.id);

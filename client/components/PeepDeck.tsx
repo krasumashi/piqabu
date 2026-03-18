@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Video, ResizeMode } from 'expo-av';
 import { THEME } from '../constants/Theme';
 import { CONFIG } from '../constants/Config';
@@ -33,15 +33,28 @@ function resolveUri(uri: string): string {
 }
 
 export default function PeepDeck({
-    remoteImage, visible, onClose,
+    remoteImage, visible, onClose, videoControls,
 }: {
     remoteImage: string | null;
     visible: boolean;
     onClose: () => void;
+    videoControls?: { action: string; position?: number } | null;
 }) {
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
     const [focusedItem, setFocusedItem] = useState<string | null>(null);
+    const videoRef = useRef<any>(null);
+
+    useEffect(() => {
+        if (!videoControls || !videoRef.current) return;
+        if (videoControls.action === 'pause') {
+            videoRef.current.pauseAsync?.();
+        } else if (videoControls.action === 'play') {
+            videoRef.current.playAsync?.();
+        } else if (videoControls.action === 'seek' && videoControls.position !== undefined) {
+            videoRef.current.setPositionAsync?.(videoControls.position);
+        }
+    }, [videoControls]);
 
     useEffect(() => {
         if (visible) {
@@ -318,10 +331,11 @@ export default function PeepDeck({
                     ) : isVideo ? (
                         <View style={styles.videoContainer}>
                             <Video
+                                ref={videoRef}
                                 source={{ uri: resolvedUri }}
                                 style={styles.videoPlayer}
                                 resizeMode={ResizeMode.CONTAIN}
-                                shouldPlay
+                                shouldPlay={false}
                                 isLooping={false}
                                 useNativeControls={true}
                             />

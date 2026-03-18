@@ -176,6 +176,7 @@ export default function LiveGlassPanel({
     const [remoteStream, setRemoteStream] = useState<any>(null);
     const [nativeStreamURL, setNativeStreamURL] = useState<string | null>(null);
     const [blurIntensity, setBlurIntensity] = useState(0);
+    const [isBnW, setIsBnW] = useState(true);
     const [audioEnabled, setAudioEnabled] = useState(true);
     const [facingFront, setFacingFront] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -647,18 +648,22 @@ export default function LiveGlassPanel({
     /* ──────────────────── blur sync over socket ─────────────────────── */
 
     const [remoteBlur, setRemoteBlur] = useState(0);
+    const [remoteIsBnW, setRemoteIsBnW] = useState(true);
 
-    // Emit local blur changes to partner
+    // Emit local controls to partner
     useEffect(() => {
         if (!socket || !roomId || !visible || (mode !== 'calling' && mode !== 'connected')) return;
-        socket.emit('transmit_live_glass_controls', { roomId, controls: { blur: blurIntensity } });
-    }, [blurIntensity, socket, roomId, visible, mode]);
+        socket.emit('transmit_live_glass_controls', { roomId, controls: { blur: blurIntensity, isBnW } });
+    }, [blurIntensity, isBnW, socket, roomId, visible, mode]);
 
-    // Listen for partner's blur setting
+    // Listen for partner's control settings
     useEffect(() => {
         if (!socket || !roomId || !visible) return;
         const handler = (data: any) => {
-            if (data.roomId === roomId) setRemoteBlur(data.controls?.blur ?? 0);
+            if (data.roomId === roomId) {
+                setRemoteBlur(data.controls?.blur ?? 0);
+                setRemoteIsBnW(data.controls?.isBnW ?? true);
+            }
         };
         socket.on('remote_live_glass_controls', handler);
         return () => { socket.off('remote_live_glass_controls', handler); };
@@ -782,7 +787,7 @@ export default function LiveGlassPanel({
                         zOrder={1}
                     />
                 ) : remoteStream && Platform.OS === 'web' ? (
-                    <View style={[StyleSheet.absoluteFill, { filter: 'grayscale(100%)' } as any]}>
+                    <View style={[StyleSheet.absoluteFill, remoteIsBnW && { filter: 'grayscale(100%)' }] as any}>
                         <WebVideo stream={remoteStream} muted={false} />
                     </View>
                 ) : (
@@ -894,7 +899,7 @@ export default function LiveGlassPanel({
                                         style={
                                             [
                                                 StyleSheet.absoluteFill,
-                                                { filter: 'grayscale(100%)' },
+                                                remoteIsBnW && { filter: 'grayscale(100%)' },
                                             ] as any
                                         }
                                     >
@@ -911,7 +916,7 @@ export default function LiveGlassPanel({
                                             objectFit="cover"
                                             zOrder={0}
                                         />
-                                        <NoirOverlay />
+                                        {remoteIsBnW && <NoirOverlay />}
                                     </>
                                 ) : (
                                     <View style={styles.noSignal}>
@@ -954,7 +959,7 @@ export default function LiveGlassPanel({
                                     style={
                                         [
                                             StyleSheet.absoluteFill,
-                                            { filter: 'grayscale(100%)' },
+                                            isBnW && { filter: 'grayscale(100%)' },
                                         ] as any
                                     }
                                 >
@@ -973,7 +978,7 @@ export default function LiveGlassPanel({
                                         mirror
                                         zOrder={1}
                                     />
-                                    <NoirOverlay />
+                                    {isBnW && <NoirOverlay />}
                                     {/* Blur preview — see your own blur intensity */}
                                     {blurIntensity > 0 && (
                                         <BlurView
@@ -1028,6 +1033,29 @@ export default function LiveGlassPanel({
 
                     {/* action buttons row */}
                     <View style={styles.buttonRow}>
+                        <TouchableOpacity
+                            style={[
+                                styles.controlBtn,
+                                isBnW && styles.controlBtnActive,
+                            ]}
+                            onPress={() => setIsBnW(prev => !prev)}
+                            activeOpacity={0.7}
+                        >
+                            <Ionicons
+                                name="contrast-outline"
+                                size={16}
+                                color={isBnW ? '#000' : '#fff'}
+                            />
+                            <Text
+                                style={[
+                                    styles.controlBtnText,
+                                    isBnW && { color: '#000' },
+                                ]}
+                            >
+                                {isBnW ? 'B/W' : 'COLOR'}
+                            </Text>
+                        </TouchableOpacity>
+
                         <TouchableOpacity
                             style={[
                                 styles.controlBtn,
