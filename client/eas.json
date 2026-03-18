@@ -12,16 +12,13 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "resourceClass": "large"
+        "buildType": "apk"
       },
       "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
-      "android": {
-        "resourceClass": "large"
-      },
+      "android": {},
       "channel": "production"
     }
   },
