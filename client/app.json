@@ -19,7 +19,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Piqabu uses the camera for the Live Glass feature",
         "NSMicrophoneUsageDescription": "Piqabu uses the microphone for the Whisper feature"
-      }
+      },
+      "bitcode": false
     },
     "android": {
       "adaptiveIcon": {
@@ -34,7 +35,17 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_AUDIO"
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH"
       ]
     },
     "web": {
@@ -53,11 +64,23 @@
       "expo-font",
       "expo-document-picker",
       "expo-local-authentication",
-      ["@config-plugins/react-native-webrtc", {
-        "cameraPermission": "Piqabu uses the camera for the Live Glass feature",
-        "microphonePermission": "Piqabu uses the microphone for Whisper and Live Glass"
-      }],
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Piqabu uses the camera for the Live Glass feature",
+          "microphonePermission": "Piqabu uses the microphone for Whisper and Live Glass"
+        }
+      ],
       "./plugins/withMediaProjectionService.js"
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/eb9a4e25-cfdd-4c53-b25c-d5e52973595c",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 3000
+    }
   }
 }
