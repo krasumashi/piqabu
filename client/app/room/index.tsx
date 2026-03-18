@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView,
-    Platform, ScrollView, Alert, Modal, StyleSheet,
+    Platform, ScrollView, Alert, Modal, StyleSheet, Share,
     Animated as RNAnimated, Keyboard, Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -260,15 +260,17 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         sendInvite('whisper');
     }, [sendInvite]);
 
-    // ── Room code copy ──
-    const handleCopyRoomCode = async () => {
-        if (Platform.OS === 'web') {
-            try {
+    // ── Share session code ──
+    const handleShareCode = async () => {
+        try {
+            if (Platform.OS === 'web') {
                 await navigator.clipboard.writeText(roomId);
                 setRoomCodeCopied(true);
                 setTimeout(() => setRoomCodeCopied(false), 1500);
-            } catch {}
-        }
+            } else {
+                await Share.share({ message: `Join my Piqabu session: ${roomId}` });
+            }
+        } catch {}
     };
 
     // ── Dock toggle ──
@@ -350,14 +352,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                         )}
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={handleCopyRoomCode} style={st.roomCodePill} activeOpacity={0.7}>
-                        <Text style={[st.roomCodeText, roomCodeCopied && { color: THEME.live }]}>
-                            {roomCodeCopied ? 'COPIED' : roomId}
-                        </Text>
+                    <TouchableOpacity onPress={onOpenSettings} style={st.headerIconBtn} activeOpacity={0.7}>
+                        <Ionicons name="settings-outline" size={18} color={THEME.muted} />
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={onOpenSettings} style={{ padding: 8 }} activeOpacity={0.7}>
-                        <Ionicons name="settings-outline" size={20} color={THEME.muted} />
+                    <TouchableOpacity onPress={handleShareCode} style={st.headerIconBtn} activeOpacity={0.7}>
+                        <Ionicons name="share-outline" size={18} color={roomCodeCopied ? THEME.live : THEME.muted} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -760,13 +760,6 @@ const st = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center',
     },
     vanishLabel: { fontSize: 10, fontWeight: '900', fontFamily: THEME.mono, color: '#000' },
-    roomCodePill: {
-        paddingVertical: 8, paddingHorizontal: 14, borderRadius: 14,
-        borderWidth: 1, borderColor: 'rgba(245,243,235,0.1)',
-    },
-    roomCodeText: {
-        fontFamily: THEME.mono, fontSize: 11, letterSpacing: 1.65, color: THEME.ink, textTransform: 'uppercase',
-    },
 
     // Split Interface
     splitContainer: { flex: 1, paddingHorizontal: 14, gap: 12, paddingTop: 12 },

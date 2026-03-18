@@ -927,11 +927,20 @@ export default function LiveGlassPanel({
                                 )}
 
                                 {remoteBlur > 0 && (
-                                    <BlurView
-                                        intensity={remoteBlur}
-                                        tint="dark"
-                                        style={StyleSheet.absoluteFill}
-                                    />
+                                    <View style={StyleSheet.absoluteFill}>
+                                        <BlurView
+                                            intensity={remoteBlur}
+                                            tint="default"
+                                            style={StyleSheet.absoluteFill}
+                                        />
+                                        {/* Frosted glass tint — subtle white overlay */}
+                                        <View
+                                            style={[StyleSheet.absoluteFill, {
+                                                backgroundColor: `rgba(255,255,255,${Math.min(remoteBlur * 0.001, 0.08)})`,
+                                            }]}
+                                            pointerEvents="none"
+                                        />
+                                    </View>
                                 )}
                             </View>
                         ) : (
@@ -979,13 +988,21 @@ export default function LiveGlassPanel({
                                         zOrder={1}
                                     />
                                     {isBnW && <NoirOverlay />}
-                                    {/* Blur preview — see your own blur intensity */}
+                                    {/* Frosted glass preview — see your own blur intensity */}
                                     {blurIntensity > 0 && (
-                                        <BlurView
-                                            intensity={blurIntensity}
-                                            tint="dark"
-                                            style={StyleSheet.absoluteFill}
-                                        />
+                                        <View style={StyleSheet.absoluteFill}>
+                                            <BlurView
+                                                intensity={blurIntensity}
+                                                tint="default"
+                                                style={StyleSheet.absoluteFill}
+                                            />
+                                            <View
+                                                style={[StyleSheet.absoluteFill, {
+                                                    backgroundColor: `rgba(255,255,255,${Math.min(blurIntensity * 0.001, 0.08)})`,
+                                                }]}
+                                                pointerEvents="none"
+                                            />
+                                        </View>
                                     )}
                                 </View>
                             ) : (
@@ -1012,22 +1029,23 @@ export default function LiveGlassPanel({
 
                 {/* ── controls ───────────────────────────────────────── */}
                 <View style={styles.controls}>
-                    {/* blur slider */}
+                    {/* blur slider — frosted glass effect */}
                     <View style={styles.blurControl}>
-                        <Text style={styles.controlLabel}>BLUR</Text>
+                        <Ionicons name="water-outline" size={14} color={blurIntensity > 0 ? '#fff' : THEME.faint} />
+                        <Text style={styles.controlLabel}>GLASS</Text>
                         <Slider
                             style={styles.slider}
                             minimumValue={0}
                             maximumValue={100}
-                            step={1}
+                            step={5}
                             value={blurIntensity}
                             onValueChange={setBlurIntensity}
-                            minimumTrackTintColor="rgba(255,255,255,0.5)"
-                            maximumTrackTintColor="rgba(255,255,255,0.15)"
+                            minimumTrackTintColor="rgba(255,255,255,0.6)"
+                            maximumTrackTintColor="rgba(255,255,255,0.1)"
                             thumbTintColor="#fff"
                         />
                         <Text style={styles.controlValue}>
-                            {Math.round(blurIntensity)}
+                            {blurIntensity > 0 ? Math.round(blurIntensity) : 'OFF'}
                         </Text>
                     </View>
 
@@ -1270,7 +1288,8 @@ const styles = StyleSheet.create({
     blurControl: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 6,
+        paddingHorizontal: 4,
     },
     controlLabel: {
         fontFamily: THEME.mono,
@@ -1279,7 +1298,7 @@ const styles = StyleSheet.create({
         letterSpacing: 1.5,
         color: THEME.muted,
         textTransform: 'uppercase',
-        width: 36,
+        width: 38,
     },
     slider: {
         flex: 1,
