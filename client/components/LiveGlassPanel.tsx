@@ -909,25 +909,12 @@ export default function LiveGlassPanel({
                                         />
                                     </View>
                                 ) : RTCViewNative && nativeStreamURL ? (
-                                    remoteIsBnW ? (
-                                        <GrayscaleWrap>
-                                            <View style={{ width: '100%', height: '100%' }}>
-                                                <RTCViewNative
-                                                    streamURL={nativeStreamURL}
-                                                    style={{ width: '100%', height: '100%' }}
-                                                    objectFit="cover"
-                                                    zOrder={0}
-                                                />
-                                            </View>
-                                        </GrayscaleWrap>
-                                    ) : (
-                                        <RTCViewNative
-                                            streamURL={nativeStreamURL}
-                                            style={{ width: '100%', height: '100%' }}
-                                            objectFit="cover"
-                                            zOrder={0}
-                                        />
-                                    )
+                                    <RTCViewNative
+                                        streamURL={nativeStreamURL}
+                                        style={{ width: '100%', height: '100%' }}
+                                        objectFit="cover"
+                                        zOrder={0}
+                                    />
                                 ) : (
                                     <View style={styles.noSignal}>
                                         <Text style={styles.noSignalText}>
@@ -982,27 +969,13 @@ export default function LiveGlassPanel({
                                 </View>
                             ) : RTCViewNative ? (
                                 <View style={{ flex: 1 }}>
-                                    {isBnW ? (
-                                        <GrayscaleWrap>
-                                            <View style={{ width: '100%', height: '100%' }}>
-                                                <RTCViewNative
-                                                    streamURL={localStream.toURL()}
-                                                    style={{ width: '100%', height: '100%' }}
-                                                    objectFit="cover"
-                                                    mirror
-                                                    zOrder={1}
-                                                />
-                                            </View>
-                                        </GrayscaleWrap>
-                                    ) : (
-                                        <RTCViewNative
-                                            streamURL={localStream.toURL()}
-                                            style={{ width: '100%', height: '100%' }}
-                                            objectFit="cover"
-                                            mirror
-                                            zOrder={1}
-                                        />
-                                    )}
+                                    <RTCViewNative
+                                        streamURL={localStream.toURL()}
+                                        style={{ width: '100%', height: '100%' }}
+                                        objectFit="cover"
+                                        mirror
+                                        zOrder={1}
+                                    />
                                     {/* Frosted glass preview — dark overlay simulating blur */}
                                     {blurIntensity > 0 && (
                                         <View
@@ -1059,29 +1032,6 @@ export default function LiveGlassPanel({
 
                     {/* action buttons row */}
                     <View style={styles.buttonRow}>
-                        <TouchableOpacity
-                            style={[
-                                styles.controlBtn,
-                                isBnW && styles.controlBtnActive,
-                            ]}
-                            onPress={() => setIsBnW(prev => !prev)}
-                            activeOpacity={0.7}
-                        >
-                            <Ionicons
-                                name="contrast-outline"
-                                size={16}
-                                color={isBnW ? '#000' : '#fff'}
-                            />
-                            <Text
-                                style={[
-                                    styles.controlBtnText,
-                                    isBnW && { color: '#000' },
-                                ]}
-                            >
-                                {isBnW ? 'B/W' : 'COLOR'}
-                            </Text>
-                        </TouchableOpacity>
-
                         <TouchableOpacity
                             style={[
                                 styles.controlBtn,

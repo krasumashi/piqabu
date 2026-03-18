@@ -41,6 +41,10 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         const handleLinkStatus = (data: { roomId: string; status: LinkStatus }) => {
             if (data.roomId === roomId) {
                 setLinkStatus(data.status);
+                // Clear reveal when partner disconnects
+                if (data.status === 'WAITING' || data.status === 'SIGNAL LOST' || data.status === 'DISCONNECTED') {
+                    setRemoteReveal(null);
+                }
             }
         };
 

@@ -459,7 +459,11 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             />
             <PeepDeck
                 visible={activeOverlay === 'peep'}
-                onClose={() => setActiveOverlay(null)}
+                onClose={() => {
+                    setActiveOverlay(null);
+                    // Clear the peep view — sender must re-expose for it to show again
+                    setVideoPlaybackControl(null);
+                }}
                 remoteImage={remoteReveal}
                 videoControls={videoPlaybackControl}
             />

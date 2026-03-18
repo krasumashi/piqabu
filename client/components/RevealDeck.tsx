@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import Constants from 'expo-constants';
 import { Video, ResizeMode } from 'expo-av';
+import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 import { uploadFile } from '../lib/uploadFile';
@@ -81,6 +82,9 @@ export default function RevealDeck({
     const [exposedId, setExposedId] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
     const [isPlaying, setIsPlaying] = useState(true);
+    const [videoDuration, setVideoDuration] = useState(0);
+    const [videoPosition, setVideoPosition] = useState(0);
+    const [isSeeking, setIsSeeking] = useState(false);
     const videoRef = useRef<any>(null);
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
@@ -400,6 +404,11 @@ export default function RevealDeck({
                     const exposedItem = items.find(i => i.id === exposedId);
                     if (!exposedItem || (exposedItem.type !== 'video' && exposedItem.type !== 'audio')) return null;
                     const playbackUri = exposedItem.localUri || exposedItem.uri;
+                    const formatTime = (ms: number) => {
+                        const s = Math.floor(ms / 1000);
+                        const m = Math.floor(s / 60);
+                        return `${m}:${String(s % 60).padStart(2, '0')}`;
+                    };
                     return (
                         <View style={styles.videoPreview}>
                             <Video
@@ -413,37 +422,108 @@ export default function RevealDeck({
                                 onPlaybackStatusUpdate={(status: any) => {
                                     if (status.isLoaded) {
                                         setIsPlaying(status.isPlaying);
+                                        if (!isSeeking) {
+                                            setVideoPosition(status.positionMillis || 0);
+                                        }
+                                        if (status.durationMillis) {
+                                            setVideoDuration(status.durationMillis);
+                                        }
                                     }
                                 }}
                             />
                             <View style={styles.videoControlBar}>
-                                <TouchableOpacity
-                                    onPress={async () => {
-                                        if (!videoRef.current) return;
-                                        if (isPlaying) {
-                                            await videoRef.current.pauseAsync();
-                                            onVideoControl?.({ action: 'pause' });
-                                        } else {
-                                            await videoRef.current.playAsync();
-                                            onVideoControl?.({ action: 'play' });
-                                        }
-                                    }}
-                                    style={styles.videoControlBtn}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name={isPlaying ? 'pause' : 'play'} size={16} color="#fff" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    onPress={async () => {
-                                        if (!videoRef.current) return;
-                                        await videoRef.current.setPositionAsync(0);
-                                        onVideoControl?.({ action: 'seek', position: 0 });
-                                    }}
-                                    style={styles.videoControlBtn}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="play-skip-back" size={14} color="#fff" />
-                                </TouchableOpacity>
+                                {/* Time + seek bar */}
+                                <View style={styles.seekRow}>
+                                    <Text style={styles.timeText}>{formatTime(videoPosition)}</Text>
+                                    <Slider
+                                        style={styles.seekSlider}
+                                        minimumValue={0}
+                                        maximumValue={videoDuration || 1}
+                                        value={videoPosition}
+                                        onSlidingStart={() => setIsSeeking(true)}
+                                        onSlidingComplete={async (val: number) => {
+                                            setIsSeeking(false);
+                                            if (videoRef.current) {
+                                                await videoRef.current.setPositionAsync(val);
+                                                onVideoControl?.({ action: 'seek', position: val });
+                                            }
+                                        }}
+                                        minimumTrackTintColor="rgba(255,255,255,0.7)"
+                                        maximumTrackTintColor="rgba(255,255,255,0.15)"
+                                        thumbTintColor="#fff"
+                                    />
+                                    <Text style={styles.timeText}>{formatTime(videoDuration)}</Text>
+                                </View>
+                                {/* Transport buttons */}
+                                <View style={styles.transportRow}>
+                                    {/* Restart */}
+                                    <TouchableOpacity
+                                        onPress={async () => {
+                                            if (!videoRef.current) return;
+                                            await videoRef.current.setPositionAsync(0);
+                                            onVideoControl?.({ action: 'seek', position: 0 });
+                                        }}
+                                        style={styles.videoControlBtn}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="play-skip-back" size={14} color="#fff" />
+                                    </TouchableOpacity>
+                                    {/* Rewind 10s */}
+                                    <TouchableOpacity
+                                        onPress={async () => {
+                                            if (!videoRef.current) return;
+                                            const newPos = Math.max(0, videoPosition - 10000);
+                                            await videoRef.current.setPositionAsync(newPos);
+                                            onVideoControl?.({ action: 'seek', position: newPos });
+                                        }}
+                                        style={styles.videoControlBtn}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="play-back" size={14} color="#fff" />
+                                    </TouchableOpacity>
+                                    {/* Play / Pause */}
+                                    <TouchableOpacity
+                                        onPress={async () => {
+                                            if (!videoRef.current) return;
+                                            if (isPlaying) {
+                                                await videoRef.current.pauseAsync();
+                                                onVideoControl?.({ action: 'pause' });
+                                            } else {
+                                                await videoRef.current.playAsync();
+                                                onVideoControl?.({ action: 'play' });
+                                            }
+                                        }}
+                                        style={[styles.videoControlBtn, styles.playPauseBtn]}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name={isPlaying ? 'pause' : 'play'} size={20} color="#000" />
+                                    </TouchableOpacity>
+                                    {/* Forward 10s */}
+                                    <TouchableOpacity
+                                        onPress={async () => {
+                                            if (!videoRef.current) return;
+                                            const newPos = Math.min(videoDuration, videoPosition + 10000);
+                                            await videoRef.current.setPositionAsync(newPos);
+                                            onVideoControl?.({ action: 'seek', position: newPos });
+                                        }}
+                                        style={styles.videoControlBtn}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="play-forward" size={14} color="#fff" />
+                                    </TouchableOpacity>
+                                    {/* Skip to end */}
+                                    <TouchableOpacity
+                                        onPress={async () => {
+                                            if (!videoRef.current) return;
+                                            await videoRef.current.setPositionAsync(videoDuration);
+                                            onVideoControl?.({ action: 'seek', position: videoDuration });
+                                        }}
+                                        style={styles.videoControlBtn}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="play-skip-forward" size={14} color="#fff" />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         </View>
                     );
@@ -690,7 +770,7 @@ const styles = StyleSheet.create({
         color: THEME.accEmerald,
     },
     videoPreview: {
-        height: 140,
+        height: 280,
         marginHorizontal: 14,
         marginBottom: 6,
         borderRadius: 16,
@@ -706,12 +786,33 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        gap: 6,
+    },
+    seekRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    seekSlider: {
+        flex: 1,
+        height: 24,
+    },
+    timeText: {
+        fontFamily: THEME.mono,
+        fontSize: 9,
+        fontWeight: '900',
+        color: 'rgba(255,255,255,0.7)',
+        minWidth: 30,
+        textAlign: 'center',
+    },
+    transportRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 16,
-        paddingVertical: 8,
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        gap: 12,
     },
     videoControlBtn: {
         width: 36,
@@ -720,6 +821,12 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.15)',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    playPauseBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#fff',
     },
     footer: {
         padding: 14,
