@@ -104,7 +104,7 @@ export default function PeepDeck({
         </View>
     );
 
-    // Helper: open PDF with system viewer via expo-sharing
+    // Helper: open document with system viewer via IntentLauncher (Android)
     const openDocument = async (uri: string, ext: string = 'pdf') => {
         try {
             const fullUrl = resolveUri(uri);
@@ -112,7 +112,6 @@ export default function PeepDeck({
             const cacheUri = (FileSystem.cacheDirectory || '') + 'piqabu_received_' + Date.now() + '.' + safeExt;
 
             if (fullUrl.startsWith('http')) {
-                // Download from server
                 console.log('[PeepDeck] Downloading file from:', fullUrl);
                 const dl = await FileSystem.downloadAsync(fullUrl, cacheUri);
                 console.log('[PeepDeck] Download result:', dl.status, dl.uri, dl.headers?.['content-type']);
@@ -120,14 +119,12 @@ export default function PeepDeck({
                     Alert.alert('Error', `Could not download file (status: ${dl.status}).`);
                     return;
                 }
-                // Verify the file has content
                 const fileInfo = await FileSystem.getInfoAsync(dl.uri);
                 if (!fileInfo.exists || (fileInfo.size !== undefined && fileInfo.size === 0)) {
                     Alert.alert('Error', 'Downloaded file is empty.');
                     return;
                 }
             } else if (fullUrl.startsWith('data:')) {
-                // Base64 data URI
                 const base64Data = fullUrl.split(',')[1];
                 if (!base64Data) {
                     Alert.alert('Error', 'Invalid file data.');
@@ -157,36 +154,43 @@ export default function PeepDeck({
                 zip: 'application/zip',
             };
 
-            // Try expo-sharing first (opens Android share sheet / file viewer)
-            try {
-                const Sharing = require('expo-sharing');
-                if (await Sharing.isAvailableAsync()) {
-                    await Sharing.shareAsync(cacheUri, {
-                        mimeType: mimeMap[safeExt] || 'application/octet-stream',
-                        dialogTitle: 'Open with...',
+            const mime = mimeMap[safeExt] || 'application/octet-stream';
+
+            // Use IntentLauncher on Android to open with system viewer
+            if (Platform.OS === 'android') {
+                try {
+                    const IntentLauncher = require('expo-intent-launcher');
+                    const contentUri = await FileSystem.getContentUriAsync(cacheUri);
+                    await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+                        data: contentUri,
+                        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+                        type: mime,
                     });
-                } else {
-                    // Fallback: try IntentLauncher on Android
-                    if (Platform.OS === 'android') {
-                        try {
-                            const IntentLauncher = require('expo-intent-launcher');
-                            const contentUri = await FileSystem.getContentUriAsync(cacheUri);
-                            await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-                                data: contentUri,
-                                flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-                                type: mimeMap[safeExt] || 'application/octet-stream',
-                            });
-                        } catch (intentErr: any) {
-                            console.warn('[PeepDeck] IntentLauncher fallback error:', intentErr?.message);
-                            Alert.alert('No App Found', 'No app available to open this file type.');
-                        }
-                    } else {
-                        Alert.alert('Unavailable', 'Cannot open this file type on this device.');
+                } catch (intentErr: any) {
+                    console.warn('[PeepDeck] IntentLauncher error:', intentErr?.message);
+                    // Fallback: try ACTION_SEND (chooser) if VIEW fails
+                    try {
+                        const IntentLauncher = require('expo-intent-launcher');
+                        const contentUri = await FileSystem.getContentUriAsync(cacheUri);
+                        await IntentLauncher.startActivityAsync('android.intent.action.SEND', {
+                            data: contentUri,
+                            flags: 1,
+                            type: mime,
+                            extra: { 'android.intent.extra.STREAM': contentUri },
+                        });
+                    } catch (sendErr: any) {
+                        console.warn('[PeepDeck] Send fallback error:', sendErr?.message);
+                        Alert.alert('No App Found', 'No app available to open this file type.');
                     }
                 }
-            } catch (shareErr: any) {
-                console.warn('[PeepDeck] Share error:', shareErr?.message);
-                Alert.alert('Error', 'Could not open file: ' + (shareErr?.message || 'unknown error'));
+            } else {
+                // iOS / web fallback via Linking
+                try {
+                    const { Linking: RNLinking } = require('react-native');
+                    await RNLinking.openURL(cacheUri);
+                } catch {
+                    Alert.alert('Unavailable', 'Cannot open this file type on this device.');
+                }
             }
 
             // Clean up cache after 60 seconds
