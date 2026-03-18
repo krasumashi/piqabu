@@ -909,15 +909,25 @@ export default function LiveGlassPanel({
                                         />
                                     </View>
                                 ) : RTCViewNative && nativeStreamURL ? (
-                                    <>
+                                    remoteIsBnW ? (
+                                        <GrayscaleWrap>
+                                            <View style={{ width: '100%', height: '100%' }}>
+                                                <RTCViewNative
+                                                    streamURL={nativeStreamURL}
+                                                    style={{ width: '100%', height: '100%' }}
+                                                    objectFit="cover"
+                                                    zOrder={0}
+                                                />
+                                            </View>
+                                        </GrayscaleWrap>
+                                    ) : (
                                         <RTCViewNative
                                             streamURL={nativeStreamURL}
                                             style={{ width: '100%', height: '100%' }}
                                             objectFit="cover"
                                             zOrder={0}
                                         />
-                                        {remoteIsBnW && <NoirOverlay />}
-                                    </>
+                                    )
                                 ) : (
                                     <View style={styles.noSignal}>
                                         <Text style={styles.noSignalText}>
@@ -927,20 +937,12 @@ export default function LiveGlassPanel({
                                 )}
 
                                 {remoteBlur > 0 && (
-                                    <View style={StyleSheet.absoluteFill}>
-                                        <BlurView
-                                            intensity={remoteBlur}
-                                            tint="default"
-                                            style={StyleSheet.absoluteFill}
-                                        />
-                                        {/* Frosted glass tint — subtle white overlay */}
-                                        <View
-                                            style={[StyleSheet.absoluteFill, {
-                                                backgroundColor: `rgba(255,255,255,${Math.min(remoteBlur * 0.001, 0.08)})`,
-                                            }]}
-                                            pointerEvents="none"
-                                        />
-                                    </View>
+                                    <View
+                                        style={[StyleSheet.absoluteFill, {
+                                            backgroundColor: `rgba(0,0,0,${Math.min(remoteBlur / 100 * 0.85, 0.85)})`,
+                                        }]}
+                                        pointerEvents="none"
+                                    />
                                 )}
                             </View>
                         ) : (
@@ -980,29 +982,35 @@ export default function LiveGlassPanel({
                                 </View>
                             ) : RTCViewNative ? (
                                 <View style={{ flex: 1 }}>
-                                    <RTCViewNative
-                                        streamURL={localStream.toURL()}
-                                        style={{ width: '100%', height: '100%' }}
-                                        objectFit="cover"
-                                        mirror
-                                        zOrder={1}
-                                    />
-                                    {isBnW && <NoirOverlay />}
-                                    {/* Frosted glass preview — see your own blur intensity */}
+                                    {isBnW ? (
+                                        <GrayscaleWrap>
+                                            <View style={{ width: '100%', height: '100%' }}>
+                                                <RTCViewNative
+                                                    streamURL={localStream.toURL()}
+                                                    style={{ width: '100%', height: '100%' }}
+                                                    objectFit="cover"
+                                                    mirror
+                                                    zOrder={1}
+                                                />
+                                            </View>
+                                        </GrayscaleWrap>
+                                    ) : (
+                                        <RTCViewNative
+                                            streamURL={localStream.toURL()}
+                                            style={{ width: '100%', height: '100%' }}
+                                            objectFit="cover"
+                                            mirror
+                                            zOrder={1}
+                                        />
+                                    )}
+                                    {/* Frosted glass preview — dark overlay simulating blur */}
                                     {blurIntensity > 0 && (
-                                        <View style={StyleSheet.absoluteFill}>
-                                            <BlurView
-                                                intensity={blurIntensity}
-                                                tint="default"
-                                                style={StyleSheet.absoluteFill}
-                                            />
-                                            <View
-                                                style={[StyleSheet.absoluteFill, {
-                                                    backgroundColor: `rgba(255,255,255,${Math.min(blurIntensity * 0.001, 0.08)})`,
-                                                }]}
-                                                pointerEvents="none"
-                                            />
-                                        </View>
+                                        <View
+                                            style={[StyleSheet.absoluteFill, {
+                                                backgroundColor: `rgba(0,0,0,${Math.min(blurIntensity / 100 * 0.85, 0.85)})`,
+                                            }]}
+                                            pointerEvents="none"
+                                        />
                                     )}
                                 </View>
                             ) : (

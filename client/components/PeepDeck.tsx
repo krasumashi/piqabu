@@ -1,8 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated, Alert } from 'react-native';
+import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated, Alert, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
-import * as FileSystem from 'expo-file-system/legacy';
 import { Video, ResizeMode } from 'expo-av';
 import { THEME } from '../constants/Theme';
 import { CONFIG } from '../constants/Config';
@@ -104,99 +103,21 @@ export default function PeepDeck({
         </View>
     );
 
-    // Helper: open document with system viewer via IntentLauncher (Android)
-    const openDocument = async (uri: string, ext: string = 'pdf') => {
+    // Helper: open document by opening the server URL in device browser
+    const openDocument = async (uri: string, _ext: string = 'pdf') => {
         try {
             const fullUrl = resolveUri(uri);
-            const safeExt = ext.replace(/[^a-zA-Z0-9]/g, '') || 'bin';
-            const cacheUri = (FileSystem.cacheDirectory || '') + 'piqabu_received_' + Date.now() + '.' + safeExt;
-
             if (fullUrl.startsWith('http')) {
-                console.log('[PeepDeck] Downloading file from:', fullUrl);
-                const dl = await FileSystem.downloadAsync(fullUrl, cacheUri);
-                console.log('[PeepDeck] Download result:', dl.status, dl.uri, dl.headers?.['content-type']);
-                if (!dl.uri || dl.status !== 200) {
-                    Alert.alert('Error', `Could not download file (status: ${dl.status}).`);
-                    return;
+                console.log('[PeepDeck] Opening file URL in browser:', fullUrl);
+                const supported = await Linking.canOpenURL(fullUrl);
+                if (supported) {
+                    await Linking.openURL(fullUrl);
+                } else {
+                    Alert.alert('Error', 'Cannot open this file URL on this device.');
                 }
-                const fileInfo = await FileSystem.getInfoAsync(dl.uri);
-                if (!fileInfo.exists || (fileInfo.size !== undefined && fileInfo.size === 0)) {
-                    Alert.alert('Error', 'Downloaded file is empty.');
-                    return;
-                }
-            } else if (fullUrl.startsWith('data:')) {
-                const base64Data = fullUrl.split(',')[1];
-                if (!base64Data) {
-                    Alert.alert('Error', 'Invalid file data.');
-                    return;
-                }
-                await FileSystem.writeAsStringAsync(cacheUri, base64Data, {
-                    encoding: FileSystem.EncodingType.Base64,
-                });
             } else {
                 Alert.alert('Error', 'Unsupported file format.');
-                return;
             }
-
-            const mimeMap: Record<string, string> = {
-                pdf: 'application/pdf',
-                doc: 'application/msword',
-                docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                xls: 'application/vnd.ms-excel',
-                xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                ppt: 'application/vnd.ms-powerpoint',
-                pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-                txt: 'text/plain',
-                csv: 'text/csv',
-                rtf: 'application/rtf',
-                json: 'application/json',
-                xml: 'application/xml',
-                zip: 'application/zip',
-            };
-
-            const mime = mimeMap[safeExt] || 'application/octet-stream';
-
-            // Use IntentLauncher on Android to open with system viewer
-            if (Platform.OS === 'android') {
-                try {
-                    const IntentLauncher = require('expo-intent-launcher');
-                    const contentUri = await FileSystem.getContentUriAsync(cacheUri);
-                    await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-                        data: contentUri,
-                        flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-                        type: mime,
-                    });
-                } catch (intentErr: any) {
-                    console.warn('[PeepDeck] IntentLauncher error:', intentErr?.message);
-                    // Fallback: try ACTION_SEND (chooser) if VIEW fails
-                    try {
-                        const IntentLauncher = require('expo-intent-launcher');
-                        const contentUri = await FileSystem.getContentUriAsync(cacheUri);
-                        await IntentLauncher.startActivityAsync('android.intent.action.SEND', {
-                            data: contentUri,
-                            flags: 1,
-                            type: mime,
-                            extra: { 'android.intent.extra.STREAM': contentUri },
-                        });
-                    } catch (sendErr: any) {
-                        console.warn('[PeepDeck] Send fallback error:', sendErr?.message);
-                        Alert.alert('No App Found', 'No app available to open this file type.');
-                    }
-                }
-            } else {
-                // iOS / web fallback via Linking
-                try {
-                    const { Linking: RNLinking } = require('react-native');
-                    await RNLinking.openURL(cacheUri);
-                } catch {
-                    Alert.alert('Unavailable', 'Cannot open this file type on this device.');
-                }
-            }
-
-            // Clean up cache after 60 seconds
-            setTimeout(() => {
-                FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
-            }, 60000);
         } catch (e: any) {
             console.warn('[PeepDeck] Document open error:', e?.message);
             Alert.alert('Error', 'Could not open file: ' + (e?.message || 'unknown error'));
@@ -227,12 +148,13 @@ export default function PeepDeck({
                     <View style={styles.focusBody}>
                         {focusIsVideo ? (
                             <Video
+                                ref={videoRef}
                                 source={{ uri: focusResolved }}
                                 style={styles.focusImage}
                                 resizeMode={ResizeMode.CONTAIN}
-                                shouldPlay
+                                shouldPlay={false}
                                 isLooping={false}
-                                useNativeControls={true}
+                                useNativeControls={false}
                             />
                         ) : focusIsAudio ? (
                             <View style={styles.audioFocusCard}>
