@@ -19,14 +19,25 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
 
     const joinedRef = useRef(false);
 
-    // Join room on mount
+    // Join room on connect (and re-join on every reconnect)
     useEffect(() => {
         if (!socket || !deviceId || !roomId) return;
 
-        socket.emit('join_room', { roomId, deviceId });
-        joinedRef.current = true;
+        const handleConnect = () => {
+            socket.emit('join_room', { roomId, deviceId });
+            joinedRef.current = true;
+        };
+
+        // If already connected, join immediately
+        if (socket.connected) {
+            handleConnect();
+        }
+
+        // Re-join on every reconnect
+        socket.on('connect', handleConnect);
 
         return () => {
+            socket.off('connect', handleConnect);
             if (joinedRef.current) {
                 socket.emit('leave_room', { roomId });
                 joinedRef.current = false;

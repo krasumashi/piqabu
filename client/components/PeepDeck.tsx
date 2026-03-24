@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated, Alert, Linking } from 'react-native';
+import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated, Alert, ActivityIndicator } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import { Video, ResizeMode } from 'expo-av';
@@ -103,32 +104,6 @@ export default function PeepDeck({
         </View>
     );
 
-    // Helper: open document by opening the server URL in device browser
-    const openDocument = async (uri: string, _ext: string = 'pdf') => {
-        try {
-            const fullUrl = resolveUri(uri);
-            if (fullUrl.startsWith('http')) {
-                console.log('[PeepDeck] Opening file URL in browser:', fullUrl);
-                const supported = await Linking.canOpenURL(fullUrl);
-                if (supported) {
-                    await Linking.openURL(fullUrl);
-                } else {
-                    Alert.alert('Error', 'Cannot open this file URL on this device.');
-                }
-            } else {
-                Alert.alert('Error', 'Unsupported file format.');
-            }
-        } catch (e: any) {
-            console.warn('[PeepDeck] Document open error:', e?.message);
-            Alert.alert('Error', 'Could not open file: ' + (e?.message || 'unknown error'));
-        }
-    };
-
-    // Get file extension from URI
-    const getExt = (uri: string): string => {
-        const match = uri.match(/\.(\w+)$/);
-        return match ? match[1].toLowerCase() : 'pdf';
-    };
 
     // Focus modal (expanded view)
     if (focusedItem) {
@@ -168,20 +143,33 @@ export default function PeepDeck({
                                 />
                             </View>
                         ) : (focusIsPdf || focusIsDoc) ? (
-                            <View style={styles.pdfFocusCard}>
-                                <Ionicons name="document-text" size={56} color={THEME.accSky} />
-                                <Text style={styles.audioFocusLabel}>{focusIsPdf ? 'PDF DOCUMENT' : 'DOCUMENT'}</Text>
-                                <Text style={styles.pdfFocusSub}>
-                                    Open with your device's viewer
-                                </Text>
-                                <TouchableOpacity
-                                    onPress={() => openDocument(focusedItem, getExt(focusedItem))}
-                                    style={styles.pdfOpenBtn}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="open-outline" size={16} color="#fff" style={{ marginRight: 8 }} />
-                                    <Text style={styles.pdfOpenBtnText}>OPEN FILE</Text>
-                                </TouchableOpacity>
+                            <View style={{ flex: 1, width: '100%' }}>
+                                <WebView
+                                    source={{
+                                        uri: focusIsPdf
+                                            ? focusResolved
+                                            : `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(focusResolved)}`
+                                    }}
+                                    style={{ flex: 1, backgroundColor: '#000' }}
+                                    startInLoadingState={true}
+                                    renderLoading={() => (
+                                        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]}>
+                                            <Ionicons name="document-text" size={56} color={THEME.accSky} />
+                                            <Text style={styles.audioFocusLabel}>LOADING...</Text>
+                                        </View>
+                                    )}
+                                    javaScriptEnabled={true}
+                                    domStorageEnabled={true}
+                                    allowFileAccess={false}
+                                    allowFileAccessFromFileURLs={false}
+                                    allowUniversalAccessFromFileURLs={false}
+                                    onShouldStartLoadWithRequest={(req) => {
+                                        return req.url.includes('docs.google.com') ||
+                                               req.url.includes('piqabu.onrender.com') ||
+                                               req.url.startsWith('about:blank');
+                                    }}
+                                />
+                                <Watermark />
                             </View>
                         ) : (
                             <Image source={{ uri: focusResolved }} style={styles.focusImage} resizeMode="contain" />
@@ -248,7 +236,7 @@ export default function PeepDeck({
                         >
                             <Ionicons name="document-text" size={36} color={THEME.accSky} />
                             <Text style={styles.audioLabel}>{isPdf ? 'PDF DOCUMENT' : 'DOCUMENT'}</Text>
-                            <Text style={styles.audioSub}>TAP TO OPEN</Text>
+                            <Text style={styles.audioSub}>TAP TO VIEW</Text>
                             <Watermark />
                             <View style={styles.gridItemLabel}>
                                 <Text style={styles.gridItemType}>{isPdf ? 'PDF' : 'DOC'}</Text>
