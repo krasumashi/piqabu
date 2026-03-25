@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     View, Image, TouchableOpacity, Text, StyleSheet, Alert, ScrollView,
-    Animated as RNAnimated, Platform, ActivityIndicator,
+    Animated as RNAnimated, Platform, ActivityIndicator, ActionSheetIOS
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -250,6 +250,32 @@ export default function RevealDeck({
         }
     };
 
+    const handleAddAttachment = () => {
+        if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options: ['Cancel', 'Photo/Video Media', 'Document File'],
+                    cancelButtonIndex: 0,
+                },
+                (buttonIndex) => {
+                    if (buttonIndex === 1) pickMedia();
+                    else if (buttonIndex === 2) pickDocument();
+                }
+            );
+        } else {
+            Alert.alert(
+                'Add Attachment',
+                'Select the type of file you want to load',
+                [
+                    { text: 'Photo/Video', onPress: pickMedia },
+                    { text: 'Document/File', onPress: pickDocument },
+                    { text: 'Cancel', style: 'cancel' }
+                ],
+                { cancelable: true }
+            );
+        }
+    };
+
     // Radio-style expose: only ONE item exposed at a time
     const toggleExpose = (id: string) => {
         if (exposedId === id) {
@@ -310,13 +336,9 @@ export default function RevealDeck({
 
                 {/* Actions */}
                 <View style={styles.actions}>
-                    <TouchableOpacity onPress={pickMedia} style={styles.actionBtn} activeOpacity={0.7} disabled={uploading}>
-                        <Text style={styles.actionBtnText}>+ ADD EVIDENCE</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={pickDocument} style={styles.actionBtn} activeOpacity={0.7} disabled={uploading}>
-                        <Ionicons name="document-attach-outline" size={12} color={THEME.ink} />
-                        <Text style={styles.actionBtnText}>+ ADD FILE</Text>
+                    <TouchableOpacity onPress={handleAddAttachment} style={styles.actionBtn} activeOpacity={0.7} disabled={uploading}>
+                        <Ionicons name="attach-outline" size={14} color={THEME.ink} />
+                        <Text style={styles.actionBtnText}>ADD ATTACHMENT</Text>
                     </TouchableOpacity>
 
                     {items.length > 0 && (

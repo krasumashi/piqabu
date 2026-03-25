@@ -75,6 +75,13 @@ export default function EntryView() {
 
     const handleGenerate = async () => {
         if (isGenerating) return;
+        if (!isConnected) {
+            Alert.alert(
+                'Waking Server',
+                'The secure Signal Tower is currently waking up from sleep. This usually takes about 50 seconds. Please wait for the top-right indicator to say LIVE before generating a room.'
+            );
+            return;
+        }
         setIsGenerating(true);
         try {
             const code = await requestRoomCode();
@@ -85,14 +92,21 @@ export default function EntryView() {
             } else {
                 setShowPaywall(true);
             }
-        } catch (e) {
-            Alert.alert('Error', 'Unable to generate session. Check your connection.');
+        } catch (e: any) {
+            Alert.alert('Error', e?.message || 'Unable to generate session. Check your connection.');
         } finally {
             setIsGenerating(false);
         }
     };
 
     const handleJoin = () => {
+        if (!isConnected) {
+            Alert.alert(
+                'Waking Server',
+                'The secure Signal Tower is currently waking up from sleep. This usually takes about 50 seconds. Please wait for the top-right indicator to say LIVE before joining.'
+            );
+            return;
+        }
         if (roomCode.length === 6) {
             const code = roomCode.toUpperCase();
             const result = addRoom(code);

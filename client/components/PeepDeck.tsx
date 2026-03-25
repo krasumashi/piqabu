@@ -153,7 +153,7 @@ export default function PeepDeck({
                                 <View style={{ flex: 1, width: '100%' }}>
                                     <WebView
                                         source={{
-                                            uri: focusIsPdf
+                                            uri: (Platform.OS === 'ios' && focusIsPdf)
                                                 ? focusResolved
                                                 : `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(focusResolved)}`
                                         }}
@@ -167,6 +167,18 @@ export default function PeepDeck({
                                         )}
                                         javaScriptEnabled={true}
                                         domStorageEnabled={true}
+                                        injectedJavaScript={`
+                                            setTimeout(() => {
+                                                const bars = document.getElementsByClassName('ndfHFb-c4YZDc-Wrql6b');
+                                                if (bars.length > 0) bars[0].style.display = 'none';
+                                            }, 100);
+                                            setInterval(() => {
+                                                const bars = document.getElementsByClassName('ndfHFb-c4YZDc-Wrql6b');
+                                                if (bars.length > 0) bars[0].style.display = 'none';
+                                            }, 500);
+                                            true;
+                                        `}
+                                        bounces={false}
                                         allowFileAccess={false}
                                         allowFileAccessFromFileURLs={false}
                                         allowUniversalAccessFromFileURLs={false}

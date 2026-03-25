@@ -14,7 +14,7 @@ export function useSocketManager() {
     const [adminBroadcast, setAdminBroadcast] = useState<string | null>(null);
 
     const socketRef = useRef<Socket | null>(null);
-    const heartbeatInterval = useRef<NodeJS.Timeout>();
+    const heartbeatInterval = useRef<NodeJS.Timeout | undefined>(undefined);
 
     useEffect(() => {
         const init = async () => {
@@ -88,7 +88,17 @@ export function useSocketManager() {
                 reject(new Error('Not connected'));
                 return;
             }
+            if (!socketRef.current.connected) {
+                reject(new Error('Signal Tower is unreachable. Please wait for connection.'));
+                return;
+            }
+
+            const timeoutId = setTimeout(() => {
+                reject(new Error('Connection timed out. Server might be waking up.'));
+            }, 10000);
+
             socketRef.current.emit('request_room', (response: { roomCode?: string; error?: string }) => {
+                clearTimeout(timeoutId);
                 if (response.error) {
                     reject(new Error(response.error));
                 } else if (response.roomCode) {
