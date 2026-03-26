@@ -1,5 +1,6 @@
 const express = require('express');
 const adminStore = require('../lib/adminStore');
+const subscriptionStore = require('../lib/subscriptionStore');
 
 function createAdminRouter({ io, rooms, participants }) {
     const router = express.Router();
@@ -166,6 +167,45 @@ function createAdminRouter({ io, rooms, participants }) {
         const { id } = req.params;
         adminStore.deleteFeedback(id);
         res.json({ success: true });
+    });
+
+    // GET /admin/active-devices — list all connected sockets
+    router.get('/active-devices', (req, res) => {
+        const deviceList = [];
+        io.sockets.sockets.forEach((socket, socketId) => {
+            const data = socket.data || {};
+            const p = participants.get(socketId);
+            deviceList.push({
+                socketId: socketId.substring(0, 8),
+                deviceId: data.deviceId ? data.deviceId.substring(0, 12) + '...' : 'unknown',
+                fullDeviceId: data.deviceId || 'unknown',
+                tier: data.tier || 'free',
+                ip: socket.handshake.address || 'unknown',
+                roomsJoined: p ? p.rooms.size : 0,
+            });
+        });
+        res.json({ devices: deviceList });
+    });
+
+    // POST /admin/devices/:deviceId/tier — manually set pro/free status
+    router.post('/devices/:deviceId/tier', express.json(), (req, res) => {
+        const { deviceId } = req.params;
+        const { tier } = req.body || {};
+        if (tier !== 'free' && tier !== 'pro') return res.status(400).json({ error: 'invalid tier' });
+        
+        subscriptionStore.setSubscription(deviceId, { tier });
+        
+        participants.forEach((p, socketId) => {
+            if (p.deviceId === deviceId) {
+                const sock = io.sockets.sockets.get(socketId);
+                if (sock) {
+                    sock.data.tier = tier;
+                    sock.emit('subscription_updated', { tier });
+                }
+            }
+        });
+        adminStore.addLog('info', `Admin forcibly changed tier to ${tier}`, { deviceId });
+        res.json({ success: true, tier });
     });
 
     return router;

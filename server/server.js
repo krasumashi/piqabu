@@ -38,15 +38,7 @@ app.use(helmet({
 
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:8081,http://localhost:19006,http://localhost:19000,https://piqabu.onrender.com').split(',');
 
-app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin) return callback(null, true);
-        if (ALLOWED_ORIGINS.includes(origin)) {
-            return callback(null, true);
-        }
-        return callback(new Error('CORS not allowed'), false);
-    },
-}));
+app.use(cors({ origin: '*' }));
 
 // Rate limit HTTP endpoints
 const healthLimiter = rateLimit({

@@ -349,6 +349,14 @@
         <div id="rooms-table"></div>
     </div>
 
+    <!-- Active Devices -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">ALL CONNECTED DEVICES</div>
+        </div>
+        <div id="active-devices-table"></div>
+    </div>
+
     <!-- User Feedback -->
     <div class="section">
         <div class="section-header">
@@ -474,11 +482,12 @@
 
     async function refreshAll() {
         try {
-            const [status, roomsData, devicesData, logsData] = await Promise.all([
+            const [status, roomsData, devicesData, logsData, activeData] = await Promise.all([
                 apiFetch('/admin/status'),
                 apiFetch('/admin/rooms'),
                 apiFetch('/admin/devices'),
                 apiFetch('/admin/logs'),
+                apiFetch('/admin/active-devices'),
             ]);
 
             // Stats
@@ -560,6 +569,31 @@
                 logsEl.innerHTML = html;
             }
 
+            // Active Devices table
+            const activeEl = document.getElementById('active-devices-table');
+            if (activeData && (!activeData.devices || activeData.devices.length === 0)) {
+                if (activeEl) activeEl.innerHTML = '<div class="empty-state">NO DEVICES CONNECTED</div>';
+            } else if (activeData && activeEl) {
+                let html = '<table><tr><th>SOCKET</th><th>DEVICE ID</th><th>IP</th><th>TIER</th><th>ROOMS</th><th>ACTION</th></tr>';
+                activeData.devices.forEach(d => {
+                    const tierColor = d.tier === 'pro' ? '#00FFAA' : 'rgba(245,243,235,0.72)';
+                    const grantBtn = d.tier === 'free' 
+                        ? `<button class="btn btn-active" onclick="setTier('${d.fullDeviceId}', 'pro')">GRANT PRO</button>`
+                        : `<button class="btn btn-danger" onclick="setTier('${d.fullDeviceId}', 'free')">REVOKE PRO</button>`;
+                        
+                    html += `<tr>
+                        <td style="font-size:9px;">${d.socketId}</td>
+                        <td style="font-size:10px;">${d.deviceId}</td>
+                        <td style="font-size:10px;">${d.ip}</td>
+                        <td style="color:${tierColor};font-weight:700;">${d.tier.toUpperCase()}</td>
+                        <td>${d.roomsJoined}</td>
+                        <td>${grantBtn}</td>
+                    </tr>`;
+                });
+                html += '</table>';
+                activeEl.innerHTML = html;
+            }
+
             // Blocked devices table
             const blockedEl = document.getElementById('blocked-table');
             if (devicesData.blockedDevices.length === 0) {
@@ -610,6 +644,16 @@
             method: 'POST'
         });
         showToast(data.message || 'ROOM CLOSED');
+        refreshAll();
+    }
+
+    async function setTier(deviceId, tier) {
+        if (!confirm(`Change tier to ${tier.toUpperCase()} for this device?`)) return;
+        await apiFetch(`/admin/devices/${encodeURIComponent(deviceId)}/tier`, {
+            method: 'POST',
+            body: JSON.stringify({ tier })
+        });
+        showToast('DEVICE TIER UPDATED');
         refreshAll();
     }
 
