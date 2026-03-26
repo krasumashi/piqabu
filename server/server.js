@@ -60,6 +60,19 @@ app.get('/health', healthLimiter, (req, res) => {
     res.status(200).send('SIGNAL TOWER ACTIVE');
 });
 
+// --- Mission Control Feedback (Mobile Client -> Server) ---
+app.post('/api/feedback', express.json(), healthLimiter, (req, res) => {
+    const { deviceId, message } = req.body || {};
+    if (!deviceId || !message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'Missing deviceId or message' });
+    }
+    // Cap message length to prevent abuse
+    const cleanMessage = message.substring(0, 1000);
+    adminStore.addFeedback(deviceId, cleanMessage);
+    adminStore.addLog('info', 'New user feedback received', { deviceId });
+    res.json({ success: true });
+});
+
 // --- File Upload (Multer) ---
 const uploadDir = '/tmp/uploads';
 if (!fs.existsSync(uploadDir)) {
@@ -615,7 +628,10 @@ io.on('connection', (socket) => {
         if (typeof data.controls !== 'object' || data.controls === null) return;
         socket.to(roomId).emit('transmit_screen_share_controls', {
             roomId,
-            controls: { blur: Number(data.controls.blur) || 0 },
+            controls: {
+                blur: Number(data.controls.blur) || 0,
+                isBnW: data.controls.isBnW !== undefined ? !!data.controls.isBnW : true,
+            },
         });
     });
 

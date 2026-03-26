@@ -127,6 +127,47 @@ function createAdminRouter({ io, rooms, participants }) {
         res.json({ success: true, message: `Broadcast sent to ${io.sockets.sockets.size} clients` });
     });
 
+    // GET /admin/logs — view system logs and feedback
+    router.get('/logs', (req, res) => {
+        const state = adminStore.getState();
+        res.json({ logs: state.logs || [], feedback: state.feedback || [] });
+    });
+
+    // POST /admin/rooms/:roomId/close — force close a room
+    router.post('/rooms/:roomId/close', (req, res) => {
+        const { roomId } = req.params;
+        const socketsInRoom = rooms.get(roomId);
+        let closedCount = 0;
+        if (socketsInRoom) {
+            socketsInRoom.forEach(socketId => {
+                const sock = io.sockets.sockets.get(socketId);
+                if (sock) {
+                    sock.emit('force_disconnect', { message: 'This room has been closed by an administrator.' });
+                    sock.disconnect(true);
+                    closedCount++;
+                }
+            });
+            rooms.delete(roomId);
+            adminStore.addLog('warn', `Room force-closed by admin`, { roomId });
+        }
+        res.json({ success: true, message: `Room ${roomId.substring(0, 8)} closed (${closedCount} kicked)` });
+    });
+
+    // POST /admin/feedback/:id/resolve — resolve/unresolve feedback
+    router.post('/feedback/:id/resolve', express.json(), (req, res) => {
+        const { id } = req.params;
+        const { resolved } = req.body || {};
+        adminStore.resolveFeedback(id, resolved);
+        res.json({ success: true });
+    });
+
+    // DELETE /admin/feedback/:id — hide/delete feedback
+    router.delete('/feedback/:id', (req, res) => {
+        const { id } = req.params;
+        adminStore.deleteFeedback(id);
+        res.json({ success: true });
+    });
+
     return router;
 }
 

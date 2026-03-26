@@ -325,6 +325,11 @@
             <div class="stat-sub">ACTIVE SESSIONS</div>
         </div>
         <div class="stat-card">
+            <div class="stat-label">FEEDBACK</div>
+            <div class="stat-value" id="stat-feedback">-</div>
+            <div class="stat-sub">OPEN REPORTS</div>
+        </div>
+        <div class="stat-card">
             <div class="stat-label">UPTIME</div>
             <div class="stat-value" id="stat-uptime">-</div>
             <div class="stat-sub" id="stat-uptime-unit">SECONDS</div>
@@ -336,37 +341,28 @@
         </div>
     </div>
 
-    <!-- Maintenance -->
-    <div class="section">
-        <div class="section-header">
-            <div class="section-title">MAINTENANCE MODE</div>
-            <button class="btn" id="maint-btn" onclick="toggleMaintenance()">ENABLE</button>
-        </div>
-        <div class="toggle-row">
-            <span class="toggle-label" id="maint-status">INACTIVE</span>
-        </div>
-        <div class="input-row">
-            <input type="text" class="input-field" id="maint-message" placeholder="MAINTENANCE MESSAGE (OPTIONAL)">
-        </div>
-    </div>
-
-    <!-- Broadcast -->
-    <div class="section">
-        <div class="section-header">
-            <div class="section-title">BROADCAST MESSAGE</div>
-        </div>
-        <div class="input-row">
-            <input type="text" class="input-field" id="broadcast-input" placeholder="TYPE A MESSAGE TO ALL USERS...">
-            <button class="btn btn-active" onclick="sendBroadcast()">SEND</button>
-        </div>
-    </div>
-
     <!-- Active Rooms -->
     <div class="section">
         <div class="section-header">
             <div class="section-title">ACTIVE ROOMS</div>
         </div>
         <div id="rooms-table"></div>
+    </div>
+
+    <!-- User Feedback -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">USER FEEDBACK</div>
+        </div>
+        <div id="feedback-table"></div>
+    </div>
+
+    <!-- Mission Feed (Logs) -->
+    <div class="section">
+        <div class="section-header">
+            <div class="section-title">MISSION FEED</div>
+        </div>
+        <div id="logs-table" style="max-height: 400px; overflow-y: auto;"></div>
     </div>
 
     <!-- Blocked Devices -->
@@ -478,42 +474,90 @@
 
     async function refreshAll() {
         try {
-            const [status, roomsData, devicesData] = await Promise.all([
+            const [status, roomsData, devicesData, logsData] = await Promise.all([
                 apiFetch('/admin/status'),
                 apiFetch('/admin/rooms'),
                 apiFetch('/admin/devices'),
+                apiFetch('/admin/logs'),
             ]);
 
             // Stats
             document.getElementById('stat-connections').textContent = status.connectedSockets;
             document.getElementById('stat-rooms').textContent = status.activeRooms;
             document.getElementById('stat-blocked').textContent = status.blockedDevices;
+            if (document.getElementById('stat-feedback')) {
+                const openFeedback = logsData.feedback ? logsData.feedback.filter(f => !f.resolved).length : 0;
+                document.getElementById('stat-feedback').textContent = openFeedback;
+            }
             const up = formatUptime(status.uptime);
             document.getElementById('stat-uptime').textContent = up.value;
             document.getElementById('stat-uptime-unit').textContent = up.unit;
-
-            // Maintenance state
-            maintenanceActive = status.maintenanceMode;
-            document.getElementById('maint-status').textContent = maintenanceActive ? 'ACTIVE' : 'INACTIVE';
-            document.getElementById('maint-status').style.color = maintenanceActive ? 'rgba(255,255,255,0.85)' : 'rgba(245,243,235,0.38)';
-            document.getElementById('maint-btn').textContent = maintenanceActive ? 'DISABLE' : 'ENABLE';
-            document.getElementById('maint-btn').className = maintenanceActive ? 'btn btn-danger' : 'btn';
-            if (status.maintenanceMessage) {
-                document.getElementById('maint-message').value = status.maintenanceMessage;
-            }
 
             // Rooms table
             const roomsEl = document.getElementById('rooms-table');
             if (roomsData.rooms.length === 0) {
                 roomsEl.innerHTML = '<div class="empty-state">NO ACTIVE ROOMS</div>';
             } else {
-                let html = '<table><tr><th>ROOM</th><th>PARTICIPANTS</th><th>DEVICES</th></tr>';
+                let html = '<table><tr><th>ROOM</th><th>PARTICIPANTS</th><th>DEVICES</th><th>ACTION</th></tr>';
                 roomsData.rooms.forEach(r => {
                     const devices = r.details.map(d => d.deviceId).join(', ');
-                    html += `<tr><td>${r.roomId}</td><td>${r.participants}/2</td><td>${devices || '-'}</td></tr>`;
+                    html += `<tr>
+                        <td>${r.roomId}</td>
+                        <td>${r.participants}/2</td>
+                        <td style="font-size:10px;">${devices || '-'}</td>
+                        <td><button class="btn btn-danger" onclick="closeRoom('${r.roomId}')">FORCE CLOSE</button></td>
+                    </tr>`;
                 });
                 html += '</table>';
                 roomsEl.innerHTML = html;
+            }
+
+            // Feedback table
+            const feedbackEl = document.getElementById('feedback-table');
+            if (!logsData.feedback || logsData.feedback.length === 0) {
+                if (feedbackEl) feedbackEl.innerHTML = '<div class="empty-state">NO USER FEEDBACK</div>';
+            } else if (feedbackEl) {
+                let html = '<table><tr><th>TIME</th><th>DEVICE</th><th>MESSAGE</th><th>STATUS</th><th>ACTIONS</th></tr>';
+                logsData.feedback.forEach(f => {
+                    const time = new Date(f.timestamp).toLocaleString();
+                    const statusText = f.resolved ? '<span style="color:rgba(245,243,235,0.38)">RESOLVED</span>' : '<span style="color:#FFAA00">OPEN</span>';
+                    const resolveAction = f.resolved 
+                        ? `<button class="btn" style="margin-right:8px;" onclick="resolveFeedback('${f.id}', false)">REOPEN</button>` 
+                        : `<button class="btn btn-active" style="margin-right:8px;" onclick="resolveFeedback('${f.id}', true)">RESOLVE</button>`;
+                    
+                    html += `<tr style="${f.resolved ? 'opacity:0.6' : ''}">
+                        <td style="font-size:9px;">${time}</td>
+                        <td style="font-size:10px;">${f.deviceId}</td>
+                        <td style="max-width:300px;word-wrap:break-word;">${f.message}</td>
+                        <td>${statusText}</td>
+                        <td>
+                            ${resolveAction}
+                            <button class="btn btn-danger" onclick="deleteFeedback('${f.id}')">DELETE</button>
+                        </td>
+                    </tr>`;
+                });
+                html += '</table>';
+                feedbackEl.innerHTML = html;
+            }
+
+            // Logs table
+            const logsEl = document.getElementById('logs-table');
+            if (!logsData.logs || logsData.logs.length === 0) {
+                if (logsEl) logsEl.innerHTML = '<div class="empty-state">NO SYSTEM LOGS</div>';
+            } else if (logsEl) {
+                let html = '<table><tr><th>TIME</th><th>TYPE</th><th>MESSAGE</th><th>META</th></tr>';
+                logsData.logs.forEach(l => {
+                    const time = new Date(l.timestamp).toLocaleTimeString();
+                    const typeColor = l.type === 'error' ? '#FF4444' : l.type === 'warn' ? '#FFAA00' : 'rgba(245,243,235,0.6)';
+                    html += `<tr>
+                        <td style="font-size:9px;">${time}</td>
+                        <td style="color:${typeColor};font-weight:700;">${l.type.toUpperCase()}</td>
+                        <td>${l.message}</td>
+                        <td style="font-size:10px;color:rgba(245,243,235,0.5)">${JSON.stringify(l.meta)}</td>
+                    </tr>`;
+                });
+                html += '</table>';
+                logsEl.innerHTML = html;
             }
 
             // Blocked devices table
@@ -540,6 +584,33 @@
         } catch (err) {
             console.error('Refresh failed:', err);
         }
+    }
+
+    async function resolveFeedback(id, resolved) {
+        await apiFetch(`/admin/feedback/${id}/resolve`, {
+            method: 'POST',
+            body: JSON.stringify({ resolved })
+        });
+        showToast('FEEDBACK STATUS UPDATED');
+        refreshAll();
+    }
+
+    async function deleteFeedback(id) {
+        if (!confirm('Delete this feedback?')) return;
+        await apiFetch(`/admin/feedback/${id}`, {
+            method: 'DELETE'
+        });
+        showToast('FEEDBACK DELETED');
+        refreshAll();
+    }
+
+    async function closeRoom(roomId) {
+        if (!confirm(`Force close room ${roomId}?`)) return;
+        const data = await apiFetch(`/admin/rooms/${roomId}/close`, {
+            method: 'POST'
+        });
+        showToast(data.message || 'ROOM CLOSED');
+        refreshAll();
     }
 
     async function toggleMaintenance() {
