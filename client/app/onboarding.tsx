@@ -26,13 +26,13 @@ const slides: Slide[] = [
         icon: 'sync-outline',
         title: 'LIVE SYNC',
         subtitle: 'Real-time text transmission',
-        description: 'Type and watch your co-conspirator see every character as it appears. Ephemeral by design -- text can vanish on a timer.',
+        description: 'Type and watch your correspondent read every character as it appears. Ephemeral by design -- text can vanish on a timer.',
     },
     {
         icon: 'eye-outline',
         title: 'REVEAL & PEEP',
         subtitle: 'Controlled exposure',
-        description: 'Load evidence into your Reveal Vault. Expose it when you choose. Your partner sees it in their Peep Room -- no screenshots, no trace.',
+        description: 'Load material into your Reveal Vault. Show it when you choose. Your correspondent sees it in their Peep Room -- no screenshots, no trace.',
     },
     {
         icon: 'radio-outline',

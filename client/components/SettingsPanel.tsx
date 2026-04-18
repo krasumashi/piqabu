@@ -99,7 +99,7 @@ export default function SettingsPanel({
                 >
                     <View style={styles.itemRow}>
                         <Ionicons name="shield-outline" size={14} color={panicEnabled ? THEME.live : THEME.muted} />
-                        <Text style={styles.itemLabel}>PANIC MODE</Text>
+                        <Text style={styles.itemLabel}>DISCREET MODE</Text>
                     </View>
                     <Text style={[styles.itemValueBold, panicEnabled && { color: THEME.live }]}>
                         {panicEnabled ? 'ON' : 'OFF'}
@@ -114,7 +114,7 @@ export default function SettingsPanel({
                     >
                         <View style={styles.itemRow}>
                             <Ionicons name="flash-outline" size={14} color={THEME.warn} />
-                            <Text style={styles.itemLabel}>TEST PANIC</Text>
+                            <Text style={styles.itemLabel}>TEST DISCREET MODE</Text>
                         </View>
                         <Text style={[styles.itemValueBold, { color: THEME.faint }]}>
                             {__DEV__ ? 'TAP TO TRIGGER' : 'SHAKE OR TAP'}

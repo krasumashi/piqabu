@@ -3,6 +3,10 @@ import { View, Text, TouchableOpacity, Modal, Platform, Alert, ActivityIndicator
 import { Ionicons } from '@expo/vector-icons';
 import { PRICING } from '../lib/subscription/tiers';
 
+// Feature flag — paywall is disabled until Stripe payment account is set up.
+// Flip to `true` to re-enable monetisation.
+const PAYWALL_ENABLED = false;
+
 interface PaywallProps {
     visible: boolean;
     feature: string;
@@ -14,7 +18,7 @@ interface PaywallProps {
 const FEATURE_INFO: Record<string, { title: string; description: string; icon: keyof typeof Ionicons.glyphMap }> = {
     multi_room: {
         title: 'Multiple Rooms',
-        description: 'Run up to 5 simultaneous conversations with different co-conspirators.',
+        description: 'Run up to 5 simultaneous conversations with different correspondents.',
         icon: 'layers-outline',
     },
     live_glass: {
@@ -35,6 +39,9 @@ const FEATURE_INFO: Record<string, { title: string; description: string; icon: k
 };
 
 export default function Paywall({ visible, feature, onDismiss, deviceId, onSubscribed }: PaywallProps) {
+    // Paywall disabled until Stripe is wired up — render nothing.
+    if (!PAYWALL_ENABLED) return null;
+
     const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
     const [isPurchasing, setIsPurchasing] = useState(false);
 

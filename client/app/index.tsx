@@ -306,7 +306,7 @@ export default function EntryView() {
                                 </View>
 
                                 <Text style={styles.keyCardFooter}>
-                                    CO-CONSPIRATORS JOIN WITH THE KEY.
+                                    YOUR CORRESPONDENT JOINS WITH THIS KEY.
                                 </Text>
                             </View>
 

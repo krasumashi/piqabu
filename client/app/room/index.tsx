@@ -369,7 +369,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                     <View style={st.cardHeader}>
                         <View style={st.cardHeaderLeft}>
                             <View style={[st.cardDot, { backgroundColor: THEME.remote }]} />
-                            <Text style={st.cardLabel}>CO-CONSPIRATOR</Text>
+                            <Text style={st.cardLabel}>CORRESPONDENT</Text>
                         </View>
                         <Text style={st.cardSub}>REMOTE FEED</Text>
                     </View>
@@ -405,9 +405,9 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                         <View style={st.cardHeader}>
                             <View style={st.cardHeaderLeft}>
                                 <View style={[st.cardDot, { backgroundColor: THEME.local }]} />
-                                <Text style={st.cardLabel}>CONSPIRATOR (YOU)</Text>
+                                <Text style={st.cardLabel}>YOU</Text>
                             </View>
-                            <Text style={st.cardSub}>WRITE • EXPOSE</Text>
+                            <Text style={st.cardSub}>WRITE • SHOW</Text>
                         </View>
                         <View style={st.cardBody}>
                             <LinearGradient colors={['rgba(15,17,20,0.95)', 'transparent']} style={st.fadeTop} pointerEvents="none" />

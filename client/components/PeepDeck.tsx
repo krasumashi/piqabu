@@ -232,7 +232,7 @@ export default function PeepDeck({
                     {!remoteImage || !resolvedUri ? (
                         <View style={styles.emptyState}>
                             <Ionicons name="eye-off-outline" size={32} color={THEME.faint} />
-                            <Text style={styles.emptyText}>NOTHING EXPOSED... YET</Text>
+                            <Text style={styles.emptyText}>NOTHING SHOWN... YET</Text>
                         </View>
                     ) : isAudio ? (
                         <TouchableOpacity

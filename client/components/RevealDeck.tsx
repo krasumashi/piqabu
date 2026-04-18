@@ -318,7 +318,7 @@ export default function RevealDeck({
                     <View>
                         <Text style={styles.headerTitle}>REVEAL VAULT</Text>
                         <Text style={styles.headerSub}>
-                            LOADED: {items.length} • EXPOSED: {exposedId ? '1' : '0'}
+                            ITEMS: {items.length} • SHOWN: {exposedId ? '1' : '0'}
                         </Text>
                     </View>
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -353,7 +353,7 @@ export default function RevealDeck({
                     {items.length === 0 ? (
                         <View style={styles.emptyState}>
                             <Ionicons name="folder-open-outline" size={32} color={THEME.faint} />
-                            <Text style={styles.emptyText}>NO EVIDENCE LOADED</Text>
+                            <Text style={styles.emptyText}>NOTHING HERE YET</Text>
                         </View>
                     ) : (
                         items.map((item, idx) => {
@@ -385,14 +385,14 @@ export default function RevealDeck({
 
                                     {/* Meta */}
                                     <View style={styles.meta}>
-                                        <Text style={styles.metaTitle}>EVIDENCE {idx + 1}</Text>
+                                        <Text style={styles.metaTitle}>ITEM {idx + 1}</Text>
                                         <View style={styles.metaRow}>
                                             <Text style={styles.metaType}>
                                                 {item.type === 'video' ? 'VIDEO' : item.type === 'audio' ? 'AUDIO' : item.type === 'pdf' ? 'PDF' : item.type === 'document' ? 'DOCUMENT' : 'IMAGE'}
                                             </Text>
                                             <Text style={styles.metaDivider}>•</Text>
                                             <Text style={[styles.metaStatus, isExposed && { color: THEME.accEmerald }]}>
-                                                {isExposed ? 'EXPOSED' : 'HIDDEN'}
+                                                {isExposed ? 'SHOWN' : 'HIDDEN'}
                                             </Text>
                                         </View>
                                     </View>
@@ -412,7 +412,7 @@ export default function RevealDeck({
                                         activeOpacity={0.7}
                                     >
                                         <Text style={[styles.toggleText, isExposed && styles.toggleTextActive]}>
-                                            {isExposed ? 'COVER' : 'EXPOSE'}
+                                            {isExposed ? 'COVER' : 'SHOW'}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -554,7 +554,7 @@ export default function RevealDeck({
                 {/* Footer */}
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>
-                        EXPOSE = VISIBLE TO THEIR PEEP ROOM. COVER = HIDDEN.
+                        SHOW = VISIBLE IN THEIR PEEP ROOM. COVER = HIDDEN.
                     </Text>
                 </View>
             </RNAnimated.View>
