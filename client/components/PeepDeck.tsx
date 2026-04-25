@@ -1,17 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Image, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated as RNAnimated, Alert, ActivityIndicator } from 'react-native';
-// Lazy import — native module may not exist in older APK builds
-let WebView: any = null;
-try {
-    WebView = require('react-native-webview').WebView;
-} catch (e) {
-    // WebView not available in this build
-}
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenCapture from 'expo-screen-capture';
 import { Video, ResizeMode } from 'expo-av';
 import { THEME } from '../constants/Theme';
 import { CONFIG } from '../constants/Config';
+import DocumentViewer from './DocumentViewer';
 
 // Detect media type from URI (supports both data URIs and server URLs)
 function isVideoUri(uri: string): boolean {
@@ -148,55 +142,24 @@ export default function PeepDeck({
                                     isLooping={false}
                                 />
                             </View>
-                        ) : (focusIsPdf || focusIsDoc) ? (
-                            WebView ? (
-                                <View style={{ flex: 1, width: '100%' }}>
-                                    <WebView
-                                        source={{
-                                            uri: (Platform.OS === 'ios' && focusIsPdf)
-                                                ? focusResolved
-                                                : `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(focusResolved)}`
-                                        }}
-                                        style={{ flex: 1, backgroundColor: '#000' }}
-                                        startInLoadingState={true}
-                                        renderLoading={() => (
-                                            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]}>
-                                                <Ionicons name="document-text" size={56} color={THEME.accSky} />
-                                                <Text style={styles.audioFocusLabel}>LOADING...</Text>
-                                            </View>
-                                        )}
-                                        javaScriptEnabled={true}
-                                        domStorageEnabled={true}
-                                        injectedJavaScript={`
-                                            setTimeout(() => {
-                                                const bars = document.getElementsByClassName('ndfHFb-c4YZDc-Wrql6b');
-                                                if (bars.length > 0) bars[0].style.display = 'none';
-                                            }, 100);
-                                            setInterval(() => {
-                                                const bars = document.getElementsByClassName('ndfHFb-c4YZDc-Wrql6b');
-                                                if (bars.length > 0) bars[0].style.display = 'none';
-                                            }, 500);
-                                            true;
-                                        `}
-                                        bounces={false}
-                                        allowFileAccess={false}
-                                        allowFileAccessFromFileURLs={false}
-                                        allowUniversalAccessFromFileURLs={false}
-                                        onShouldStartLoadWithRequest={(req: any) => {
-                                            return req.url.includes('docs.google.com') ||
-                                                   req.url.includes('piqabu.onrender.com') ||
-                                                   req.url.startsWith('about:blank');
-                                        }}
-                                    />
-                                    <Watermark />
-                                </View>
-                            ) : (
-                                <View style={styles.pdfFocusCard}>
-                                    <Ionicons name="document-text" size={56} color={THEME.accSky} />
-                                    <Text style={styles.audioFocusLabel}>{focusIsPdf ? 'PDF DOCUMENT' : 'DOCUMENT'}</Text>
-                                    <Text style={styles.pdfFocusSub}>Update the app to view documents in-app</Text>
-                                </View>
-                            )
+                        ) : focusIsPdf ? (
+                            // On-device PDF rendering. The file streams from
+                            // the Piqabu server straight to the device's PDF
+                            // engine — no third party (Google Docs, etc.)
+                            // sees the bytes.
+                            <View style={{ flex: 1, width: '100%' }}>
+                                <DocumentViewer uri={focusResolved} />
+                                <Watermark />
+                            </View>
+                        ) : focusIsDoc ? (
+                            // Non-PDF documents (DOCX, XLSX, etc.) are
+                            // intentionally not rendered in v1. The picker
+                            // is filtered to PDF, so this path is defensive.
+                            <View style={styles.pdfFocusCard}>
+                                <Ionicons name="document-text" size={56} color={THEME.accSky} />
+                                <Text style={styles.audioFocusLabel}>UNSUPPORTED FORMAT</Text>
+                                <Text style={styles.pdfFocusSub}>Only PDF documents are supported in this version. Ask your correspondent to share a PDF.</Text>
+                            </View>
                         ) : (
                             <Image source={{ uri: focusResolved }} style={styles.focusImage} resizeMode="contain" />
                         )}

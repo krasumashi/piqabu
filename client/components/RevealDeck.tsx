@@ -4,6 +4,7 @@ import {
     Animated as RNAnimated, Platform, ActivityIndicator, ActionSheetIOS
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import Constants from 'expo-constants';
 import { Video, ResizeMode } from 'expo-av';
@@ -188,15 +189,72 @@ export default function RevealDeck({
         }
     };
 
-    // --- Pick document (any file type) ---
+    // --- Pick document (PDF for v1; other types in a future build) ---
     const pickDocument = async () => {
-        Alert.alert('COMING SOON', 'Document sharing will be enabled in a future update. For now, please stick to photos and videos.', [{ text: 'GOT IT' }]);
+        if (items.length >= maxImages) {
+            Alert.alert('Limit Reached', `Maximum ${maxImages} items allowed.`);
+            return;
+        }
+
+        try {
+            setFilePickerActive(true);
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'application/pdf',
+                copyToCacheDirectory: true,
+                multiple: false,
+            });
+            setFilePickerActive(false);
+
+            if (result.canceled || !result.assets?.[0]) return;
+
+            const asset = result.assets[0];
+            const fileName = asset.name || `document_${Date.now()}.pdf`;
+            const mime = asset.mimeType || 'application/pdf';
+
+            // Hard-gate to PDF for v1. expo-document-picker's `type` filter
+            // is best-effort on Android — verify on the receiving side too.
+            if (!fileName.toLowerCase().endsWith('.pdf') && mime !== 'application/pdf') {
+                Alert.alert(
+                    'PDF Only For Now',
+                    'Document sharing currently supports PDF. Other formats (DOCX, XLSX) are coming soon.',
+                    [{ text: 'GOT IT' }]
+                );
+                return;
+            }
+
+            // Size guard — server caps uploads at 15MB.
+            if (asset.size && asset.size > 14 * 1024 * 1024) {
+                Alert.alert('File Too Large', 'Documents must be under 14MB.');
+                return;
+            }
+
+            setUploading(true);
+            const uploadResult = await uploadFile(asset.uri, fileName, mime, roomId);
+            setUploading(false);
+
+            if ('error' in uploadResult) {
+                Alert.alert('Upload Failed', uploadResult.error);
+                return;
+            }
+
+            setItems(prev => [...prev, {
+                id: nextId(),
+                uri: uploadResult.url,
+                localUri: asset.uri,
+                type: 'pdf',
+            }]);
+        } catch (e: any) {
+            setUploading(false);
+            setFilePickerActive(false);
+            console.warn('[RevealDeck] pickDocument error:', e?.message, e);
+            Alert.alert('Error', 'Could not load document. Please try again.');
+        }
     };
     const handleAddAttachment = () => {
         if (Platform.OS === 'ios') {
             ActionSheetIOS.showActionSheetWithOptions(
                 {
-                    options: ['Cancel', 'Photo/Video Media', 'Document File'],
+                    options: ['Cancel', 'Photo / Video', 'PDF Document'],
                     cancelButtonIndex: 0,
                 },
                 (buttonIndex) => {
@@ -209,8 +267,8 @@ export default function RevealDeck({
                 'Add Attachment',
                 'Select the type of file you want to load',
                 [
-                    { text: 'Photo/Video', onPress: pickMedia },
-                    { text: 'Document/File', onPress: pickDocument },
+                    { text: 'Photo / Video', onPress: pickMedia },
+                    { text: 'PDF Document', onPress: pickDocument },
                     { text: 'Cancel', style: 'cancel' }
                 ],
                 { cancelable: true }
