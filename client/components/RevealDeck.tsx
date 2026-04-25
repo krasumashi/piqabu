@@ -11,6 +11,7 @@ import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 import { uploadFile } from '../lib/uploadFile';
+import { useSecurity } from '../contexts/SecurityContext';
 
 const MAX_MEDIA_SIZE = 12 * 1024 * 1024; // 12MB base64 data URI (~8MB binary)
 
@@ -89,6 +90,8 @@ export default function RevealDeck({
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
+    const { setFilePickerActive } = useSecurity();
+
     useEffect(() => {
         if (visible) {
             RNAnimated.parallel([
@@ -109,8 +112,10 @@ export default function RevealDeck({
         }
 
         try {
+            setFilePickerActive(true);
             const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (status !== 'granted') {
+                setFilePickerActive(false);
                 Alert.alert('Permission Required', 'Please allow access to your media library in Settings.');
                 return;
             }
@@ -121,6 +126,7 @@ export default function RevealDeck({
                 quality: 0.5,
                 videoMaxDuration: 30,
             });
+            setFilePickerActive(false);
 
             if (result.canceled || !result.assets?.[0]) return;
 
@@ -184,72 +190,8 @@ export default function RevealDeck({
 
     // --- Pick document (any file type) ---
     const pickDocument = async () => {
-        if (items.length >= maxImages) {
-            Alert.alert('Limit Reached', `Maximum ${maxImages} items allowed.`);
-            return;
-        }
-
-        if (Constants.appOwnership === 'expo') {
-            Alert.alert(
-                'Production Build Required',
-                'File upload requires the production build (APK). Use the installed APK on your phone.',
-            );
-            return;
-        }
-
-        try {
-            const DocumentPicker = require('expo-document-picker');
-
-            let result: any;
-            try {
-                result = await DocumentPicker.getDocumentAsync({
-                    type: ['*/*'],
-                    copyToCacheDirectory: true,
-                    multiple: false,
-                });
-            } catch (pickerErr: any) {
-                console.warn('[RevealDeck] Picker launch error:', pickerErr?.message);
-                Alert.alert('Error', 'Could not open file picker. Please try again.');
-                return;
-            }
-
-            if (result.canceled || !result.assets?.[0]) return;
-
-            const asset = result.assets[0];
-            if (!asset.uri) {
-                Alert.alert('Error', 'No file URI returned. Please try a different file.');
-                return;
-            }
-
-            const fileName = asset.name || 'file.bin';
-            const ext = fileName.split('.').pop()?.toLowerCase();
-            const mime = asset.mimeType || getMimeFromExtension(ext);
-
-            // Upload document via HTTP
-            setUploading(true);
-            const uploadResult = await uploadFile(asset.uri, fileName, mime, roomId);
-            setUploading(false);
-
-            if ('error' in uploadResult) {
-                Alert.alert('Upload Failed', uploadResult.error);
-                return;
-            }
-
-            const mediaType = getMediaTypeFromMime(mime);
-
-            setItems(prev => [...prev, {
-                id: nextId(),
-                uri: uploadResult.url,     // Server URL
-                localUri: asset.uri,       // Local URI for preview
-                type: mediaType,
-            }]);
-        } catch (e: any) {
-            setUploading(false);
-            console.warn('[RevealDeck] Document pick error:', e?.message, e);
-            Alert.alert('Error', 'Could not read file. Try a different file.');
-        }
+        Alert.alert('COMING SOON', 'Document sharing will be enabled in a future update. For now, please stick to photos and videos.', [{ text: 'GOT IT' }]);
     };
-
     const handleAddAttachment = () => {
         if (Platform.OS === 'ios') {
             ActionSheetIOS.showActionSheetWithOptions(

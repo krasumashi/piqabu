@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
+import { useSecurity } from '../contexts/SecurityContext';
 import type { Socket } from 'socket.io-client';
 
 /* ─────────── platform-specific WebRTC imports ─────────── */
@@ -58,6 +59,8 @@ export default function WhisperPanel({
     const [partnerSpeaking, setPartnerSpeaking] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const { setFilePickerActive } = useSecurity();
+
     const pcRef = useRef<any>(null);
     const localStreamRef = useRef<any>(null);
     const isCaller = useRef(false);
@@ -93,6 +96,18 @@ export default function WhisperPanel({
                 RNAnimated.spring(slideAnim, { toValue: 0, tension: 65, friction: 11, useNativeDriver: true }),
                 RNAnimated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
             ]).start();
+
+            if (Platform.OS !== 'web') {
+                import('expo-av').then(({ Audio }) => {
+                    Audio.setAudioModeAsync({
+                        allowsRecordingIOS: true,
+                        playsInSilentModeIOS: true,
+                        staysActiveInBackground: true,
+                        shouldRouteThroughEarpiece: false,
+                        playThroughEarpieceAndroid: false,
+                    } as any).catch(err => console.warn('[Whisper] Audio err:', err));
+                });
+            }
         } else {
             RNAnimated.parallel([
                 RNAnimated.timing(slideAnim, { toValue: 400, duration: 200, useNativeDriver: true }),
@@ -121,10 +136,12 @@ export default function WhisperPanel({
             }
 
             if (Platform.OS === 'android') {
+                setFilePickerActive(true);
                 const mic = await PermissionsAndroid.request(
                     PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
                     { title: 'Microphone', message: 'Piqabu needs mic access for Whisper', buttonPositive: 'Allow' },
                 );
+                setFilePickerActive(false);
                 if (mic !== PermissionsAndroid.RESULTS.GRANTED) {
                     setError('Microphone permission denied.');
                     return null;

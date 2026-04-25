@@ -18,12 +18,14 @@ import type { Socket } from 'socket.io-client';
 let RTCView: any = null;
 let NativeRTCSessionDescription: any = null;
 let NativeRTCIceCandidate: any = null;
+let NativeGrayscale: any = null;
 if (Platform.OS !== 'web') {
     try {
         const RNWebRTC = require('react-native-webrtc');
         RTCView = RNWebRTC.RTCView;
         NativeRTCSessionDescription = RNWebRTC.RTCSessionDescription;
         NativeRTCIceCandidate = RNWebRTC.RTCIceCandidate;
+        NativeGrayscale = require('react-native-color-matrix-image-filters').Grayscale;
     } catch (e) { }
 }
 
@@ -76,9 +78,11 @@ export default function ScreenSharePanel({
 
     // Sharer controls
     const [blur, setBlur] = useState(0);
+    const [isBnW, setIsBnW] = useState(true);
 
     // Viewer receives blur from sharer
     const [remoteBlur, setRemoteBlur] = useState(0);
+    const [remoteIsBnW, setRemoteIsBnW] = useState(true);
 
     // Track whether we already created an offer/answer to avoid duplicates
     const hasNegotiatedRef = useRef(false);
@@ -218,6 +222,26 @@ export default function ScreenSharePanel({
     }, [getRTCPeerConnection, socket, roomId, isSharer]);
 
     // ------------------------------------------------------------------
+    // Helper: create and send WebRTC offer (used by sharer on init and on viewer_ready)
+    // ------------------------------------------------------------------
+    const createAndSendOffer = useCallback(async (pc: any) => {
+        if (!socket || !pc) return;
+        try {
+            const offer = await pc.createOffer({} as any);
+            await pc.setLocalDescription(offer);
+            socket.emit('screen_share_signal', {
+                roomId,
+                type: 'offer',
+                sdp: offer.sdp,
+            });
+            hasNegotiatedRef.current = true;
+        } catch (e: any) {
+            setStatus('error');
+            setErrorMsg('Failed to create WebRTC offer: ' + (e?.message || 'unknown error'));
+        }
+    }, [socket, roomId]);
+
+    // ------------------------------------------------------------------
     // Sharer: capture screen and create offer
     // ------------------------------------------------------------------
     const startSharing = useCallback(async () => {
@@ -280,19 +304,8 @@ export default function ScreenSharePanel({
                 pc.addTrack(track, nativeStream!);
             });
 
-            try {
-                const offer = await pc.createOffer({} as any);
-                await pc.setLocalDescription(offer);
-                socket.emit('screen_share_signal', {
-                    roomId,
-                    type: 'offer',
-                    sdp: offer.sdp,
-                });
-                hasNegotiatedRef.current = true;
-            } catch (e: any) {
-                setStatus('error');
-                setErrorMsg('Failed to create WebRTC offer: ' + (e?.message || 'unknown error'));
-            }
+            // Use shared helper so viewer_ready re-offers go through same path
+            await createAndSendOffer(pc);
             return;
         }
 
@@ -325,15 +338,7 @@ export default function ScreenSharePanel({
                 pc.addTrack(track, stream);
             });
 
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-
-            socket.emit('screen_share_signal', {
-                roomId,
-                type: 'offer',
-                sdp: offer.sdp,
-            });
-            hasNegotiatedRef.current = true;
+            await createAndSendOffer(pc);
         } catch (e: any) {
             // User denied permission or browser doesn't support
             if (e?.name === 'NotAllowedError') {
@@ -344,18 +349,23 @@ export default function ScreenSharePanel({
                 setErrorMsg('Failed to start screen sharing: ' + (e?.message || 'unknown error'));
             }
         }
-    }, [socket, roomId, createPeerConnection]);
+    }, [socket, roomId, createPeerConnection, createAndSendOffer]);
 
     // ------------------------------------------------------------------
-    // Viewer: prepare to receive an offer
+    // Viewer: prepare to receive an offer, then signal readiness to sharer
     // ------------------------------------------------------------------
     const prepareViewer = useCallback(async () => {
         if (!socket || !roomId) return;
 
         setStatus('connecting');
-        // Just create the peer connection; the actual answer happens in the
-        // signal handler when an offer arrives.
+        // Create peer connection first so the offer handler can use it immediately
         await createPeerConnection();
+
+        // Tell the sharer we are ready — they will (re-)send the offer now
+        socket.emit('screen_share_signal', {
+            roomId,
+            type: 'viewer_ready',
+        });
     }, [socket, roomId, createPeerConnection]);
 
     // ------------------------------------------------------------------
@@ -374,8 +384,18 @@ export default function ScreenSharePanel({
 
             let pc = pcRef.current;
 
+            // --- viewer_ready: sharer (re-)sends the offer ---
+            // Triggered when the viewer's panel finishes opening. This resolves
+            // the race condition where the offer was sent before the viewer's
+            // socket listener was registered.
+            if (data.type === 'viewer_ready' && isSharer) {
+                if (!pc) return; // sharer not started yet — startSharing will call createAndSendOffer
+                // Re-create the offer from the existing PC (tracks already added)
+                await createAndSendOffer(pc);
+                return;
+            }
+
             // --- Offer (viewer receives this) ---
-            // If PC isn't ready yet (timing issue), create it now
             if (data.type === 'offer' && !isSharer && !pc) {
                 pc = await createPeerConnection();
             }
@@ -443,7 +463,7 @@ export default function ScreenSharePanel({
         return () => {
             socket.off('screen_share_signal', handleSignal);
         };
-    }, [socket, roomId, visible, isSharer]);
+    }, [socket, roomId, visible, isSharer, createPeerConnection, createAndSendOffer]);
 
     // ------------------------------------------------------------------
     // Receive blur controls (viewer side)
@@ -451,9 +471,12 @@ export default function ScreenSharePanel({
     useEffect(() => {
         if (!socket || !roomId || !visible || isSharer) return;
 
-        const handleControls = (data: { roomId: string; controls: { blur: number } }) => {
+        const handleControls = (data: { roomId: string; controls: { blur: number; isBnW?: boolean } }) => {
             if (data.roomId === roomId) {
                 setRemoteBlur(data.controls.blur);
+                if (data.controls.isBnW !== undefined) {
+                    setRemoteIsBnW(data.controls.isBnW);
+                }
             }
         };
 
@@ -470,9 +493,9 @@ export default function ScreenSharePanel({
         if (!socket || !roomId || !visible || !isSharer) return;
         socket.emit('transmit_screen_share_controls', {
             roomId,
-            controls: { blur },
+            controls: { blur, isBnW },
         });
-    }, [blur, socket, roomId, visible, isSharer]);
+    }, [blur, isBnW, socket, roomId, visible, isSharer]);
 
     // ------------------------------------------------------------------
     // Bypass biometric lock during active screen share (sharer side)
@@ -488,19 +511,11 @@ export default function ScreenSharePanel({
 
     // ------------------------------------------------------------------
     // Auto-minimize after connection becomes active (sharer side)
-    // On Android, minimize the app so the user can navigate to other apps
-    // while screen sharing continues via the foreground service
     // ------------------------------------------------------------------
     useEffect(() => {
         if (status === 'active' && isSharer && onMinimize && !minimized) {
             const timer = setTimeout(() => {
                 onMinimize();
-                // On Android, minimize the app to background so user can share other apps
-                if (Platform.OS === 'android') {
-                    setTimeout(() => {
-                        BackHandler.exitApp(); // On Android this minimizes (doesn't kill) when foreground service is running
-                    }, 500);
-                }
             }, 1500);
             return () => clearTimeout(timer);
         }
@@ -697,6 +712,17 @@ export default function ScreenSharePanel({
                     {/* Controls */}
                     {(status === 'active' || status === 'connecting') && (
                         <View style={styles.controls}>
+                            <TouchableOpacity
+                                style={{
+                                    width: 38, height: 38, borderRadius: 19,
+                                    backgroundColor: !isBnW ? '#fff' : 'rgba(255,255,255,0.1)',
+                                    alignItems: 'center', justifyContent: 'center',
+                                }}
+                                onPress={() => setIsBnW(!isBnW)}
+                                activeOpacity={0.7}
+                            >
+                                <Ionicons name={isBnW ? "contrast" : "color-palette"} size={16} color={isBnW ? '#fff' : '#000'} />
+                            </TouchableOpacity>
                             <View style={styles.blurControl}>
                                 <Text style={styles.controlLabel}>BLUR</Text>
                                 <Slider
@@ -769,11 +795,21 @@ export default function ScreenSharePanel({
                         />
                     ) : nativeStreamURL && RTCView ? (
                         <View style={{ flex: 1 }}>
-                            <RTCView
-                                streamURL={nativeStreamURL}
-                                style={styles.nativeVideo}
-                                objectFit="contain"
-                            />
+                            {NativeGrayscale && remoteIsBnW ? (
+                                <NativeGrayscale style={StyleSheet.absoluteFill}>
+                                    <RTCView
+                                        streamURL={nativeStreamURL}
+                                        style={styles.nativeVideo}
+                                        objectFit="contain"
+                                    />
+                                </NativeGrayscale>
+                            ) : (
+                                <RTCView
+                                    streamURL={nativeStreamURL}
+                                    style={styles.nativeVideo}
+                                    objectFit="contain"
+                                />
+                            )}
                         </View>
                     ) : (
                         <View style={styles.noSignal}>

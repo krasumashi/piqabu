@@ -14,6 +14,7 @@ interface SecurityContextValue {
     setPanicEnabled: (v: boolean) => Promise<void>;
     setBiometricEnabled: (v: boolean) => Promise<void>;
     setScreenShareActive: (v: boolean) => void;
+    setFilePickerActive: (v: boolean) => void;
     triggerPanic: () => void;
     dismissPanic: () => Promise<boolean>;
     authenticate: () => Promise<boolean>;
@@ -28,6 +29,7 @@ const SecurityContext = createContext<SecurityContextValue>({
     setPanicEnabled: async () => {},
     setBiometricEnabled: async () => {},
     setScreenShareActive: () => {},
+    setFilePickerActive: () => {},
     triggerPanic: () => {},
     dismissPanic: async () => true,
     authenticate: async () => true,
@@ -51,6 +53,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     const [panicActive, setPanicActive] = useState(false);
     const [biometricLocked, setBiometricLocked] = useState(false);
     const [screenShareActive, setScreenShareActive] = useState(false);
+    const [filePickerActive, setFilePickerActive] = useState(false);
 
     const shakeCountRef = useRef(0);
     const cooldownRef = useRef(false);
@@ -67,7 +70,14 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
             _setBiometricEnabled(bio === 'true');
             // Lock on first load if biometric is enabled (not in Expo Go)
             if (bio === 'true' && Platform.OS !== 'web' && !isExpoGo) {
-                setBiometricLocked(true);
+                try {
+                    const LocalAuth = require('expo-local-authentication');
+                    const hasHardware = await LocalAuth.hasHardwareAsync();
+                    const isEnrolled = await LocalAuth.isEnrolledAsync();
+                    if (hasHardware && isEnrolled) {
+                        setBiometricLocked(true);
+                    }
+                } catch {}
             }
         })();
     }, []);
@@ -179,18 +189,26 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     /* ── App state → biometric lock on resume ── */
     useEffect(() => {
         if (Platform.OS === 'web' || !biometricEnabled || isExpoGo) return;
-        const sub = AppState.addEventListener('change', (nextState) => {
+        const sub = AppState.addEventListener('change', async (nextState) => {
             if (
                 appStateRef.current.match(/inactive|background/) &&
                 nextState === 'active' &&
-                !screenShareActive // Skip biometric lock during active screen share
+                !screenShareActive && // Skip biometric lock during active screen share
+                !filePickerActive     // Skip biometric lock during OS file picker overlay
             ) {
-                setBiometricLocked(true);
+                try {
+                    const LocalAuth = require('expo-local-authentication');
+                    const hasHardware = await LocalAuth.hasHardwareAsync();
+                    const isEnrolled = await LocalAuth.isEnrolledAsync();
+                    if (hasHardware && isEnrolled) {
+                        setBiometricLocked(true);
+                    }
+                } catch {}
             }
             appStateRef.current = nextState;
         });
         return () => sub.remove();
-    }, [biometricEnabled, screenShareActive]);
+    }, [biometricEnabled, screenShareActive, filePickerActive]);
 
     return (
         <SecurityContext.Provider value={{
@@ -202,6 +220,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
             setPanicEnabled,
             setBiometricEnabled,
             setScreenShareActive,
+            setFilePickerActive,
             triggerPanic,
             dismissPanic,
             authenticate,

@@ -15,6 +15,7 @@ import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 import { fetchIceServers } from '../lib/iceServers';
+import { useSecurity } from '../contexts/SecurityContext';
 import type { Socket } from 'socket.io-client';
 
 /* ────────────────────────── platform-specific WebRTC imports ─────────────── */
@@ -182,6 +183,9 @@ export default function LiveGlassPanel({
     const [error, setError] = useState<string | null>(null);
     const [displayMode, setDisplayMode] = useState<'expanded' | 'pip'>('expanded');
 
+    /* ── biometric bypass for permission dialogs ──────────────────────── */
+    const { setFilePickerActive } = useSecurity();
+
     /* ── refs ──────────────────────────────────────────────────────────── */
     const pcRef = useRef<any>(null);
     const localStreamRef = useRef<any>(null);
@@ -246,6 +250,7 @@ export default function LiveGlassPanel({
                 /* Android: request permissions explicitly before getUserMedia */
                 if (Platform.OS === 'android') {
                     try {
+                        setFilePickerActive(true);
                         const cam = await PermissionsAndroid.request(
                             PermissionsAndroid.PERMISSIONS.CAMERA,
                             { title: 'Camera', message: 'Piqabu needs camera access for Live Glass', buttonPositive: 'Allow' },
@@ -254,12 +259,14 @@ export default function LiveGlassPanel({
                             PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
                             { title: 'Microphone', message: 'Piqabu needs mic access for Live Glass', buttonPositive: 'Allow' },
                         );
+                        setFilePickerActive(false);
                         console.log('[LiveGlass] Android perms — camera:', cam, 'mic:', mic);
                         if (cam !== PermissionsAndroid.RESULTS.GRANTED || mic !== PermissionsAndroid.RESULTS.GRANTED) {
                             setError('Camera / microphone permission denied. Please allow in Settings.');
                             return null;
                         }
                     } catch (permErr: any) {
+                        setFilePickerActive(false);
                         console.warn('[LiveGlass] Android permission request error:', permErr);
                     }
                 }
@@ -780,12 +787,23 @@ export default function LiveGlassPanel({
                 activeOpacity={0.9}
             >
                 {remoteStream && Platform.OS !== 'web' && nativeStreamURL && RTCViewNative ? (
-                    <RTCViewNative
-                        streamURL={nativeStreamURL}
-                        style={styles.pipVideo}
-                        objectFit="cover"
-                        zOrder={1}
-                    />
+                    NativeGrayscale && remoteIsBnW ? (
+                        <NativeGrayscale style={StyleSheet.absoluteFill}>
+                            <RTCViewNative
+                                streamURL={nativeStreamURL}
+                                style={styles.pipVideo}
+                                objectFit="cover"
+                                zOrder={1}
+                            />
+                        </NativeGrayscale>
+                    ) : (
+                        <RTCViewNative
+                            streamURL={nativeStreamURL}
+                            style={styles.pipVideo}
+                            objectFit="cover"
+                            zOrder={1}
+                        />
+                    )
                 ) : remoteStream && Platform.OS === 'web' ? (
                     <View style={[StyleSheet.absoluteFill, remoteIsBnW && { filter: 'grayscale(100%)' }] as any}>
                         <WebVideo stream={remoteStream} muted={false} />
@@ -909,12 +927,23 @@ export default function LiveGlassPanel({
                                         />
                                     </View>
                                 ) : RTCViewNative && nativeStreamURL ? (
-                                    <RTCViewNative
-                                        streamURL={nativeStreamURL}
-                                        style={{ width: '100%', height: '100%' }}
-                                        objectFit="cover"
-                                        zOrder={0}
-                                    />
+                                    NativeGrayscale && remoteIsBnW ? (
+                                        <NativeGrayscale style={StyleSheet.absoluteFill}>
+                                            <RTCViewNative
+                                                streamURL={nativeStreamURL}
+                                                style={{ width: '100%', height: '100%' }}
+                                                objectFit="cover"
+                                                zOrder={0}
+                                            />
+                                        </NativeGrayscale>
+                                    ) : (
+                                        <RTCViewNative
+                                            streamURL={nativeStreamURL}
+                                            style={{ width: '100%', height: '100%' }}
+                                            objectFit="cover"
+                                            zOrder={0}
+                                        />
+                                    )
                                 ) : (
                                     <View style={styles.noSignal}>
                                         <Text style={styles.noSignalText}>
@@ -924,10 +953,11 @@ export default function LiveGlassPanel({
                                 )}
 
                                 {remoteBlur > 0 && (
-                                    <View
-                                        style={[StyleSheet.absoluteFill, {
-                                            backgroundColor: `rgba(0,0,0,${Math.min(remoteBlur / 100 * 0.85, 0.85)})`,
-                                        }]}
+                                    <BlurView
+                                        intensity={remoteBlur}
+                                        tint="dark"
+                                        style={StyleSheet.absoluteFill}
+                                        experimentalBlurMethod="dimezisBlurView"
                                         pointerEvents="none"
                                     />
                                 )}
@@ -969,19 +999,32 @@ export default function LiveGlassPanel({
                                 </View>
                             ) : RTCViewNative ? (
                                 <View style={{ flex: 1 }}>
-                                    <RTCViewNative
-                                        streamURL={localStream.toURL()}
-                                        style={{ width: '100%', height: '100%' }}
-                                        objectFit="cover"
-                                        mirror
-                                        zOrder={1}
-                                    />
+                                    {NativeGrayscale && isBnW ? (
+                                        <NativeGrayscale style={StyleSheet.absoluteFill}>
+                                            <RTCViewNative
+                                                streamURL={localStream.toURL()}
+                                                style={{ width: '100%', height: '100%' }}
+                                                objectFit="cover"
+                                                mirror
+                                                zOrder={1}
+                                            />
+                                        </NativeGrayscale>
+                                    ) : (
+                                        <RTCViewNative
+                                            streamURL={localStream.toURL()}
+                                            style={{ width: '100%', height: '100%' }}
+                                            objectFit="cover"
+                                            mirror
+                                            zOrder={1}
+                                        />
+                                    )}
                                     {/* Frosted glass preview — dark overlay simulating blur */}
                                     {blurIntensity > 0 && (
-                                        <View
-                                            style={[StyleSheet.absoluteFill, {
-                                                backgroundColor: `rgba(0,0,0,${Math.min(blurIntensity / 100 * 0.85, 0.85)})`,
-                                            }]}
+                                        <BlurView
+                                            intensity={blurIntensity}
+                                            tint="dark"
+                                            style={StyleSheet.absoluteFill}
+                                            experimentalBlurMethod="dimezisBlurView"
                                             pointerEvents="none"
                                         />
                                     )}

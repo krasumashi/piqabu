@@ -5,7 +5,7 @@ import {
     Animated as RNAnimated, Keyboard, Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,7 +29,7 @@ import { usePresence } from '../../hooks/usePresence';
 import Paywall from '../../components/Paywall';
 import * as ScreenCapture from 'expo-screen-capture';
 import { THEME } from '../../constants/Theme';
-
+import { useFreemiumTimer } from '../../hooks/useFreemiumTimer';
 // ─── Typing Indicator ───
 function TypingIndicator({ isTyping }: { isTyping: boolean }) {
     const dotAnim = useRef(new RNAnimated.Value(0)).current;
@@ -61,6 +61,9 @@ function TypingIndicator({ isTyping }: { isTyping: boolean }) {
 // ═══════════════════════════════════════════
 //  Active Room Content (per-room isolated)
 // ═══════════════════════════════════════════
+import * as Crypto from 'expo-crypto';
+import { useLinkedPartners } from '../../hooks/useLinkedPartners';
+
 function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShare, setLiveGlassPartnerAccepted, setLiveGlassInitialMode }: {
     roomId: string;
     onOpenSettings: () => void;
@@ -78,6 +81,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         sendInvite, acceptInvite, declineInvite, clearInviteStatus,
     } = useRoom(roomId, socket, deviceId);
 
+    const { addPartner } = useLinkedPartners();
+
     const [localText, setLocalText] = useState('');
     const [activeOverlay, setActiveOverlay] = useState<'peep' | 'whisper' | 'reveal' | null>(null);
     const [isPartnerTyping, setIsPartnerTyping] = useState(false);
@@ -89,6 +94,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const [whisperInitialState, setWhisperInitialState] = useState<'idle' | 'accepted'>('idle');
     const [screenshotAlert, setScreenshotAlert] = useState(false);
     const [videoPlaybackControl, setVideoPlaybackControl] = useState<any>(null);
+    const [ghostSyncSent, setGhostSyncSent] = useState(false);
 
     // ── Sand dissipation vanish (replaces segment-based untyping) ──
     const [sandOverlayText, setSandOverlayText] = useState<string | null>(null);
@@ -260,6 +266,11 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         sendInvite('whisper');
     }, [sendInvite]);
 
+    // ── Trust Sync (Linked Devices) ──
+    const handleLinkDevices = useCallback(() => {
+        Alert.alert('COMING SOON', 'Ghost Sync device linking will be available in a future update.', [{ text: 'OK' }]);
+    }, []);
+
     // ── Share session code ──
     const handleShareCode = async () => {
         try {
@@ -288,6 +299,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 onOpenScreenShare(true); // Your invite was accepted = you're the sharer
             } else if (inviteFeature === 'whisper') {
                 setWhisperPartnerAccepted(true);
+            } else if (inviteFeature.startsWith('trust_sync_')) {
+                const uuid = inviteFeature.replace('trust_sync_', '');
+                addPartner('partner', uuid).then(() => {
+                    setGhostSyncSent(false);
+                    Alert.alert('DEVICES LINKED', 'You can now instantly connect from the Landing screen.', [{text: 'OK'}]);
+                });
             }
             clearInviteStatus();
         }
@@ -309,19 +326,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             {/* ─── Session Header ─── */}
             <View style={st.header}>
                 <View style={st.headerLeft}>
-                    <PresencePulse
-                        partnerPresence={partnerPresence}
-                        onTap={sendPulseTap}
-                        onLongPress={() => {
-                            sendPulseTap(); // Sync pulse on long-press
-                        }}
-                    />
                     <View style={st.statusPill}>
-                        <View style={[
-                            st.statusDot,
-                            { backgroundColor: !isLinked ? THEME.bad : partnerConnected ? THEME.live : THEME.warn },
-                            isLinked && partnerConnected && st.statusDotGlow,
-                        ]} />
                         <Text style={st.statusLabel}>
                             {!isLinked ? 'OFFLINE' : partnerConnected ? 'PARTNER ACTIVE' : 'WAITING...'}
                         </Text>
@@ -336,6 +341,25 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                         onOpenLiveGlass();
                     }} style={st.headerIconBtn} activeOpacity={0.7}>
                         <Ionicons name="camera-outline" size={18} color={THEME.muted} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={() => sendInvite('screen_share')} style={st.headerIconBtn} activeOpacity={0.7}>
+                        <Ionicons name="desktop-outline" size={18} color={THEME.muted} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={handleLinkDevices}
+                        style={[
+                            st.headerIconBtn,
+                            ghostSyncSent && { backgroundColor: '#fff', borderWidth: 0 },
+                        ]}
+                        activeOpacity={0.7}
+                    >
+                        <MaterialCommunityIcons
+                            name={ghostSyncSent ? 'ghost' : 'ghost-outline'}
+                            size={18}
+                            color={ghostSyncSent ? '#000' : THEME.muted}
+                        />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -354,10 +378,6 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 
                     <TouchableOpacity onPress={onOpenSettings} style={st.headerIconBtn} activeOpacity={0.7}>
                         <Ionicons name="settings-outline" size={18} color={THEME.muted} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={handleShareCode} style={st.headerIconBtn} activeOpacity={0.7}>
-                        <Ionicons name="share-outline" size={18} color={roomCodeCopied ? THEME.live : THEME.muted} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -488,6 +508,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 feature={
                     pendingInvite?.feature === 'live_glass' ? 'LIVE GLASS'
                     : pendingInvite?.feature === 'screen_share' ? 'SCREEN SHARE'
+                    : pendingInvite?.feature?.startsWith('trust_sync_') ? 'DEVICE LINK REQUEST'
                     : 'WHISPER'
                 }
                 onAccept={() => {
@@ -503,6 +524,11 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                             onOpenLiveGlass();
                         } else if (pendingInvite.feature === 'screen_share') {
                             onOpenScreenShare(false); // Accepting invite = you're the viewer
+                        } else if (pendingInvite.feature.startsWith('trust_sync_')) {
+                            const uuid = pendingInvite.feature.replace('trust_sync_', '');
+                            addPartner('partner', uuid).then(() => {
+                                Alert.alert('DEVICES LINKED', 'You can now instantly connect from the Landing screen.', [{text: 'OK'}]);
+                            });
                         }
                     }
                 }}
@@ -524,7 +550,7 @@ export default function RoomScreen() {
     const {
         rooms, activeRoomId, addRoom, removeRoom, switchRoom,
         socket, deviceId, requestRoomCode, isConnected,
-        isPro, refreshSubscription,
+        isPro, refreshSubscription, hydrated,
     } = useRoomContext();
 
     const [showAddModal, setShowAddModal] = useState(false);
@@ -541,6 +567,20 @@ export default function RoomScreen() {
 
     const [roomStatuses, setRoomStatuses] = useState<Record<string, LinkStatus>>({});
 
+    const isAnyRoomConnected = Object.values(roomStatuses).some(s => s === 'LINKED');
+    const { isTimeUp } = useFreemiumTimer(isAnyRoomConnected);
+
+    useEffect(() => {
+        // [TESTING] Hard bypassed the freemium session timer boot
+        /*
+        if (isTimeUp && !isPro) {
+            setPaywallFeature('unlimited_time');
+            setShowPaywall(true);
+            rooms.forEach(r => removeRoom(r.roomId));
+        }
+        */
+    }, [isTimeUp, isPro, rooms, removeRoom]);
+
     const screenFade = useRef(new RNAnimated.Value(0)).current;
     useEffect(() => {
         RNAnimated.timing(screenFade, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -555,9 +595,11 @@ export default function RoomScreen() {
         return () => { socket.off('link_status', handleLinkStatus); };
     }, [socket]);
 
+    // Only redirect to home once storage has fully rehydrated — prevents the
+    // ephemeral-state boot loop in the dev build during Fast Refresh / error recovery
     useEffect(() => {
-        if (rooms.length === 0) router.replace('/');
-    }, [rooms.length]);
+        if (hydrated && rooms.length === 0) router.replace('/');
+    }, [hydrated, rooms.length]);
 
     const tryAddRoom = (code: string): boolean => {
         const result = addRoom(code);
@@ -624,6 +666,11 @@ export default function RoomScreen() {
                 visible={showSettings} onClose={() => setShowSettings(false)}
                 roomId={activeRoomId} linkStatus={roomStatuses[activeRoomId] || 'WAITING'}
                 onRegenerateKey={handleRegenerateKey} onLeaveChannel={handleLeaveChannel}
+                onLinkDevices={() => {
+                    const syncId = `SYNC_${Crypto.randomUUID()}`;
+                    socket?.emit('send_invite', { roomId: activeRoomId, feature: `trust_sync_${syncId}` });
+                    setShowSettings(false);
+                }}
             />
 
             {/* Live Glass */}

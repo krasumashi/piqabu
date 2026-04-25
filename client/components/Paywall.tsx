@@ -36,6 +36,11 @@ const FEATURE_INFO: Record<string, { title: string; description: string; icon: k
         description: 'Write longer transmissions up to 10,000 characters.',
         icon: 'text-outline',
     },
+    unlimited_time: {
+        title: 'Unlimited Connection',
+        description: 'Free 10-minute daily exposure exhausted. Upgrade for unlimited uninterrupted signals.',
+        icon: 'time-outline',
+    }
 };
 
 export default function Paywall({ visible, feature, onDismiss, deviceId, onSubscribed }: PaywallProps) {

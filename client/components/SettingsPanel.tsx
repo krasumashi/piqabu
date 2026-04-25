@@ -1,5 +1,6 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated, TextInput, Alert, KeyboardAvoidingView } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
@@ -12,15 +13,46 @@ interface SettingsPanelProps {
     linkStatus: string;
     onRegenerateKey: () => void;
     onLeaveChannel: () => void;
+    onLinkDevices?: () => void;
 }
 
 export default function SettingsPanel({
-    visible, onClose, roomId, linkStatus, onRegenerateKey, onLeaveChannel,
+    visible, onClose, roomId, linkStatus, onRegenerateKey, onLeaveChannel, onLinkDevices
 }: SettingsPanelProps) {
     const { panicEnabled, biometricEnabled, setPanicEnabled, setBiometricEnabled, triggerPanic } = useSecurity();
     const insets = useSafeAreaInsets();
     const slideAnim = useRef(new RNAnimated.Value(300)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
+
+    const [feedbackVisible, setFeedbackVisible] = useState(false);
+    const [feedbackText, setFeedbackText] = useState('');
+    const [submittingParams, setSubmittingParams] = useState(false);
+
+    const handleSendFeedback = async () => {
+        if (!feedbackText.trim()) return;
+        setSubmittingParams(true);
+        try {
+            const deviceId = await AsyncStorage.getItem('piqabu_device_id') || 'unknown';
+            const res = await fetch('https://piqabu.onrender.com/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deviceId, message: feedbackText.trim() }),
+            });
+            
+            if (!res.ok) {
+                throw new Error(`Server returned ${res.status}`);
+            }
+
+            Alert.alert('Sent', 'Your report was securely delivered to Mission Control.');
+            setFeedbackText('');
+            setFeedbackVisible(false);
+        } catch (e) {
+            console.warn('[Feedback] error:', e);
+            Alert.alert('Transmission Failed', 'Could not send feedback at this time. Please try again later.');
+        } finally {
+            setSubmittingParams(false);
+        }
+    };
 
     useEffect(() => {
         if (visible) {
@@ -89,6 +121,14 @@ export default function SettingsPanel({
                     </Text>
                 </View>
 
+                {/* Ghost Sync */}
+                {isLive && onLinkDevices && (
+                    <TouchableOpacity onPress={onLinkDevices} style={styles.item} activeOpacity={0.7}>
+                        <Text style={styles.itemLabel}>GHOST SYNC (LINK DEVICE)</Text>
+                        <Ionicons name="link-outline" size={14} color={THEME.live} />
+                    </TouchableOpacity>
+                )}
+
                 {/* ── Security ── */}
                 <Text style={styles.sectionLabel}>SECURITY</Text>
 
@@ -143,6 +183,31 @@ export default function SettingsPanel({
                     <Text style={styles.itemLabel}>REGENERATE KEY</Text>
                     <Ionicons name="refresh-outline" size={14} color={THEME.ink} />
                 </TouchableOpacity>
+
+                {/* ── Support ── */}
+                <Text style={styles.sectionLabel}>SUPPORT</Text>
+
+                <TouchableOpacity onPress={() => setFeedbackVisible(!feedbackVisible)} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>REPORT ISSUE / FEEDBACK</Text>
+                    <Ionicons name="alert-circle-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+
+                {feedbackVisible && (
+                    <View style={styles.feedbackContainer}>
+                        <TextInput
+                            style={styles.feedbackInput}
+                            placeholder="Describe the issue or share an idea..."
+                            placeholderTextColor={THEME.faint}
+                            value={feedbackText}
+                            onChangeText={setFeedbackText}
+                            multiline
+                            maxLength={800}
+                        />
+                        <TouchableOpacity style={styles.feedbackBtn} onPress={handleSendFeedback} disabled={submittingParams}>
+                            <Text style={styles.feedbackBtnText}>{submittingParams ? 'SENDING...' : 'SEND TO MISSION CONTROL'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
                 {/* Leave Channel */}
                 <TouchableOpacity onPress={onLeaveChannel} style={styles.dangerItem} activeOpacity={0.7}>
@@ -284,5 +349,38 @@ const styles = StyleSheet.create({
         color: THEME.faint,
         lineHeight: 16,
         textTransform: 'uppercase',
+    },
+    feedbackContainer: {
+        padding: 12,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.08)',
+        gap: 12,
+    },
+    feedbackInput: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        color: THEME.ink,
+        padding: 12,
+        minHeight: 80,
+        textAlignVertical: 'top',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.12)',
+    },
+    feedbackBtn: {
+        backgroundColor: THEME.ink,
+        padding: 12,
+        borderRadius: 12,
+        alignItems: 'center',
+    },
+    feedbackBtnText: {
+        fontFamily: THEME.mono,
+        color: '#000',
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 2,
     },
 });

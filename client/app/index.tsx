@@ -17,6 +17,7 @@ import SubscriptionBadge from '../components/SubscriptionBadge';
 import Paywall from '../components/Paywall';
 import { THEME, DASHED_BORDER } from '../constants/Theme';
 import GridBackground from '../components/GridBackground';
+import { useLinkedPartners } from '../hooks/useLinkedPartners';
 
 type Mode = 'SPLASH' | 'LANDING' | 'GENERATED';
 
@@ -24,6 +25,7 @@ export default function EntryView() {
     const router = useRouter();
     const { deviceId, requestRoomCode, addRoom, isConnected, tier, refreshSubscription } = useRoomContext();
     const { isFirstLaunch } = useFirstLaunch();
+    const { partners, removePartner } = useLinkedPartners();
     const [mode, setMode] = useState<Mode>('SPLASH');
     const [roomCode, setRoomCode] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
@@ -263,6 +265,43 @@ export default function EntryView() {
                                     </TouchableOpacity>
                                 </Animated.View>
                             </View>
+
+                            {/* Saved Partners */}
+                            {partners.length > 0 && (
+                                <Animated.View entering={FadeIn.duration(400)} style={styles.partnersSection}>
+                                    <Text style={styles.partnersLabel}>TRUSTED DEVICES</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.partnersList}>
+                                        {partners.map(p => (
+                                            <TouchableOpacity
+                                                key={p.id}
+                                                style={styles.partnerBtn}
+                                                activeOpacity={0.7}
+                                                onPress={() => {
+                                                    const result = addRoom(p.id);
+                                                    if (result.success) {
+                                                        router.push('/room');
+                                                    } else {
+                                                        setShowPaywall(true); 
+                                                    }
+                                                }}
+                                                onLongPress={() => {
+                                                    Alert.alert(
+                                                        'Remove Device',
+                                                        `Delete link to ${p.name}?`,
+                                                        [
+                                                            { text: 'Cancel', style: 'cancel' },
+                                                            { text: 'Remove', style: 'destructive', onPress: () => removePartner(p.id) }
+                                                        ]
+                                                    );
+                                                }}
+                                            >
+                                                <Ionicons name="link" size={16} color={THEME.live} />
+                                                <Text style={styles.partnerText}>{p.name}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </Animated.View>
+                            )}
 
                             {/* Footer */}
                             <View style={styles.footer}>
@@ -669,6 +708,44 @@ const styles = StyleSheet.create({
         fontFamily: THEME.mono,
         fontSize: 10,
         color: THEME.faint,
+        textTransform: 'uppercase',
+    },
+
+    // ── Saved Partners ──
+    partnersSection: {
+        marginTop: 12,
+    },
+    partnersLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 10 * 0.2,
+        color: THEME.muted,
+        textTransform: 'uppercase',
+        marginBottom: 12,
+        marginLeft: 4,
+    },
+    partnersList: {
+        gap: 12,
+        paddingBottom: 8,
+    },
+    partnerBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+    },
+    partnerText: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        fontWeight: '900',
+        letterSpacing: 11 * 0.1,
+        color: '#fff',
         textTransform: 'uppercase',
     },
 });

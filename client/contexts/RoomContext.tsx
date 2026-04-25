@@ -15,6 +15,7 @@ interface RoomContextValue {
     // Room management
     rooms: RoomTab[];
     activeRoomId: string | null;
+    hydrated: boolean;
     addRoom: (roomId: string) => { success: boolean; reason?: string };
     removeRoom: (roomId: string) => void;
     switchRoom: (roomId: string) => void;
@@ -37,7 +38,7 @@ const RoomCtx = createContext<RoomContextValue | null>(null);
 export function RoomProvider({ children }: { children: React.ReactNode }) {
     const { socket, deviceId, isConnected, requestRoomCode, maintenanceMode, maintenanceMessage, adminBroadcast } = useSocketManager();
     const { tier, isPro, limits, isLoading: isSubLoading, refresh: refreshSubscription } = useSubscription(deviceId);
-    const { rooms, activeRoomId, addRoom, removeRoom, switchRoom } = useRoomManager(limits.maxRooms);
+    const { rooms, activeRoomId, hydrated, addRoom, removeRoom, switchRoom } = useRoomManager(limits.maxRooms);
 
     return (
         <RoomCtx.Provider
@@ -48,6 +49,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
                 requestRoomCode,
                 rooms,
                 activeRoomId,
+                hydrated,
                 addRoom,
                 removeRoom,
                 switchRoom,
