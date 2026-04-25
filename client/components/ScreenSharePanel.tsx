@@ -1,7 +1,25 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+/**
+ * ScreenSharePanel
+ *
+ * One-way screen mirroring between two peers (Live Mirror).
+ * Sharer captures their screen via Android's MediaProjection
+ * (getDisplayMedia); viewer renders the incoming track full-screen.
+ *
+ * The WebRTC plumbing here is a deliberate mirror of LiveGlassPanel:
+ *   - deterministic readiness exchange (screen_share_ready)
+ *   - perfect-negotiation pattern with rollback
+ *   - both `ontrack` AND `onaddstream` (Android react-native-webrtc
+ *     still fires the legacy onaddstream on some devices)
+ *   - explicit SDP / ICE serialisation (flat JSON, no class instances
+ *     across the wire)
+ *
+ * The earlier implementation diverged from LiveGlass and produced an
+ * "ICE connected but no frames" symptom. The fix is to align with the
+ * proven path.
+ */
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-    View, Text, TouchableOpacity, StyleSheet, Platform, Modal,
-    BackHandler, AppState, AppStateStatus,
+    View, Text, StyleSheet, Modal, TouchableOpacity, Platform, AppState, AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -11,484 +29,496 @@ import { useSecurity } from '../contexts/SecurityContext';
 import { fetchIceServers } from '../lib/iceServers';
 import type { Socket } from 'socket.io-client';
 
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
-// Conditionally import RTCView for native viewer rendering
-// ---------------------------------------------------------------------------
-let RTCView: any = null;
-let NativeRTCSessionDescription: any = null;
-let NativeRTCIceCandidate: any = null;
+/* ─────────────────────────── platform-specific WebRTC ────────────────────── */
+
+let RNWebRTC: any = null;
+if (Platform.OS !== 'web') {
+    try {
+        RNWebRTC = require('react-native-webrtc');
+        console.log('[ScreenShare] react-native-webrtc loaded OK');
+    } catch (e) {
+        console.warn('[ScreenShare] react-native-webrtc FAILED to load:', e);
+    }
+}
+
+const NativeRTCPeerConnection: any = RNWebRTC?.RTCPeerConnection;
+const NativeRTCSessionDescription: any = RNWebRTC?.RTCSessionDescription;
+const NativeRTCIceCandidate: any = RNWebRTC?.RTCIceCandidate;
+const nativeMediaDevices: any = RNWebRTC?.mediaDevices;
+const RTCViewNative: React.ComponentType<any> | undefined = RNWebRTC?.RTCView;
+
+/* ────────────────────────── grayscale wrapper ────────────────────────────── */
+
 let NativeGrayscale: any = null;
 if (Platform.OS !== 'web') {
     try {
-        const RNWebRTC = require('react-native-webrtc');
-        RTCView = RNWebRTC.RTCView;
-        NativeRTCSessionDescription = RNWebRTC.RTCSessionDescription;
-        NativeRTCIceCandidate = RNWebRTC.RTCIceCandidate;
         NativeGrayscale = require('react-native-color-matrix-image-filters').Grayscale;
-    } catch (e) { }
+    } catch { }
 }
 
-// ICE servers are fetched dynamically from the server (includes TURN)
+/* ──────────────────────────────── props ──────────────────────────────────── */
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
 interface ScreenSharePanelProps {
     visible: boolean;
     onClose: () => void;
     socket: Socket | null;
     roomId: string;
-    isSharer: boolean; // true = this user is sharing their screen
+    /** true = this user captures + sends; false = this user receives + renders */
+    isSharer: boolean;
     minimized?: boolean;
     onMinimize?: () => void;
     onMaximize?: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+type Status = 'idle' | 'preparing' | 'connecting' | 'active' | 'error' | 'unsupported';
+
+/* ═══════════════════════════════ COMPONENT ═══════════════════════════════ */
+
 export default function ScreenSharePanel({
-    visible,
-    onClose,
-    socket,
-    roomId,
-    isSharer,
-    minimized,
-    onMinimize,
-    onMaximize,
+    visible, onClose, socket, roomId, isSharer,
+    minimized, onMinimize, onMaximize,
 }: ScreenSharePanelProps) {
-    // Bypass biometric lock while screen sharing is active
-    const { setScreenShareActive } = useSecurity();
-
-    // WebRTC state
-    const pcRef = useRef<RTCPeerConnection | null>(null);
-    const localStreamRef = useRef<MediaStream | null>(null);
-    const remoteStreamRef = useRef<MediaStream | null>(null);
-
-    // Web video element ref (viewer side)
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-
-    // Native stream URL (viewer side)
+    /* ── state ────────────────────────────────────────────────────────── */
+    const [status, setStatus] = useState<Status>('idle');
+    const [error, setError] = useState<string | null>(null);
     const [nativeStreamURL, setNativeStreamURL] = useState<string | null>(null);
+    const [remoteStream, setRemoteStream] = useState<any>(null);
 
-    // Connection / UI state
-    const [status, setStatus] = useState<'idle' | 'connecting' | 'active' | 'error' | 'unsupported'>('idle');
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-    // Sharer controls
+    // Sharer-side controls (broadcast to viewer over a separate channel)
     const [blur, setBlur] = useState(0);
     const [isBnW, setIsBnW] = useState(true);
 
-    // Viewer receives blur from sharer
+    // Viewer-side received controls
     const [remoteBlur, setRemoteBlur] = useState(0);
     const [remoteIsBnW, setRemoteIsBnW] = useState(true);
 
-    // Track whether we already created an offer/answer to avoid duplicates
-    const hasNegotiatedRef = useRef(false);
+    /* ── refs ─────────────────────────────────────────────────────────── */
+    const pcRef = useRef<any>(null);
+    const localStreamRef = useRef<any>(null);
+    const partnerReady = useRef(false);
+    const cleanedUp = useRef(false);
+    const makingOffer = useRef(false);
+    const negotiationStarted = useRef(false);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
 
-    // Platform-aware WebRTC constructors
-    const wrapSD = useCallback((payload: any) => {
+    /* ── biometric bypass while sharing ──────────────────────────────── */
+    const { setScreenShareActive, setFilePickerActive } = useSecurity();
+
+    /* ────────── helper: build RTCPeerConnection with TURN ───────────── */
+
+    const createPeerConnection = useCallback(async (): Promise<any | null> => {
+        const PC = Platform.OS === 'web'
+            ? (window as any).RTCPeerConnection || (window as any).webkitRTCPeerConnection
+            : NativeRTCPeerConnection;
+
+        if (!PC) {
+            setError('RTCPeerConnection is not available on this platform.');
+            setStatus('unsupported');
+            return null;
+        }
+
+        try {
+            const iceServers = await fetchIceServers();
+            console.log('[ScreenShare] ICE servers:', iceServers.length, 'configured');
+            return new PC({ iceServers });
+        } catch (err: any) {
+            setError(`Failed to create peer connection: ${err?.message ?? err}`);
+            setStatus('error');
+            return null;
+        }
+    }, []);
+
+    /* ────────── helper: serialise / wrap descriptions ───────────────── */
+
+    const wrapSD = useCallback((payload: any): any => {
         if (Platform.OS === 'web') {
-            const SD = typeof RTCSessionDescription !== 'undefined' ? RTCSessionDescription : null;
+            const SD = (window as any).RTCSessionDescription;
             return SD ? new SD(payload) : payload;
         }
         return NativeRTCSessionDescription ? new NativeRTCSessionDescription(payload) : payload;
     }, []);
 
-    const wrapICE = useCallback((payload: any) => {
+    const wrapICE = useCallback((payload: any): any => {
         if (Platform.OS === 'web') {
-            const IC = typeof RTCIceCandidate !== 'undefined' ? RTCIceCandidate : null;
+            const IC = (window as any).RTCIceCandidate;
             return IC ? new IC(payload) : payload;
         }
         return NativeRTCIceCandidate ? new NativeRTCIceCandidate(payload) : payload;
     }, []);
 
-    // Pending ICE candidates received before remote description is set
-    const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
-
-    // ------------------------------------------------------------------
-    // Helpers
-    // ------------------------------------------------------------------
-
-    /** Get the correct RTCPeerConnection constructor for this platform */
-    const getRTCPeerConnection = useCallback((): typeof RTCPeerConnection | null => {
-        if (Platform.OS === 'web') {
-            return typeof window !== 'undefined' ? window.RTCPeerConnection : null;
+    const serialiseSD = useCallback((desc: any): any => {
+        if (!desc) return desc;
+        if (Platform.OS !== 'web') {
+            return { type: desc.type, sdp: desc.sdp };
         }
-        try {
-            return require('react-native-webrtc').RTCPeerConnection;
-        } catch {
-            return null;
-        }
+        return desc;
     }, []);
 
-    /** Clean up a peer connection and streams */
+    const serialiseICE = useCallback((candidate: any): any => {
+        if (!candidate) return candidate;
+        if (Platform.OS !== 'web') {
+            return {
+                candidate: candidate.candidate,
+                sdpMid: candidate.sdpMid,
+                sdpMLineIndex: candidate.sdpMLineIndex,
+            };
+        }
+        return candidate;
+    }, []);
+
+    /* ────────── acquire screen capture stream (sharer only) ─────────── */
+
+    const acquireScreen = useCallback(async (): Promise<any | null> => {
+        try {
+            if (Platform.OS === 'web') {
+                if (!navigator.mediaDevices?.getDisplayMedia) {
+                    setError('Screen sharing is not supported in this browser.');
+                    setStatus('unsupported');
+                    return null;
+                }
+                return await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: false,
+                });
+            }
+
+            if (!nativeMediaDevices?.getDisplayMedia) {
+                setError('Screen capture not available. Please use the latest APK build.');
+                setStatus('unsupported');
+                return null;
+            }
+
+            // Bypass biometric lock during the MediaProjection dialog
+            setFilePickerActive(true);
+            const stream = await nativeMediaDevices.getDisplayMedia({
+                video: true,
+                audio: false,
+            });
+            setFilePickerActive(false);
+
+            console.log('[ScreenShare] Screen stream acquired, tracks:', stream?.getTracks?.()?.length);
+            return stream;
+        } catch (err: any) {
+            setFilePickerActive(false);
+            const msg = err?.message ?? String(err);
+            console.warn('[ScreenShare] getDisplayMedia failed:', msg);
+
+            if (msg.includes('permission') || msg.includes('denied') || msg.includes('cancel') || msg.includes('NotAllowed')) {
+                setError('Screen capture was cancelled. Tap Retry and choose "Start now" when prompted.');
+            } else {
+                setError(`Screen capture failed: ${msg}`);
+            }
+            setStatus('error');
+            return null;
+        }
+    }, [setFilePickerActive]);
+
+    /* ────────────────────────── cleanup ─────────────────────────────── */
+
     const cleanup = useCallback(() => {
-        // Stop local tracks
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(t => t.stop());
-            localStreamRef.current = null;
+        if (cleanedUp.current) return;
+        cleanedUp.current = true;
+
+        // Detach socket listeners
+        if (socket) {
+            socket.off('screen_share_signal');
+            socket.off('screen_share_ready');
+            socket.off('transmit_screen_share_controls');
         }
 
         // Close peer connection
         if (pcRef.current) {
-            pcRef.current.close();
+            try {
+                pcRef.current.ontrack = null;
+                pcRef.current.onaddstream = null;
+                pcRef.current.onicecandidate = null;
+                pcRef.current.onconnectionstatechange = null;
+                pcRef.current.oniceconnectionstatechange = null;
+                pcRef.current.close();
+            } catch { }
             pcRef.current = null;
         }
 
-        remoteStreamRef.current = null;
-        setNativeStreamURL(null);
+        // Stop local tracks (sharer)
+        if (localStreamRef.current) {
+            try {
+                localStreamRef.current.getTracks?.().forEach((t: any) => {
+                    try { t.stop(); } catch { }
+                });
+            } catch { }
+            localStreamRef.current = null;
+        }
 
         // Detach web video element
         if (Platform.OS === 'web' && videoRef.current) {
-            videoRef.current.srcObject = null;
+            try { videoRef.current.srcObject = null; } catch { }
         }
 
-        hasNegotiatedRef.current = false;
-        pendingCandidatesRef.current = [];
         setStatus('idle');
-        setErrorMsg(null);
+        setError(null);
+        setNativeStreamURL(null);
+        setRemoteStream(null);
         setBlur(0);
         setRemoteBlur(0);
-    }, []);
+        partnerReady.current = false;
+        makingOffer.current = false;
+        negotiationStarted.current = false;
+    }, [socket]);
 
-    // ------------------------------------------------------------------
-    // Create RTCPeerConnection and wire up handlers
-    // ------------------------------------------------------------------
-    const createPeerConnection = useCallback(async () => {
-        const PeerConn = getRTCPeerConnection();
-        if (!PeerConn) {
-            setStatus('unsupported');
-            setErrorMsg('WebRTC is not available on this platform.');
-            return null;
+    /* ────────── create + send an offer (sharer only) ─────────────────── */
+
+    const createOffer = useCallback(async () => {
+        const pc = pcRef.current;
+        if (!pc || !socket) return;
+        if (negotiationStarted.current) return; // one offer per session
+        negotiationStarted.current = true;
+
+        try {
+            makingOffer.current = true;
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            socket.emit('screen_share_signal', {
+                roomId,
+                signal: {
+                    type: 'offer' as const,
+                    payload: serialiseSD(pc.localDescription),
+                },
+            });
+            console.log('[ScreenShare] Offer sent');
+        } catch (err: any) {
+            console.warn('[ScreenShare] createOffer failed:', err?.message ?? err);
+            setError('Failed to start screen share. Please try again.');
+            setStatus('error');
+        } finally {
+            makingOffer.current = false;
+        }
+    }, [roomId, socket, serialiseSD]);
+
+    /* ─────────────── handle incoming signaling messages ─────────────── */
+
+    const handleSignal = useCallback(async (data: any) => {
+        const pc = pcRef.current;
+        if (!pc || data.roomId !== roomId) return;
+
+        // Tolerate both new (signal:{}) and legacy (flat) payload shapes
+        let type: string;
+        let payload: any;
+        if (data.signal && typeof data.signal.type === 'string') {
+            type = data.signal.type;
+            payload = data.signal.payload;
+        } else if (typeof data.type === 'string') {
+            type = data.type;
+            if (type === 'offer' || type === 'answer') {
+                payload = { type, sdp: data.sdp };
+            } else if (type === 'candidate' || type === 'ice-candidate') {
+                type = 'candidate';
+                payload = data.candidate;
+            } else {
+                return;
+            }
+        } else {
+            return;
         }
 
-        const iceServers = await fetchIceServers();
-        const pc = new PeerConn({ iceServers });
+        try {
+            if (type === 'offer') {
+                // Perfect-negotiation rollback: only the sharer should ever
+                // receive a glare offer. The viewer never makes one.
+                if (makingOffer.current || pc.signalingState !== 'stable') {
+                    if (isSharer) return; // sharer ignores incoming offer
+                    try { await pc.setLocalDescription({ type: 'rollback' } as any); } catch { }
+                }
 
-        // ICE candidates -> send to remote via signaling
-        pc.onicecandidate = (event: RTCPeerConnectionIceEvent) => {
+                await pc.setRemoteDescription(wrapSD(payload));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                socket?.emit('screen_share_signal', {
+                    roomId,
+                    signal: {
+                        type: 'answer' as const,
+                        payload: serialiseSD(pc.localDescription),
+                    },
+                });
+                console.log('[ScreenShare] Answer sent');
+            } else if (type === 'answer') {
+                if (pc.signalingState === 'have-local-offer') {
+                    await pc.setRemoteDescription(wrapSD(payload));
+                    console.log('[ScreenShare] Remote answer applied');
+                }
+            } else if (type === 'candidate') {
+                if (payload) {
+                    try {
+                        await pc.addIceCandidate(wrapICE(payload));
+                    } catch (e: any) {
+                        // Some browsers fail with end-of-candidates markers; ignore
+                        console.log('[ScreenShare] addIceCandidate skipped:', e?.message);
+                    }
+                }
+            }
+        } catch (err: any) {
+            console.warn('[ScreenShare] signal handling error:', err?.message ?? err);
+        }
+    }, [roomId, isSharer, socket, wrapSD, wrapICE, serialiseSD]);
+
+    /* ─────────── attach the common pc handlers (both sides) ──────────── */
+
+    const attachPCHandlers = useCallback((pc: any) => {
+        pc.onicecandidate = (event: any) => {
             if (event.candidate && socket) {
                 socket.emit('screen_share_signal', {
                     roomId,
-                    type: 'ice-candidate',
-                    candidate: event.candidate.toJSON
-                        ? event.candidate.toJSON()
-                        : event.candidate,
+                    signal: {
+                        type: 'candidate' as const,
+                        payload: serialiseICE(event.candidate),
+                    },
                 });
             }
         };
 
         pc.oniceconnectionstatechange = () => {
-            const state = pc.iceConnectionState;
-            console.log(`[ScreenShare] ICE state: ${state}`);
-            if (state === 'connected' || state === 'completed') {
+            const ice = pc.iceConnectionState;
+            console.log('[ScreenShare] ICE state:', ice);
+            if (ice === 'connected' || ice === 'completed') {
                 setStatus('active');
-            } else if (state === 'failed') {
+            } else if (ice === 'failed') {
+                setError('Connection failed. A relay server may be needed if both devices are on different networks.');
                 setStatus('error');
-                setErrorMsg('Connection failed. Both devices may need to be on the same network, or a relay server is required.');
-            } else if (state === 'disconnected') {
-                setStatus('error');
-                setErrorMsg('Connection lost. Please try again.');
+            } else if (ice === 'disconnected') {
+                // Often transient — don't surface as error immediately
             }
         };
 
-        (pc as any).onconnectionstatechange = () => {
-            console.log(`[ScreenShare] Connection state: ${(pc as any).connectionState}`);
+        pc.onconnectionstatechange = () => {
+            console.log('[ScreenShare] Connection state:', pc.connectionState);
         };
 
-        // Viewer side: receive remote stream
+        // Viewer: render incoming track. Wire BOTH ontrack and onaddstream
+        // because react-native-webrtc on Android fires the legacy callback
+        // for some codec paths.
         if (!isSharer) {
-            pc.ontrack = (event: RTCTrackEvent) => {
+            pc.ontrack = (event: any) => {
+                console.log('[ScreenShare] ontrack fired, kind:', event.track?.kind);
                 const stream = event.streams?.[0];
                 if (!stream) return;
-                remoteStreamRef.current = stream;
-
-                if (Platform.OS === 'web') {
-                    // Attach to <video> element
-                    if (videoRef.current) {
-                        videoRef.current.srcObject = stream;
-                    }
-                } else {
-                    // react-native-webrtc uses toURL()
-                    setNativeStreamURL((stream as any).toURL ? (stream as any).toURL() : null);
+                setRemoteStream(stream);
+                if (Platform.OS !== 'web') {
+                    const url = stream.toURL?.();
+                    if (url) setNativeStreamURL(url);
+                } else if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
                 }
             };
+
+            if (Platform.OS !== 'web') {
+                pc.onaddstream = (event: any) => {
+                    console.log('[ScreenShare] onaddstream fired (legacy fallback)');
+                    if (event.stream) {
+                        setRemoteStream(event.stream);
+                        const url = event.stream.toURL?.();
+                        if (url) setNativeStreamURL(url);
+                    }
+                };
+            }
         }
+    }, [socket, roomId, isSharer, serialiseICE]);
 
-        pcRef.current = pc;
-        return pc;
-    }, [getRTCPeerConnection, socket, roomId, isSharer]);
+    /* ─────────────── start (both sides) on visibility ─────────────────── */
 
-    // ------------------------------------------------------------------
-    // Helper: create and send WebRTC offer (used by sharer on init and on viewer_ready)
-    // ------------------------------------------------------------------
-    const createAndSendOffer = useCallback(async (pc: any) => {
-        if (!socket || !pc) return;
-        try {
-            const offer = await pc.createOffer({} as any);
-            await pc.setLocalDescription(offer);
-            socket.emit('screen_share_signal', {
-                roomId,
-                type: 'offer',
-                sdp: offer.sdp,
-            });
-            hasNegotiatedRef.current = true;
-        } catch (e: any) {
-            setStatus('error');
-            setErrorMsg('Failed to create WebRTC offer: ' + (e?.message || 'unknown error'));
-        }
-    }, [socket, roomId]);
+    useEffect(() => {
+        if (!visible || !socket || !roomId) return;
 
-    // ------------------------------------------------------------------
-    // Sharer: capture screen and create offer
-    // ------------------------------------------------------------------
-    const startSharing = useCallback(async () => {
-        if (!socket || !roomId) return;
+        cleanedUp.current = false;
+        let cancelled = false;
 
-        // Native platforms: use react-native-webrtc's getDisplayMedia
-        if (Platform.OS !== 'web') {
-            setStatus('connecting');
+        const start = async () => {
+            setStatus('preparing');
+            setError(null);
 
-            let nativeStream: MediaStream | null = null;
-            try {
-                const RNWebRTC = require('react-native-webrtc');
-                const { mediaDevices } = RNWebRTC;
-
-                if (!mediaDevices || !mediaDevices.getDisplayMedia) {
+            // Sharer: capture screen FIRST so the offer's SDP includes the
+            // video m-line.
+            let stream: any = null;
+            if (isSharer) {
+                stream = await acquireScreen();
+                if (!stream || cancelled) return;
+                if (stream.getTracks?.().length === 0) {
+                    setError('No screen capture stream produced. Please retry.');
                     setStatus('error');
-                    setErrorMsg('Screen capture is not available on this device. Ensure you are using the latest APK build.');
                     return;
                 }
+                localStreamRef.current = stream;
 
-                // This triggers Android's MediaProjection permission dialog
-                // The foreground service is started automatically by react-native-webrtc
-                nativeStream = await mediaDevices.getDisplayMedia({
-                    video: true,
-                    audio: false, // audio capture from other apps requires extra setup
-                });
-            } catch (e: any) {
-                const msg = e?.message || '';
-                console.warn('[ScreenShare] getDisplayMedia failed:', msg, e);
-
-                if (msg.includes('permission') || msg.includes('denied') || msg.includes('cancel')) {
-                    setStatus('error');
-                    setErrorMsg('Screen capture permission was denied. Please try again and tap "Start now" when prompted.');
-                } else {
-                    setStatus('error');
-                    setErrorMsg('Screen capture failed: ' + (msg || 'Unknown error. Please restart the app and try again.'));
-                }
-                return;
-            }
-
-            if (!nativeStream || nativeStream.getTracks().length === 0) {
-                setStatus('error');
-                setErrorMsg('No screen capture stream received. Please try again.');
-                return;
-            }
-
-            localStreamRef.current = nativeStream;
-
-            // Listen for track ending (user stopped sharing via system notification)
-            nativeStream.getVideoTracks().forEach(track => {
-                track.addEventListener?.('ended', () => {
-                    handleStopSharing();
-                });
-            });
-
-            const pc = await createPeerConnection();
-            if (!pc) return;
-
-            nativeStream.getTracks().forEach(track => {
-                pc.addTrack(track, nativeStream!);
-            });
-
-            // Use shared helper so viewer_ready re-offers go through same path
-            await createAndSendOffer(pc);
-            return;
-        }
-
-        // --- Web platform ---
-        if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getDisplayMedia) {
-            setStatus('unsupported');
-            setErrorMsg('Screen sharing is not supported in this browser.');
-            return;
-        }
-
-        setStatus('connecting');
-
-        try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: true,
-            });
-
-            localStreamRef.current = stream;
-
-            // Listen for the user ending screen share via browser UI
-            stream.getVideoTracks()[0]?.addEventListener('ended', () => {
-                handleStopSharing();
-            });
-
-            const pc = await createPeerConnection();
-            if (!pc) return;
-
-            stream.getTracks().forEach(track => {
-                pc.addTrack(track, stream);
-            });
-
-            await createAndSendOffer(pc);
-        } catch (e: any) {
-            // User denied permission or browser doesn't support
-            if (e?.name === 'NotAllowedError') {
-                setStatus('error');
-                setErrorMsg('Screen sharing permission was denied.');
-            } else {
-                setStatus('error');
-                setErrorMsg('Failed to start screen sharing: ' + (e?.message || 'unknown error'));
-            }
-        }
-    }, [socket, roomId, createPeerConnection, createAndSendOffer]);
-
-    // ------------------------------------------------------------------
-    // Viewer: prepare to receive an offer, then signal readiness to sharer
-    // ------------------------------------------------------------------
-    const prepareViewer = useCallback(async () => {
-        if (!socket || !roomId) return;
-
-        setStatus('connecting');
-        // Create peer connection first so the offer handler can use it immediately
-        await createPeerConnection();
-
-        // Tell the sharer we are ready — they will (re-)send the offer now
-        socket.emit('screen_share_signal', {
-            roomId,
-            type: 'viewer_ready',
-        });
-    }, [socket, roomId, createPeerConnection]);
-
-    // ------------------------------------------------------------------
-    // Socket signaling handler
-    // ------------------------------------------------------------------
-    useEffect(() => {
-        if (!socket || !roomId || !visible) return;
-
-        const handleSignal = async (data: {
-            roomId: string;
-            type: string;
-            sdp?: string;
-            candidate?: RTCIceCandidateInit;
-        }) => {
-            if (data.roomId !== roomId) return;
-
-            let pc = pcRef.current;
-
-            // --- viewer_ready: sharer (re-)sends the offer ---
-            // Triggered when the viewer's panel finishes opening. This resolves
-            // the race condition where the offer was sent before the viewer's
-            // socket listener was registered.
-            if (data.type === 'viewer_ready' && isSharer) {
-                if (!pc) return; // sharer not started yet — startSharing will call createAndSendOffer
-                // Re-create the offer from the existing PC (tracks already added)
-                await createAndSendOffer(pc);
-                return;
-            }
-
-            // --- Offer (viewer receives this) ---
-            if (data.type === 'offer' && !isSharer && !pc) {
-                pc = await createPeerConnection();
-            }
-            if (data.type === 'offer' && !isSharer && pc) {
-                try {
-                    await pc.setRemoteDescription(
-                        wrapSD({ type: 'offer', sdp: data.sdp! }),
-                    );
-
-                    // Flush any pending ICE candidates
-                    for (const c of pendingCandidatesRef.current) {
-                        try { await pc.addIceCandidate(wrapICE(c)); } catch { }
-                    }
-                    pendingCandidatesRef.current = [];
-
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-
-                    socket.emit('screen_share_signal', {
-                        roomId,
-                        type: 'answer',
-                        sdp: answer.sdp,
+                // The OS notification "Stop sharing" ends the track —
+                // tear down the session in that case.
+                stream.getVideoTracks?.().forEach((t: any) => {
+                    t.addEventListener?.('ended', () => {
+                        if (!cleanedUp.current) {
+                            cleanup();
+                            onClose();
+                        }
                     });
-                    hasNegotiatedRef.current = true;
-                } catch (e: any) {
-                    setStatus('error');
-                    setErrorMsg('Failed to handle incoming offer: ' + (e?.message || ''));
-                }
+                });
             }
 
-            // --- Answer (sharer receives this) ---
-            if (data.type === 'answer' && isSharer && pc) {
-                try {
-                    await pc.setRemoteDescription(
-                        wrapSD({ type: 'answer', sdp: data.sdp! }),
-                    );
+            // Build pc
+            const pc = await createPeerConnection();
+            if (!pc || cancelled) return;
+            pcRef.current = pc;
 
-                    // Flush any pending ICE candidates
-                    for (const c of pendingCandidatesRef.current) {
-                        try { await pc.addIceCandidate(wrapICE(c)); } catch { }
+            // Sharer adds its tracks BEFORE attaching listeners / sending offer
+            if (isSharer && stream) {
+                stream.getTracks().forEach((t: any) => {
+                    try { pc.addTrack(t, stream); } catch (e: any) {
+                        console.warn('[ScreenShare] addTrack error:', e?.message);
                     }
-                    pendingCandidatesRef.current = [];
-                } catch (e: any) {
-                    setStatus('error');
-                    setErrorMsg('Failed to handle answer: ' + (e?.message || ''));
-                }
+                });
             }
 
-            // --- ICE candidate ---
-            if (data.type === 'ice-candidate' && data.candidate && pc) {
-                try {
-                    if (pc.remoteDescription) {
-                        await pc.addIceCandidate(wrapICE(data.candidate));
-                    } else {
-                        // Queue until remote description is set
-                        pendingCandidatesRef.current.push(data.candidate);
-                    }
-                } catch {
-                    // Non-critical: some candidates may be redundant
+            attachPCHandlers(pc);
+
+            setStatus('connecting');
+
+            // Attach signal handler
+            socket.off('screen_share_signal');
+            socket.on('screen_share_signal', handleSignal);
+
+            // Readiness exchange — sharer waits for viewer's ready, then offers.
+            socket.off('screen_share_ready');
+            socket.on('screen_share_ready', () => {
+                if (partnerReady.current) return;
+                partnerReady.current = true;
+                console.log('[ScreenShare] Partner ready');
+                if (isSharer) {
+                    // Viewer just confirmed it's listening — safe to offer
+                    createOffer();
                 }
-            }
+            });
+
+            // Tell the other side we're set up
+            socket.emit('screen_share_ready', { roomId });
+            console.log('[ScreenShare] Local ready emitted');
         };
 
-        socket.on('screen_share_signal', handleSignal);
+        start();
+
         return () => {
-            socket.off('screen_share_signal', handleSignal);
+            cancelled = true;
         };
-    }, [socket, roomId, visible, isSharer, createPeerConnection, createAndSendOffer]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visible, isSharer, roomId, socket]);
 
-    // ------------------------------------------------------------------
-    // Receive blur controls (viewer side)
-    // ------------------------------------------------------------------
+    /* ─────────────── cleanup on close / unmount ──────────────────────── */
+
     useEffect(() => {
-        if (!socket || !roomId || !visible || isSharer) return;
+        if (!visible) {
+            cleanup();
+        }
+        return () => cleanup();
+    }, [visible, cleanup]);
 
-        const handleControls = (data: { roomId: string; controls: { blur: number; isBnW?: boolean } }) => {
-            if (data.roomId === roomId) {
-                setRemoteBlur(data.controls.blur);
-                if (data.controls.isBnW !== undefined) {
-                    setRemoteIsBnW(data.controls.isBnW);
-                }
-            }
-        };
+    /* ─────────── sharer broadcasts blur / B&W to viewer ──────────────── */
 
-        socket.on('transmit_screen_share_controls', handleControls);
-        return () => {
-            socket.off('transmit_screen_share_controls', handleControls);
-        };
-    }, [socket, roomId, visible, isSharer]);
-
-    // ------------------------------------------------------------------
-    // Send blur controls (sharer side)
-    // ------------------------------------------------------------------
     useEffect(() => {
         if (!socket || !roomId || !visible || !isSharer) return;
         socket.emit('transmit_screen_share_controls', {
@@ -497,144 +527,109 @@ export default function ScreenSharePanel({
         });
     }, [blur, isBnW, socket, roomId, visible, isSharer]);
 
-    // ------------------------------------------------------------------
-    // Bypass biometric lock during active screen share (sharer side)
-    // ------------------------------------------------------------------
+    /* ─────────── viewer receives blur / B&W ──────────────────────────── */
+
     useEffect(() => {
-        if (visible && isSharer) {
-            setScreenShareActive(true);
-        }
-        return () => {
-            if (isSharer) setScreenShareActive(false);
+        if (!socket || !roomId || !visible || isSharer) return;
+        const handler = (data: any) => {
+            if (data.roomId !== roomId) return;
+            setRemoteBlur(data.controls?.blur ?? 0);
+            if (data.controls?.isBnW !== undefined) {
+                setRemoteIsBnW(!!data.controls.isBnW);
+            }
         };
+        socket.on('transmit_screen_share_controls', handler);
+        return () => { socket.off('transmit_screen_share_controls', handler); };
+    }, [socket, roomId, visible, isSharer]);
+
+    /* ─────────── biometric bypass while sharing (sharer only) ────────── */
+
+    useEffect(() => {
+        if (visible && isSharer) setScreenShareActive(true);
+        return () => { if (isSharer) setScreenShareActive(false); };
     }, [visible, isSharer, setScreenShareActive]);
 
-    // ------------------------------------------------------------------
-    // Auto-minimize after connection becomes active (sharer side)
-    // ------------------------------------------------------------------
+    /* ─────────── auto-minimize sharer once active ────────────────────── */
+
     useEffect(() => {
         if (status === 'active' && isSharer && onMinimize && !minimized) {
-            const timer = setTimeout(() => {
-                onMinimize();
-            }, 1500);
-            return () => clearTimeout(timer);
+            const t = setTimeout(() => onMinimize(), 1500);
+            return () => clearTimeout(t);
         }
     }, [status, isSharer, onMinimize, minimized]);
 
-    // ------------------------------------------------------------------
-    // Keep session alive when app returns from background during screen share
-    // ------------------------------------------------------------------
+    /* ─────────── keep-alive when app returns from background ────────── */
+
     useEffect(() => {
         if (!visible || !isSharer) return;
-
-        const handleAppState = (nextState: AppStateStatus) => {
-            if (nextState === 'active' && status === 'active') {
-                // App returned to foreground while sharing — ensure biometric stays bypassed
+        const handle = (next: AppStateStatus) => {
+            if (next === 'active' && status === 'active') {
                 setScreenShareActive(true);
             }
         };
-
-        const subscription = AppState.addEventListener('change', handleAppState);
-        return () => subscription.remove();
+        const sub = AppState.addEventListener('change', handle);
+        return () => sub.remove();
     }, [visible, isSharer, status, setScreenShareActive]);
 
-    // ------------------------------------------------------------------
-    // Init / teardown on visibility change
-    // ------------------------------------------------------------------
-    useEffect(() => {
-        if (!visible) {
-            cleanup();
-            return;
-        }
-
-        if (isSharer) {
-            startSharing();
-        } else {
-            prepareViewer();
-        }
-
-        return () => {
-            cleanup();
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [visible]);
-
-    // ------------------------------------------------------------------
-    // Stop sharing (sharer only)
-    // ------------------------------------------------------------------
-    const handleStopSharing = useCallback(() => {
-        cleanup();
-        onClose();
-    }, [cleanup, onClose]);
-
-    // ------------------------------------------------------------------
-    // Attach <video> element on web (viewer)
-    // ------------------------------------------------------------------
-    const videoContainerRef = useRef<View | null>(null);
+    /* ─────────── attach <video> element on web (viewer) ──────────────── */
 
     useEffect(() => {
         if (Platform.OS !== 'web' || isSharer || !visible) return;
 
-        // Create a <video> element for the remote stream
         const video = document.createElement('video');
         video.autoplay = true;
         video.playsInline = true;
-        video.muted = false;
+        video.muted = true;
         video.style.width = '100%';
         video.style.height = '100%';
         video.style.objectFit = 'contain';
-        video.style.filter = 'grayscale(100%)';
         video.style.backgroundColor = '#000';
 
         videoRef.current = video;
+        if (remoteStream) video.srcObject = remoteStream;
 
-        // If we already have a remote stream, attach it
-        if (remoteStreamRef.current) {
-            video.srcObject = remoteStreamRef.current;
-        }
-
-        // Find the container DOM node and append the video
         const containerId = '__screen_share_video_container__';
         const tryAttach = () => {
-            let container = document.getElementById(containerId);
-            if (container) {
-                container.innerHTML = '';
-                container.appendChild(video);
-            } else {
-                // Retry shortly; React may not have painted yet
-                setTimeout(tryAttach, 100);
-            }
+            const c = document.getElementById(containerId);
+            if (c) { c.innerHTML = ''; c.appendChild(video); }
+            else setTimeout(tryAttach, 100);
         };
         tryAttach();
 
         return () => {
-            if (video.parentNode) {
-                video.parentNode.removeChild(video);
-            }
+            try { video.parentNode?.removeChild(video); } catch { }
             video.srcObject = null;
             videoRef.current = null;
         };
-    }, [visible, isSharer]);
+    }, [visible, isSharer, remoteStream]);
 
-    // ------------------------------------------------------------------
-    // Bail early if not visible
-    // ------------------------------------------------------------------
+    /* ─────────────────────────── handlers ────────────────────────────── */
+
+    const handleStop = useCallback(() => {
+        cleanup();
+        onClose();
+    }, [cleanup, onClose]);
+
+    const handleRetry = useCallback(() => {
+        cleanup();
+        // The visibility-driven effect will re-run start()
+        cleanedUp.current = false;
+        setStatus('idle');
+        setError(null);
+    }, [cleanup]);
+
+    /* ═══════════════════════════ RENDER ═══════════════════════════════ */
+
     if (!visible) return null;
 
-    // ------------------------------------------------------------------
-    // Render: Minimized pill (sharer only)
-    // ------------------------------------------------------------------
+    /* ── Minimized pill (sharer only) ─────────────────────────────────── */
     if (isSharer && minimized) {
         return (
-            <TouchableOpacity
-                onPress={onMaximize}
-                style={styles.minimizedPill}
-                activeOpacity={0.7}
-            >
+            <TouchableOpacity onPress={onMaximize} style={styles.minimizedPill} activeOpacity={0.7}>
                 <View style={styles.minimizedDot} />
                 <Text style={styles.minimizedText}>SHARING</Text>
                 <TouchableOpacity
-                    onPress={(e) => { e.stopPropagation?.(); handleStopSharing(); }}
+                    onPress={(e) => { e.stopPropagation?.(); handleStop(); }}
                     style={styles.minimizedStop}
                     activeOpacity={0.7}
                 >
@@ -644,9 +639,7 @@ export default function ScreenSharePanel({
         );
     }
 
-    // ------------------------------------------------------------------
-    // Render: SHARER view
-    // ------------------------------------------------------------------
+    /* ── Sharer view ──────────────────────────────────────────────────── */
     if (isSharer) {
         return (
             <Modal visible={visible} animationType="slide" transparent>
@@ -657,71 +650,62 @@ export default function ScreenSharePanel({
                             <View style={[styles.liveDot, status === 'active' && styles.liveDotActive]} />
                             <Text style={styles.headerTitle}>SHARING SCREEN</Text>
                         </View>
-                        <TouchableOpacity onPress={handleStopSharing} style={styles.closeBtn} activeOpacity={0.7}>
+                        <TouchableOpacity onPress={handleStop} style={styles.closeBtn} activeOpacity={0.7}>
                             <Ionicons name="close" size={16} color="#fff" />
                         </TouchableOpacity>
                     </View>
 
-                    {/* Status area */}
+                    {/* Body */}
                     <View style={styles.sharerBody}>
                         {status === 'unsupported' ? (
-                            <View style={styles.centeredMessage}>
+                            <View style={styles.centered}>
                                 <Ionicons name="desktop-outline" size={48} color={THEME.faint} />
-                                <Text style={styles.messageTitle}>NOT AVAILABLE</Text>
-                                <Text style={styles.messageSubtitle}>
-                                    {errorMsg || 'Screen sharing is not available on this device.'}
-                                </Text>
+                                <Text style={styles.msgTitle}>NOT AVAILABLE</Text>
+                                <Text style={styles.msgSub}>{error}</Text>
                             </View>
                         ) : status === 'error' ? (
-                            <View style={styles.centeredMessage}>
+                            <View style={styles.centered}>
                                 <Ionicons name="warning-outline" size={48} color={THEME.faint} />
-                                <Text style={styles.messageTitle}>ERROR</Text>
-                                <Text style={styles.messageSubtitle}>
-                                    {errorMsg || 'Something went wrong.'}
-                                </Text>
-                                <TouchableOpacity
-                                    onPress={() => { cleanup(); startSharing(); }}
-                                    style={styles.retryBtn}
-                                    activeOpacity={0.7}
-                                >
+                                <Text style={styles.msgTitle}>ERROR</Text>
+                                <Text style={styles.msgSub}>{error}</Text>
+                                <TouchableOpacity onPress={handleRetry} style={styles.retryBtn} activeOpacity={0.7}>
                                     <Text style={styles.retryBtnText}>RETRY</Text>
                                 </TouchableOpacity>
                             </View>
+                        ) : status === 'preparing' ? (
+                            <View style={styles.centered}>
+                                <Ionicons name="desktop-outline" size={48} color={THEME.muted} />
+                                <Text style={styles.msgTitle}>STARTING CAPTURE</Text>
+                                <Text style={styles.msgSub}>Tap "Start now" if prompted.</Text>
+                            </View>
                         ) : status === 'connecting' ? (
-                            <View style={styles.centeredMessage}>
+                            <View style={styles.centered}>
                                 <Ionicons name="sync-outline" size={48} color={THEME.muted} />
-                                <Text style={styles.messageTitle}>CONNECTING...</Text>
-                                <Text style={styles.messageSubtitle}>
-                                    Waiting for viewer to join.{'\n'}
-                                    Tap "Start now" if prompted.
-                                </Text>
+                                <Text style={styles.msgTitle}>CONNECTING...</Text>
+                                <Text style={styles.msgSub}>Linking with your correspondent.</Text>
                             </View>
                         ) : (
-                            <View style={styles.centeredMessage}>
+                            <View style={styles.centered}>
                                 <Ionicons name="desktop-outline" size={48} color={THEME.live} />
-                                <Text style={[styles.messageTitle, { color: THEME.live }]}>
+                                <Text style={[styles.msgTitle, { color: THEME.live }]}>
                                     YOUR SCREEN IS{'\n'}BEING SHARED
                                 </Text>
-                                <Text style={styles.messageSubtitle}>
-                                    App will minimize. Your entire screen{'\n'}is visible to your partner.
+                                <Text style={styles.msgSub}>
+                                    The panel will minimize. Your entire screen{'\n'}is visible to your correspondent.
                                 </Text>
                             </View>
                         )}
                     </View>
 
-                    {/* Controls */}
+                    {/* Controls (only meaningful while connected/connecting) */}
                     {(status === 'active' || status === 'connecting') && (
                         <View style={styles.controls}>
                             <TouchableOpacity
-                                style={{
-                                    width: 38, height: 38, borderRadius: 19,
-                                    backgroundColor: !isBnW ? '#fff' : 'rgba(255,255,255,0.1)',
-                                    alignItems: 'center', justifyContent: 'center',
-                                }}
+                                style={[styles.bnwBtn, !isBnW && styles.bnwBtnActive]}
                                 onPress={() => setIsBnW(!isBnW)}
                                 activeOpacity={0.7}
                             >
-                                <Ionicons name={isBnW ? "contrast" : "color-palette"} size={16} color={isBnW ? '#fff' : '#000'} />
+                                <Ionicons name={isBnW ? 'contrast' : 'color-palette'} size={16} color={isBnW ? '#fff' : '#000'} />
                             </TouchableOpacity>
                             <View style={styles.blurControl}>
                                 <Text style={styles.controlLabel}>BLUR</Text>
@@ -729,6 +713,7 @@ export default function ScreenSharePanel({
                                     style={styles.slider}
                                     minimumValue={0}
                                     maximumValue={100}
+                                    step={5}
                                     value={blur}
                                     onValueChange={(v: number) => setBlur(Math.round(v))}
                                     minimumTrackTintColor="rgba(255,255,255,0.5)"
@@ -740,8 +725,8 @@ export default function ScreenSharePanel({
                         </View>
                     )}
 
-                    {/* Stop sharing button */}
-                    <TouchableOpacity onPress={handleStopSharing} style={styles.endBtn} activeOpacity={0.7}>
+                    {/* Stop sharing */}
+                    <TouchableOpacity onPress={handleStop} style={styles.endBtn} activeOpacity={0.7}>
                         <Ionicons name="stop-circle-outline" size={16} color={THEME.muted} style={{ marginRight: 8 }} />
                         <Text style={styles.endBtnText}>STOP SHARING</Text>
                     </TouchableOpacity>
@@ -750,11 +735,7 @@ export default function ScreenSharePanel({
         );
     }
 
-    // ------------------------------------------------------------------
-    // Render: VIEWER view
-    // ------------------------------------------------------------------
-    const viewerBlur = remoteBlur;
-
+    /* ── Viewer view ──────────────────────────────────────────────────── */
     return (
         <Modal visible={visible} animationType="slide" transparent>
             <View style={styles.container}>
@@ -762,49 +743,44 @@ export default function ScreenSharePanel({
                 <View style={styles.header}>
                     <View style={styles.headerLeft}>
                         <Ionicons name="desktop-outline" size={14} color={THEME.muted} />
-                        <Text style={styles.headerTitle}>SCREEN SHARE</Text>
+                        <Text style={styles.headerTitle}>SCREEN MIRROR</Text>
                     </View>
-                    <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={handleStop} style={styles.closeBtn} activeOpacity={0.7}>
                         <Ionicons name="close" size={16} color="#fff" />
                     </TouchableOpacity>
                 </View>
 
-                {/* Viewing label */}
-                <Text style={styles.viewingLabel}>VIEWING SCREEN SHARE</Text>
+                <Text style={styles.viewingLabel}>VIEWING CORRESPONDENT'S SCREEN</Text>
 
                 {/* Stream display */}
                 <View style={styles.feedContainer}>
                     {status === 'error' ? (
                         <View style={styles.noSignal}>
                             <Ionicons name="warning-outline" size={32} color={THEME.faint} />
-                            <Text style={styles.noSignalText}>
-                                {errorMsg || 'Connection error.'}
-                            </Text>
+                            <Text style={styles.noSignalText}>{error}</Text>
+                            <TouchableOpacity onPress={handleRetry} style={styles.retryBtn} activeOpacity={0.7}>
+                                <Text style={styles.retryBtnText}>RETRY</Text>
+                            </TouchableOpacity>
                         </View>
-                    ) : status === 'connecting' ? (
+                    ) : status === 'preparing' || status === 'connecting' ? (
                         <View style={styles.noSignal}>
                             <Ionicons name="hourglass-outline" size={32} color={THEME.faint} />
                             <Text style={styles.noSignalText}>WAITING FOR STREAM...</Text>
                         </View>
                     ) : Platform.OS === 'web' ? (
-                        // Web: use nativeID so we can find the DOM element
-                        <View
-                            ref={videoContainerRef}
-                            nativeID="__screen_share_video_container__"
-                            style={styles.webVideoContainer}
-                        />
-                    ) : nativeStreamURL && RTCView ? (
+                        <View nativeID="__screen_share_video_container__" style={styles.webVideoContainer} />
+                    ) : nativeStreamURL && RTCViewNative ? (
                         <View style={{ flex: 1 }}>
                             {NativeGrayscale && remoteIsBnW ? (
                                 <NativeGrayscale style={StyleSheet.absoluteFill}>
-                                    <RTCView
+                                    <RTCViewNative
                                         streamURL={nativeStreamURL}
                                         style={styles.nativeVideo}
                                         objectFit="contain"
                                     />
                                 </NativeGrayscale>
                             ) : (
-                                <RTCView
+                                <RTCViewNative
                                     streamURL={nativeStreamURL}
                                     style={styles.nativeVideo}
                                     objectFit="contain"
@@ -818,18 +794,19 @@ export default function ScreenSharePanel({
                         </View>
                     )}
 
-                    {/* Blur overlay */}
-                    {viewerBlur > 0 && status === 'active' && (
+                    {/* Remote-controlled blur overlay */}
+                    {remoteBlur > 0 && status === 'active' && (
                         <BlurView
-                            intensity={viewerBlur}
+                            intensity={remoteBlur}
                             tint="dark"
                             style={StyleSheet.absoluteFillObject}
+                            experimentalBlurMethod="dimezisBlurView"
+                            pointerEvents="none"
                         />
                     )}
                 </View>
 
-                {/* Close button */}
-                <TouchableOpacity onPress={onClose} style={styles.endBtn} activeOpacity={0.7}>
+                <TouchableOpacity onPress={handleStop} style={styles.endBtn} activeOpacity={0.7}>
                     <Text style={styles.endBtnText}>CLOSE</Text>
                 </TouchableOpacity>
             </View>
@@ -837,9 +814,8 @@ export default function ScreenSharePanel({
     );
 }
 
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
+/* ═══════════════════════════════ STYLES ═══════════════════════════════════ */
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -848,241 +824,118 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 60 : 40,
     },
 
-    // Header
     header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
         marginBottom: 16,
     },
-    headerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     liveDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: THEME.faint,
+        width: 8, height: 8, borderRadius: 4, backgroundColor: THEME.faint,
     },
     liveDotActive: {
         backgroundColor: '#fff',
-        shadowColor: '#fff',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 8,
+        shadowColor: '#fff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 8,
     },
     headerTitle: {
-        fontFamily: THEME.mono,
-        fontSize: 11,
-        letterSpacing: 2,
-        color: '#fff',
-        textTransform: 'uppercase',
-        fontWeight: '900',
+        fontFamily: THEME.mono, fontSize: 11, letterSpacing: 2,
+        color: '#fff', textTransform: 'uppercase', fontWeight: '900',
     },
     closeBtn: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 32, height: 32, borderRadius: 16,
         backgroundColor: 'rgba(255,255,255,0.1)',
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: 'center', justifyContent: 'center',
     },
 
-    // Viewing label
     viewingLabel: {
-        fontFamily: THEME.mono,
-        fontSize: 9,
-        letterSpacing: 2,
-        color: THEME.faint,
-        textTransform: 'uppercase',
-        fontWeight: '900',
+        fontFamily: THEME.mono, fontSize: 9, letterSpacing: 2,
+        color: THEME.faint, textTransform: 'uppercase', fontWeight: '900',
         marginBottom: 8,
     },
 
-    // Sharer body
-    sharerBody: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
+    sharerBody: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    centered: { alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 32 },
+    msgTitle: {
+        fontFamily: THEME.mono, fontSize: 14, letterSpacing: 3,
+        color: THEME.muted, textTransform: 'uppercase', fontWeight: '900', textAlign: 'center',
     },
-    centeredMessage: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 12,
-        paddingHorizontal: 32,
-    },
-    messageTitle: {
-        fontFamily: THEME.mono,
-        fontSize: 14,
-        letterSpacing: 3,
-        color: THEME.muted,
-        textTransform: 'uppercase',
-        fontWeight: '900',
-        textAlign: 'center',
-    },
-    messageSubtitle: {
-        fontFamily: THEME.mono,
-        fontSize: 10,
-        letterSpacing: 1,
-        color: THEME.faint,
-        textAlign: 'center',
-        lineHeight: 16,
+    msgSub: {
+        fontFamily: THEME.mono, fontSize: 10, letterSpacing: 1,
+        color: THEME.faint, textAlign: 'center', lineHeight: 16,
     },
 
-    // Feed container (viewer)
     feedContainer: {
-        flex: 1,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        backgroundColor: '#000',
-        overflow: 'hidden',
-        marginBottom: 12,
+        flex: 1, borderRadius: 20, borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)', backgroundColor: '#000',
+        overflow: 'hidden', marginBottom: 12,
     },
-    webVideoContainer: {
-        flex: 1,
-        backgroundColor: '#000',
-    },
-    nativeVideo: {
-        flex: 1,
-    },
-    noSignal: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-    },
+    webVideoContainer: { flex: 1, backgroundColor: '#000' },
+    nativeVideo: { flex: 1 },
+    noSignal: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
     noSignalText: {
-        fontFamily: THEME.mono,
-        fontSize: 10,
-        color: THEME.faint,
-        textTransform: 'uppercase',
-        letterSpacing: 2,
-        textAlign: 'center',
-        paddingHorizontal: 24,
+        fontFamily: THEME.mono, fontSize: 10, color: THEME.faint,
+        textTransform: 'uppercase', letterSpacing: 2, textAlign: 'center', paddingHorizontal: 12,
     },
 
-    // Controls
-    controls: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        paddingVertical: 12,
+    controls: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+    bnwBtn: {
+        width: 38, height: 38, borderRadius: 19,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center', justifyContent: 'center',
     },
-    blurControl: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
+    bnwBtnActive: { backgroundColor: '#fff' },
+    blurControl: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
     controlLabel: {
-        fontFamily: THEME.mono,
-        fontSize: 9,
-        letterSpacing: 1.5,
-        color: THEME.muted,
-        textTransform: 'uppercase',
-        fontWeight: '900',
+        fontFamily: THEME.mono, fontSize: 9, letterSpacing: 1.5,
+        color: THEME.muted, textTransform: 'uppercase', fontWeight: '900',
     },
-    slider: {
-        flex: 1,
-        height: 30,
-    },
+    slider: { flex: 1, height: 30 },
     controlValue: {
-        fontFamily: THEME.mono,
-        fontSize: 10,
-        color: THEME.ink,
-        fontWeight: '900',
-        minWidth: 30,
-        textAlign: 'right',
+        fontFamily: THEME.mono, fontSize: 10, color: THEME.ink,
+        fontWeight: '900', minWidth: 30, textAlign: 'right',
     },
 
-    // End / stop / close button
     endBtn: {
-        flexDirection: 'row',
-        padding: 14,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
+        flexDirection: 'row', padding: 14, borderRadius: 14,
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center', justifyContent: 'center',
         marginBottom: Platform.OS === 'ios' ? 20 : 10,
     },
     endBtnText: {
-        fontFamily: THEME.mono,
-        fontSize: 10,
-        fontWeight: '900',
-        letterSpacing: 2.2,
-        color: THEME.muted,
-        textTransform: 'uppercase',
+        fontFamily: THEME.mono, fontSize: 10, fontWeight: '900',
+        letterSpacing: 2.2, color: THEME.muted, textTransform: 'uppercase',
     },
 
-    // Retry button
     retryBtn: {
-        marginTop: 16,
-        paddingVertical: 10,
-        paddingHorizontal: 24,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.3)',
+        marginTop: 16, paddingVertical: 10, paddingHorizontal: 24,
+        borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
         backgroundColor: 'rgba(255,255,255,0.08)',
     },
     retryBtnText: {
-        fontFamily: THEME.mono,
-        fontSize: 10,
-        fontWeight: '900',
-        letterSpacing: 2,
-        color: '#fff',
-        textTransform: 'uppercase',
+        fontFamily: THEME.mono, fontSize: 10, fontWeight: '900',
+        letterSpacing: 2, color: '#fff', textTransform: 'uppercase',
     },
 
-    // Minimized pill
     minimizedPill: {
-        position: 'absolute',
-        top: Platform.OS === 'ios' ? 56 : 36,
-        alignSelf: 'center',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderRadius: 20,
+        position: 'absolute', top: Platform.OS === 'ios' ? 56 : 36, alignSelf: 'center',
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
         backgroundColor: 'rgba(0,0,0,0.85)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.25)',
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
         zIndex: 9998,
-        shadowColor: '#fff',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        shadowColor: '#fff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.3, shadowRadius: 8,
         elevation: 10,
     },
     minimizedDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#fff',
-        shadowColor: '#fff',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.9,
-        shadowRadius: 6,
+        width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff',
+        shadowColor: '#fff', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 6,
     },
     minimizedText: {
-        fontFamily: THEME.mono,
-        fontSize: 9,
-        fontWeight: '900',
-        letterSpacing: 2,
-        color: '#fff',
-        textTransform: 'uppercase',
+        fontFamily: THEME.mono, fontSize: 9, fontWeight: '900',
+        letterSpacing: 2, color: '#fff', textTransform: 'uppercase',
     },
     minimizedStop: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
+        width: 20, height: 20, borderRadius: 10,
         backgroundColor: 'rgba(255,255,255,0.1)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: 4,
+        alignItems: 'center', justifyContent: 'center', marginLeft: 4,
     },
 });

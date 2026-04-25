@@ -596,19 +596,48 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('screenshot_alert', { roomId });
     });
 
+    // --- Screen Share Ready (mirror of webrtc_ready for the screen channel) ---
+    socket.on('screen_share_ready', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        socket.to(roomId).emit('screen_share_ready', { roomId, from: socket.id });
+    });
+
     // --- Screen Share Signaling ---
+    // Two payload shapes supported:
+    //   New (LiveGlass-style): { roomId, signal: { type, payload } }
+    //     -> relayed as { roomId, signal, from } so the receiver can use
+    //        `from` for deterministic caller selection.
+    //   Legacy (flat): { roomId, type, sdp, candidate }
+    //     -> relayed as-is for backward compatibility with older builds.
     socket.on('screen_share_signal', (data) => {
         const participant = getParticipant(socket.id);
         if (!participant) return;
         const roomId = extractRoomId(data);
         if (!roomId || !participant.rooms.has(roomId)) return;
-        if (typeof data.type !== 'string') return;
-        socket.to(roomId).emit('screen_share_signal', {
-            roomId,
-            type: data.type,
-            sdp: data.sdp,
-            candidate: data.candidate,
-        });
+
+        if (data.signal && typeof data.signal.type === 'string') {
+            // New shape — pass through with from
+            socket.to(roomId).emit('screen_share_signal', {
+                roomId,
+                signal: data.signal,
+                from: socket.id,
+            });
+            return;
+        }
+
+        if (typeof data.type === 'string') {
+            // Legacy shape — keep the old relay so older APKs don't break
+            socket.to(roomId).emit('screen_share_signal', {
+                roomId,
+                type: data.type,
+                sdp: data.sdp,
+                candidate: data.candidate,
+                from: socket.id,
+            });
+        }
     });
 
     // --- Screen Share Controls (blur relay) ---
