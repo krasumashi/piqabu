@@ -484,11 +484,19 @@ export default function ScreenSharePanel({
             socket.on('screen_share_signal', handleSignal);
 
             // Readiness exchange — sharer waits for viewer's ready, then offers.
+            //
+            // We ECHO ready on receipt because the sharer's getDisplayMedia
+            // dialog takes 1-3s on Android, so the viewer's initial ready
+            // emit can arrive before the sharer's listener is attached.
+            // The echo guarantees both sides eventually hear each other.
+            // The partnerReady guard caps the chain at 1 echo per side.
             socket.off('screen_share_ready');
             socket.on('screen_share_ready', () => {
                 if (partnerReady.current) return;
                 partnerReady.current = true;
                 console.log('[ScreenShare] Partner ready');
+                // Echo back in case our own first ready was missed.
+                try { socket.emit('screen_share_ready', { roomId }); } catch { }
                 if (isSharer) {
                     // Viewer just confirmed it's listening — safe to offer
                     createOffer();
