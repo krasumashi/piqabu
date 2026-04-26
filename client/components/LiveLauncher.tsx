@@ -95,6 +95,10 @@ export default function LiveLauncher({
     }, [visible]);
 
     const handleSelect = (mode: 'glass' | 'mirror') => {
+        // Live Mirror is gated as "coming soon" until the WebRTC screen
+        // capture pipeline ships. The card is rendered as disabled below;
+        // this guard is belt-and-braces in case the touchable still fires.
+        if (mode === 'mirror') return;
         // Dismiss first so the sheet animates away cleanly,
         // then fire the parent callback on the next frame.
         onDismiss();
@@ -158,19 +162,22 @@ export default function LiveLauncher({
 
                         <TouchableOpacity
                             onPress={() => handleSelect('mirror')}
-                            style={styles.optionCard}
-                            activeOpacity={0.75}
+                            style={[styles.optionCard, styles.optionCardDisabled]}
+                            activeOpacity={1}
+                            disabled
                         >
-                            <View style={styles.optionIconWrap}>
-                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.ink} />
+                            <View style={[styles.optionIconWrap, styles.optionIconWrapDisabled]}>
+                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.faint} />
                             </View>
                             <View style={styles.optionTextWrap}>
-                                <Text style={styles.optionLabel}>LIVE MIRROR</Text>
+                                <Text style={[styles.optionLabel, { color: THEME.muted }]}>LIVE MIRROR</Text>
                                 <Text style={styles.optionDesc}>
                                     Share your screen. View-only — no save, no screenshots.
                                 </Text>
                             </View>
-                            <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
+                            <View style={styles.comingSoonPill}>
+                                <Text style={styles.comingSoonText}>SOON</Text>
+                            </View>
                         </TouchableOpacity>
                     </View>
 
@@ -271,6 +278,10 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         paddingHorizontal: 14,
     },
+    optionCardDisabled: {
+        opacity: 0.55,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+    },
     optionIconWrap: {
         width: 44,
         height: 44,
@@ -280,6 +291,25 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.04)',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    optionIconWrapDisabled: {
+        backgroundColor: 'transparent',
+        borderStyle: 'dashed',
+    },
+    comingSoonPill: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    comingSoonText: {
+        fontFamily: THEME.mono,
+        fontSize: 8,
+        letterSpacing: 1.4,
+        fontWeight: '900',
+        color: THEME.muted,
     },
     optionTextWrap: {
         flex: 1,
