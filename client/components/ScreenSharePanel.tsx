@@ -70,7 +70,7 @@ interface ScreenSharePanelProps {
     onMaximize?: () => void;
 }
 
-type Status = 'idle' | 'preparing' | 'connecting' | 'active' | 'error' | 'unsupported';
+type Status = 'idle' | 'preparing' | 'connecting' | 'active' | 'error' | 'unsupported' | 'ended';
 
 /* ═══════════════════════════════ COMPONENT ═══════════════════════════════ */
 
@@ -219,10 +219,17 @@ export default function ScreenSharePanel({
         if (cleanedUp.current) return;
         cleanedUp.current = true;
 
+        // Sharer notifies the viewer so they don't stare at a frozen frame.
+        // Best-effort — fine to no-op if the socket is already gone.
+        if (socket && isSharer) {
+            try { socket.emit('screen_share_ended', { roomId }); } catch { }
+        }
+
         // Detach socket listeners
         if (socket) {
             socket.off('screen_share_signal');
             socket.off('screen_share_ready');
+            socket.off('screen_share_ended');
             socket.off('transmit_screen_share_controls');
         }
 
@@ -263,7 +270,7 @@ export default function ScreenSharePanel({
         partnerReady.current = false;
         makingOffer.current = false;
         negotiationStarted.current = false;
-    }, [socket]);
+    }, [socket, isSharer, roomId]);
 
     /* ────────── create + send an offer (sharer only) ─────────────────── */
 
@@ -503,6 +510,17 @@ export default function ScreenSharePanel({
                 }
             });
 
+            // Viewer-only: listen for sharer ending the session so we can
+            // surface "PARTNER STOPPED SHARING" instead of a frozen frame.
+            if (!isSharer) {
+                socket.off('screen_share_ended');
+                socket.on('screen_share_ended', (data: any) => {
+                    if (data?.roomId !== roomId) return;
+                    console.log('[ScreenShare] Sharer ended session');
+                    setStatus('ended');
+                });
+            }
+
             // Tell the other side we're set up
             socket.emit('screen_share_ready', { roomId });
             console.log('[ScreenShare] Local ready emitted');
@@ -556,6 +574,20 @@ export default function ScreenSharePanel({
         if (visible && isSharer) setScreenShareActive(true);
         return () => { if (isSharer) setScreenShareActive(false); };
     }, [visible, isSharer, setScreenShareActive]);
+
+    /* ─────────── connecting timeout — surface retry after 12s ───────── */
+
+    useEffect(() => {
+        if (status !== 'connecting') return;
+        const t = setTimeout(() => {
+            setError('Connection timed out. Tap Retry — your correspondent may need to relaunch the app.');
+            setStatus('error');
+        }, 12000);
+        // The cleanup auto-clears the timeout when status leaves 'connecting'
+        // (e.g. transitions to 'active'), so the error only fires if we're
+        // still stuck after 12 seconds.
+        return () => clearTimeout(t);
+    }, [status]);
 
     /* ─────────── auto-minimize sharer once active ────────────────────── */
 
@@ -762,7 +794,17 @@ export default function ScreenSharePanel({
 
                 {/* Stream display */}
                 <View style={styles.feedContainer}>
-                    {status === 'error' ? (
+                    {status === 'ended' ? (
+                        <View style={styles.noSignal}>
+                            <Ionicons name="stop-circle-outline" size={36} color={THEME.muted} />
+                            <Text style={[styles.noSignalText, { color: THEME.muted, fontSize: 11 }]}>
+                                PARTNER STOPPED{'\n'}SHARING
+                            </Text>
+                            <TouchableOpacity onPress={handleStop} style={styles.retryBtn} activeOpacity={0.7}>
+                                <Text style={styles.retryBtnText}>CLOSE</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : status === 'error' ? (
                         <View style={styles.noSignal}>
                             <Ionicons name="warning-outline" size={32} color={THEME.faint} />
                             <Text style={styles.noSignalText}>{error}</Text>

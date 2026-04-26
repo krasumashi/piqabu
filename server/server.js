@@ -605,6 +605,17 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('screen_share_ready', { roomId, from: socket.id });
     });
 
+    // --- Screen Share Ended (sharer notifies viewer the session has ended) ---
+    // Relayed so the viewer can close its panel cleanly with a "PARTNER STOPPED
+    // SHARING" notice, instead of being left staring at the last frame.
+    socket.on('screen_share_ended', (data) => {
+        const participant = getParticipant(socket.id);
+        if (!participant) return;
+        const roomId = extractRoomId(data);
+        if (!roomId || !participant.rooms.has(roomId)) return;
+        socket.to(roomId).emit('screen_share_ended', { roomId, from: socket.id });
+    });
+
     // --- Screen Share Signaling ---
     // Two payload shapes supported:
     //   New (LiveGlass-style): { roomId, signal: { type, payload } }
