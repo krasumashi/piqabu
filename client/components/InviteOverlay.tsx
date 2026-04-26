@@ -38,7 +38,11 @@ export default function InviteOverlay({ visible, feature, onAccept, onDecline }:
 
     if (!visible) return null;
 
-    const icon = feature === 'LIVE GLASS' ? 'videocam-outline' : 'mic-outline';
+    const icon =
+        feature === 'LIVE GLASS' ? 'videocam-outline'
+        : feature === 'LIVE MIRROR' ? 'phone-portrait-outline'
+        : feature === 'DEVICE LINK REQUEST' ? 'link-outline'
+        : 'mic-outline';
 
     return (
         <RNAnimated.View style={[styles.container, { opacity, transform: [{ translateY }] }]}>

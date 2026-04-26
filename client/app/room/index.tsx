@@ -22,6 +22,7 @@ import InviteOverlay from '../../components/InviteOverlay';
 import ListeningIndicator from '../../components/ListeningIndicator';
 import LiveGlassPanel from '../../components/LiveGlassPanel';
 import ScreenSharePanel from '../../components/ScreenSharePanel';
+import LiveLauncher from '../../components/LiveLauncher';
 import GridBackground from '../../components/GridBackground';
 import PresencePulse from '../../components/PresencePulse';
 import SandText from '../../components/SandText';
@@ -95,6 +96,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const [screenshotAlert, setScreenshotAlert] = useState(false);
     const [videoPlaybackControl, setVideoPlaybackControl] = useState<any>(null);
     const [ghostSyncSent, setGhostSyncSent] = useState(false);
+    const [liveLauncherOpen, setLiveLauncherOpen] = useState(false);
 
     // ── Sand dissipation vanish (replaces segment-based untyping) ──
     const [sandOverlayText, setSandOverlayText] = useState<string | null>(null);
@@ -335,16 +337,13 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 </View>
 
                 <View style={st.headerRight}>
-                    <TouchableOpacity onPress={() => {
-                        setLiveGlassInitialMode('lobby');
-                        setLiveGlassPartnerAccepted(false);
-                        onOpenLiveGlass();
-                    }} style={st.headerIconBtn} activeOpacity={0.7}>
-                        <Ionicons name="camera-outline" size={18} color={THEME.muted} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity onPress={() => sendInvite('screen_share')} style={st.headerIconBtn} activeOpacity={0.7}>
-                        <Ionicons name="desktop-outline" size={18} color={THEME.muted} />
+                    {/* Piqa Live — unified entry for camera (Live Glass) + screen (Live Mirror) */}
+                    <TouchableOpacity
+                        onPress={() => setLiveLauncherOpen(true)}
+                        style={st.headerIconBtn}
+                        activeOpacity={0.7}
+                    >
+                        <Ionicons name="radio-outline" size={18} color={THEME.muted} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -507,7 +506,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 visible={pendingInvite !== null}
                 feature={
                     pendingInvite?.feature === 'live_glass' ? 'LIVE GLASS'
-                    : pendingInvite?.feature === 'screen_share' ? 'SCREEN SHARE'
+                    : pendingInvite?.feature === 'screen_share' ? 'LIVE MIRROR'
                     : pendingInvite?.feature?.startsWith('trust_sync_') ? 'DEVICE LINK REQUEST'
                     : 'WHISPER'
                 }
@@ -535,6 +534,18 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 onDecline={() => {
                     if (pendingInvite) declineInvite(pendingInvite.feature);
                 }}
+            />
+
+            {/* Piqa Live launcher — single entry point for camera + screen share */}
+            <LiveLauncher
+                visible={liveLauncherOpen}
+                onDismiss={() => setLiveLauncherOpen(false)}
+                onSelectGlass={() => {
+                    setLiveGlassInitialMode('lobby');
+                    setLiveGlassPartnerAccepted(false);
+                    onOpenLiveGlass();
+                }}
+                onSelectMirror={() => sendInvite('screen_share')}
             />
         </View>
     );
