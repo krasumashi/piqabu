@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome palette for the Piqabu Keyboard.
+
+  Mirrors `client/constants/Theme.ts` so the keyboard's visual identity
+  matches the main app at 48dp scale. When the JS THEME changes, this
+  file should be updated in lockstep — there's no shared source of truth
+  between JS and native (yet).
+-->
+<resources>
+    <color name="piqabu_keyboard_bg">#0F1114</color>
+    <color name="piqabu_keyboard_bg_dim">#0B0D10</color>
+    <color name="piqabu_keyboard_ink">#EBEBE5</color>
+    <color name="piqabu_keyboard_muted">#9D9D97</color>
+    <color name="piqabu_keyboard_faint">#5F5F5C</color>
+    <color name="piqabu_keyboard_edge">#3A3A38</color>
+    <color name="piqabu_keyboard_button">#1A1C20</color>
+    <color name="piqabu_keyboard_button_pressed">#26282D</color>
+    <color name="piqabu_keyboard_pulse">#FFFFFF</color>
+</resources>

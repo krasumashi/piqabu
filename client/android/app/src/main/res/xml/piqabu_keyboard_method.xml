@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IME metadata for the Piqabu Keyboard.
+
+  - `supportsSwitchingToNextInputMethod="true"` lets the OS switch to the
+    next keyboard via the globe key on the system bar (Android 14+).
+  - English-only for v1. Multi-locale subtypes deferred to a future pass.
+  - No settingsActivity yet — Phase 2 has nothing to configure. Phase 6
+    will add one if discreet-mode toggles need a dedicated screen.
+-->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:supportsSwitchingToNextInputMethod="true">
+    <subtype
+        android:label="@string/piqabu_keyboard_subtype_label"
+        android:imeSubtypeMode="keyboard"
+        android:imeSubtypeLocale="en_US"/>
+</input-method>

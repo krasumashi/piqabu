@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Piqabu Keyboard root layout.
+
+  Two zones:
+    1. Candidate strip (48 dp) — pulse dot, status label, MINT, globe.
+       This is the always-visible Piqabu identity inside the keyboard.
+    2. Body (200 dp idle) — Phase 4 replaces this with the live session
+       panel (remote feed / local input / send / end-session). Phase 2
+       shows a single inert hint instructing the user to mint.
+
+  Total IME height: 248 dp. Sized to match a typical keyboard footprint
+  so the host app's layout doesn't shift when switching between Gboard
+  and Piqabu.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@color/piqabu_keyboard_bg">
+
+    <!-- Candidate strip -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="14dp"
+        android:background="@color/piqabu_keyboard_bg">
+
+        <View
+            android:id="@+id/piqabu_pulse_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:background="@drawable/piqabu_pulse_dot"
+            android:layout_marginEnd="10dp"/>
+
+        <TextView
+            android:id="@+id/piqabu_status_label"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/piqabu_keyboard_status_idle"
+            android:textColor="@color/piqabu_keyboard_ink"
+            android:textSize="11sp"
+            android:textAllCaps="true"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.15"/>
+
+        <Button
+            android:id="@+id/piqabu_mint_button"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:text="@string/piqabu_keyboard_mint"
+            android:textColor="@color/piqabu_keyboard_ink"
+            android:textSize="10sp"
+            android:textAllCaps="true"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.18"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="0dp"
+            android:background="@drawable/piqabu_mint_button_bg"
+            android:layout_marginEnd="8dp"
+            android:stateListAnimator="@null"/>
+
+        <ImageButton
+            android:id="@+id/piqabu_globe_button"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@drawable/piqabu_ic_globe"
+            android:background="@drawable/piqabu_globe_button_bg"
+            android:contentDescription="@string/piqabu_keyboard_globe_desc"
+            android:scaleType="centerInside"/>
+    </LinearLayout>
+
+    <!-- Idle body — Phase 4 swaps this for the session panel. -->
+    <LinearLayout
+        android:id="@+id/piqabu_idle_body"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="24dp"
+        android:background="@color/piqabu_keyboard_bg_dim">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/piqabu_keyboard_idle_body"
+            android:textColor="@color/piqabu_keyboard_muted"
+            android:textSize="11sp"
+            android:textAllCaps="true"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.16"
+            android:lineSpacingMultiplier="1.5"
+            android:gravity="center"/>
+    </LinearLayout>
+</LinearLayout>

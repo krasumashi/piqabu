@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Copy for the Piqabu Keyboard.
+
+  Tone: matches the main app's spare, all-caps, mono identity. Never
+  refers to "Piqabu" outside of the visible identity strip — discreet
+  defaults.
+-->
+<resources>
+    <string name="piqabu_keyboard_label">Piqabu Keyboard</string>
+    <string name="piqabu_keyboard_subtype_label">Piqabu (Private)</string>
+    <string name="piqabu_keyboard_status_idle">PIQA LIVE · IDLE</string>
+    <string name="piqabu_keyboard_status_waiting">WAITING FOR CORRESPONDENT…</string>
+    <string name="piqabu_keyboard_status_linked">LINKED</string>
+    <string name="piqabu_keyboard_status_pro_required">PRO REQUIRED</string>
+    <string name="piqabu_keyboard_mint">MINT</string>
+    <string name="piqabu_keyboard_end">END</string>
+    <string name="piqabu_keyboard_globe_desc">Switch keyboard</string>
+    <string name="piqabu_keyboard_idle_body">Tap MINT to open a private channel.\nKeystrokes stay off the host app until linked.</string>
+    <string name="piqabu_keyboard_mint_phase2_toast">Live session lands in Phase 4 — networking not yet wired.</string>
+</resources>
