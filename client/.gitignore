@@ -37,5 +37,7 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
+# iOS is still managed (regenerated each EAS build). Android is bare workflow
+# (committed) as of the Piqabu Keyboard work — the custom IME requires native
+# Kotlin source that lives in android/app/src/main/.
 /ios
-/android
