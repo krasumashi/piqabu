@@ -1,10 +1,23 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated, TextInput, Alert, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated, TextInput, Alert, KeyboardAvoidingView, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
+import { setSecureItem } from '../lib/platform/storage';
+
+/**
+ * Open the Android system IME settings screen so the user can toggle
+ * the Piqabu Keyboard on. No-op on iOS/web for v1.
+ */
+function openKeyboardSettings() {
+    if (Platform.OS !== 'android') return;
+    Linking.sendIntent('android.settings.INPUT_METHOD_SETTINGS').catch(() => {
+        Linking.openSettings().catch(() => {});
+    });
+}
 
 interface SettingsPanelProps {
     visible: boolean;
@@ -21,6 +34,18 @@ export default function SettingsPanel({
 }: SettingsPanelProps) {
     const { panicEnabled, biometricEnabled, setPanicEnabled, setBiometricEnabled, triggerPanic } = useSecurity();
     const insets = useSafeAreaInsets();
+    const router = useRouter();
+
+    /**
+     * Clear the onboarded flag and jump straight back to the onboarding
+     * carousel. Used during the demo to re-show the keyboard slide.
+     */
+    const replayOnboarding = async () => {
+        try { await setSecureItem('piqabu_onboarded', ''); } catch {}
+        onClose();
+        // Defer the route push so the panel can animate out cleanly.
+        setTimeout(() => router.replace('/onboarding'), 200);
+    };
     const slideAnim = useRef(new RNAnimated.Value(300)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
@@ -183,6 +208,37 @@ export default function SettingsPanel({
                     <Text style={styles.itemLabel}>REGENERATE KEY</Text>
                     <Ionicons name="refresh-outline" size={14} color={THEME.ink} />
                 </TouchableOpacity>
+
+                {/* ── Piqabu Keyboard ── */}
+                {Platform.OS === 'android' && (
+                    <>
+                        <Text style={styles.sectionLabel}>PIQABU KEYBOARD</Text>
+
+                        <TouchableOpacity
+                            onPress={openKeyboardSettings}
+                            style={styles.item}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.itemRow}>
+                                <Ionicons name="keypad-outline" size={14} color={THEME.muted} />
+                                <Text style={styles.itemLabel}>ENABLE KEYBOARD</Text>
+                            </View>
+                            <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={replayOnboarding}
+                            style={styles.item}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.itemRow}>
+                                <Ionicons name="play-back-outline" size={14} color={THEME.muted} />
+                                <Text style={styles.itemLabel}>SHOW WALKTHROUGH AGAIN</Text>
+                            </View>
+                            <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
+                        </TouchableOpacity>
+                    </>
+                )}
 
                 {/* ── Support ── */}
                 <Text style={styles.sectionLabel}>SUPPORT</Text>

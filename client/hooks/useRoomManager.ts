@@ -9,9 +9,21 @@ export interface RoomTab {
 const DEFAULT_MAX_ROOMS = 99; // [TESTING] Hard bypassed Free tier limits
 
 // Rooms are only considered valid if they were saved within this window.
-// 90 seconds covers the full Android permission-restart cycle (typically <5s),
-// but is short enough that rooms from a previous session are discarded.
-const SESSION_TTL_MS = 90_000;
+// The point of this is to survive Android's permission-grant activity
+// restart — when you grant camera/mic/etc, Android kills and re-launches
+// the app instantly. That's typically <5s, sometimes up to ~10s on
+// low-end devices.
+//
+// We do NOT want this window wide enough to also restore state on an
+// intentional close-and-reopen — when a user backgrounds the app and
+// returns to it deliberately, they expect a fresh start. With a 90s
+// window we were auto-redirecting users into the /room screen with a
+// server-side dead room, blocking the Generate-new flow until storage
+// expired ("can't generate new session unless I wait a while").
+//
+// 15 seconds gives the permission restart a comfortable runway without
+// capturing intentional close-and-reopen.
+const SESSION_TTL_MS = 15_000;
 const STORAGE_KEY = 'piqabu_session_rooms_v2';
 
 interface PersistedSession {

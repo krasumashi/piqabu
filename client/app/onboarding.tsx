@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, FlatList, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, FlatList, Animated, Linking, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,26 @@ interface Slide {
     title: string;
     subtitle: string;
     description: string;
+    /**
+     * If set, renders an in-slide action button above the bottom Next/Finish
+     * CTA. Used by the keyboard slide to deep-link into the Android system
+     * Input Method Settings screen.
+     */
+    cta?: 'enable_keyboard';
+}
+
+/**
+ * Open the Android system IME settings screen so the user can toggle
+ * the Piqabu Keyboard on. No-op on iOS/web for v1 (we ship iOS later
+ * via Share Extension + Shortcuts).
+ */
+function openKeyboardSettings() {
+    if (Platform.OS !== 'android') return;
+    Linking.sendIntent('android.settings.INPUT_METHOD_SETTINGS').catch(() => {
+        // Fall back to general settings if the specific action fails
+        // on older Android versions or oddball OEMs.
+        Linking.openSettings().catch(() => {});
+    });
 }
 
 const slides: Slide[] = [
@@ -39,6 +59,13 @@ const slides: Slide[] = [
         title: 'WHISPER & GLASS',
         subtitle: 'Voice-distorted audio + live camera',
         description: 'Hold to transmit a voice-altered message. Toggle Live Glass for an obscured camera feed with privacy blur and noir filters.',
+    },
+    {
+        icon: 'keypad-outline',
+        title: 'PIQABU KEYBOARD',
+        subtitle: 'Private channels, one key away',
+        description: 'Add the Piqabu Keyboard so you can summon a private channel from inside any chat app -- WhatsApp, Telegram, anywhere you type. Tap below to enable it in your system settings.',
+        cta: 'enable_keyboard',
     },
 ];
 
@@ -82,6 +109,33 @@ export default function Onboarding() {
             <Text className="text-ghost font-mono text-xs text-center leading-5 px-4">
                 {item.description}
             </Text>
+
+            {/* In-slide CTA — keyboard slide deep-links to system IME settings */}
+            {item.cta === 'enable_keyboard' && (
+                <TouchableOpacity
+                    onPress={openKeyboardSettings}
+                    activeOpacity={0.75}
+                    style={{
+                        marginTop: 28,
+                        paddingHorizontal: 20,
+                        paddingVertical: 12,
+                        borderWidth: 1,
+                        borderColor: '#FFFFFF',
+                        borderRadius: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 10,
+                    }}
+                >
+                    <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
+                    <Text
+                        className="text-signal font-mono font-bold uppercase"
+                        style={{ letterSpacing: 2, fontSize: 11 }}
+                    >
+                        {Platform.OS === 'android' ? 'Enable Piqabu Keyboard' : 'Android only for now'}
+                    </Text>
+                </TouchableOpacity>
+            )}
         </View>
     );
 

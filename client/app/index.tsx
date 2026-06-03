@@ -195,7 +195,11 @@ export default function EntryView() {
                             <Text style={styles.topSub}>DIGITAL PAPER CHANNEL</Text>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            <SubscriptionBadge tier={tier} onPress={() => setShowPaywall(true)} />
+                            {/* Subscription badge hidden during demo. Re-enable
+                                when the Pro tier is ready to charge —
+                                will live in the Piqabu Keyboard onboarding
+                                step (Phase 3 of the keyboard build). */}
+                            {/* <SubscriptionBadge tier={tier} onPress={() => setShowPaywall(true)} /> */}
                             <View style={styles.statusPill}>
                                 <View style={[styles.statusDot, { backgroundColor: isConnected ? THEME.live : THEME.warn }]} />
                                 <Text style={styles.statusText}>{isConnected ? 'LIVE' : 'WAITING'}</Text>
