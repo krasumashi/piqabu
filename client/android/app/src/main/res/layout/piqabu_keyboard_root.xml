@@ -75,26 +75,21 @@
             android:scaleType="centerInside"/>
     </LinearLayout>
 
-    <!-- Idle body — Phase 4 swaps this for the session panel. -->
-    <LinearLayout
-        android:id="@+id/piqabu_idle_body"
+    <!--
+      QWERTY body (Phase 2.6). Uses Android's built-in KeyboardView.
+      Pre-MINT (dual-mode), key events route to the host app's input
+      field. Post-MINT (Phase 4), they'll route to the Piqabu peer.
+    -->
+    <android.inputmethodservice.KeyboardView
+        android:id="@+id/piqabu_keyboard_view"
         android:layout_width="match_parent"
-        android:layout_height="200dp"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="24dp"
-        android:background="@color/piqabu_keyboard_bg_dim">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/piqabu_keyboard_idle_body"
-            android:textColor="@color/piqabu_keyboard_muted"
-            android:textSize="11sp"
-            android:textAllCaps="true"
-            android:fontFamily="monospace"
-            android:letterSpacing="0.16"
-            android:lineSpacingMultiplier="1.5"
-            android:gravity="center"/>
-    </LinearLayout>
+        android:layout_height="wrap_content"
+        android:background="@color/piqabu_keyboard_bg_dim"
+        android:keyBackground="@drawable/piqabu_key_bg"
+        android:keyTextColor="@color/piqabu_keyboard_ink"
+        android:keyTextSize="18sp"
+        android:labelTextSize="14sp"
+        android:keyPreviewLayout="@layout/piqabu_key_preview"
+        android:shadowColor="@android:color/transparent"
+        android:shadowRadius="0"/>
 </LinearLayout>

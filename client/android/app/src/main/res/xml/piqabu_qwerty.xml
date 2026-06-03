@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Piqabu Keyboard — QWERTY layout (Phase 2.6).
+
+  Used by `android.inputmethodservice.KeyboardView`. Yes, that class is
+  deprecated since API 29 — but for a v1 IME shipping this week it's
+  the fastest path to a functional keyboard and we can swap it for a
+  custom-View implementation in a future polish pass.
+
+  Layout: 4 rows. Letters only — numbers/symbols are reachable via the
+  user's daily-driver keyboard (globe key, top-right of strip).
+
+  Key codes follow ASCII for letters (a=97..z=122) and the Keyboard
+  class constants for special keys:
+    -1  KEYCODE_SHIFT
+    -5  KEYCODE_DELETE (backspace)
+    -4  KEYCODE_DONE   (return)
+-->
+<Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
+    android:keyWidth="10%p"
+    android:horizontalGap="2px"
+    android:verticalGap="4px"
+    android:keyHeight="48dp">
+
+    <!-- Row 1 -->
+    <Row>
+        <Key android:codes="113" android:keyLabel="q"/>
+        <Key android:codes="119" android:keyLabel="w"/>
+        <Key android:codes="101" android:keyLabel="e"/>
+        <Key android:codes="114" android:keyLabel="r"/>
+        <Key android:codes="116" android:keyLabel="t"/>
+        <Key android:codes="121" android:keyLabel="y"/>
+        <Key android:codes="117" android:keyLabel="u"/>
+        <Key android:codes="105" android:keyLabel="i"/>
+        <Key android:codes="111" android:keyLabel="o"/>
+        <Key android:codes="112" android:keyLabel="p"/>
+    </Row>
+
+    <!-- Row 2: shifted 5%p so letters straddle row 1 -->
+    <Row>
+        <Key android:codes="97"  android:keyLabel="a" android:horizontalGap="5%p"/>
+        <Key android:codes="115" android:keyLabel="s"/>
+        <Key android:codes="100" android:keyLabel="d"/>
+        <Key android:codes="102" android:keyLabel="f"/>
+        <Key android:codes="103" android:keyLabel="g"/>
+        <Key android:codes="104" android:keyLabel="h"/>
+        <Key android:codes="106" android:keyLabel="j"/>
+        <Key android:codes="107" android:keyLabel="k"/>
+        <Key android:codes="108" android:keyLabel="l"/>
+    </Row>
+
+    <!-- Row 3: shift on left, backspace on right -->
+    <Row>
+        <Key android:codes="-1"  android:keyLabel="⇧"
+             android:keyWidth="15%p" android:isModifier="true" android:isSticky="true"/>
+        <Key android:codes="122" android:keyLabel="z"/>
+        <Key android:codes="120" android:keyLabel="x"/>
+        <Key android:codes="99"  android:keyLabel="c"/>
+        <Key android:codes="118" android:keyLabel="v"/>
+        <Key android:codes="98"  android:keyLabel="b"/>
+        <Key android:codes="110" android:keyLabel="n"/>
+        <Key android:codes="109" android:keyLabel="m"/>
+        <Key android:codes="-5"  android:keyLabel="⌫"
+             android:keyWidth="15%p" android:isRepeatable="true"/>
+    </Row>
+
+    <!-- Row 4: comma, space, period, enter -->
+    <Row>
+        <Key android:codes="44"  android:keyLabel="," android:keyWidth="15%p"/>
+        <Key android:codes="32"  android:keyLabel="space" android:keyWidth="55%p" android:isRepeatable="true"/>
+        <Key android:codes="46"  android:keyLabel="." android:keyWidth="15%p"/>
+        <Key android:codes="-4"  android:keyLabel="↵" android:keyWidth="15%p"/>
+    </Row>
+</Keyboard>

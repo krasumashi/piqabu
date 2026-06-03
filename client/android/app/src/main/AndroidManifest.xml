@@ -31,18 +31,11 @@
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="3000"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATE_URL" android:value="https://u.expo.dev/eb9a4e25-cfdd-4c53-b25c-d5e52973595c"/>
     <service android:name="com.oney.WebRTCModule.WebRTCModuleService" android:enabled="true" android:exported="false" android:foregroundServiceType="mediaProjection"/>
-    <!-- Piqabu Keyboard — custom IME (Phase 2 of the Resident/Theatre work). -->
-    <service
-        android:name=".keyboard.PiqabuKeyboardService"
-        android:label="@string/piqabu_keyboard_label"
-        android:permission="android.permission.BIND_INPUT_METHOD"
-        android:exported="true">
-        <intent-filter>
-            <action android:name="android.view.InputMethod"/>
-        </intent-filter>
-        <meta-data
-            android:name="android.view.im"
-            android:resource="@xml/piqabu_keyboard_method"/>
+    <service android:name=".keyboard.PiqabuKeyboardService" android:label="@string/piqabu_keyboard_label" android:permission="android.permission.BIND_INPUT_METHOD" android:exported="true">
+      <intent-filter>
+        <action android:name="android.view.InputMethod"/>
+      </intent-filter>
+      <meta-data android:name="android.view.im" android:resource="@xml/piqabu_keyboard_method"/>
     </service>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
       <intent-filter>

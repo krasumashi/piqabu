@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Floating preview shown when a key is held. Mirrors the strip's
+  monochrome palette so it doesn't break Piqabu's identity.
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@color/piqabu_keyboard_button"
+    android:textColor="@color/piqabu_keyboard_ink"
+    android:textSize="28sp"
+    android:padding="10dp"
+    android:gravity="center"
+    android:fontFamily="monospace"/>
