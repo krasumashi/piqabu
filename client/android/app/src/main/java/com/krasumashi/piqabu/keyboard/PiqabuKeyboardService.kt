@@ -6,7 +6,12 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.Toast
-import com.krasumashi.piqabu.R
+// Aliased so there is no chance of clashing with `android.R` in nested scopes.
+// The app's R lives at the namespace declared in `app/build.gradle`
+// (`com.krasumashi.piqabu`), and any subpackage (like this one) needs to
+// reach up to it explicitly — Kotlin will not auto-resolve `R` to the app
+// module when the current package is a subpackage of the namespace.
+import com.krasumashi.piqabu.R as PiqR
 
 /**
  * Piqabu Keyboard — the Resident half of the Resident/Theatre split.
@@ -34,16 +39,16 @@ import com.krasumashi.piqabu.R
 class PiqabuKeyboardService : InputMethodService() {
 
     override fun onCreateInputView(): View {
-        val root = layoutInflater.inflate(R.layout.piqabu_keyboard_root, null)
+        val root = layoutInflater.inflate(PiqR.layout.piqabu_keyboard_root, null)
 
         // MINT — Phase 2 placeholder. Phase 4 wires this to [PiqaSession]:
         // generates a 6-char room code, opens a Socket.IO connection,
         // inserts the share link into the host app's compose box, and
         // expands the session panel.
-        root.findViewById<Button>(R.id.piqabu_mint_button).setOnClickListener {
+        root.findViewById<Button>(PiqR.id.piqabu_mint_button).setOnClickListener {
             Toast.makeText(
                 this,
-                getString(R.string.piqabu_keyboard_mint_phase2_toast),
+                getString(PiqR.string.piqabu_keyboard_mint_phase2_toast),
                 Toast.LENGTH_SHORT,
             ).show()
         }
@@ -51,7 +56,7 @@ class PiqabuKeyboardService : InputMethodService() {
         // Globe — system-standard "swap keyboard" affordance. We delegate
         // to the platform InputMethodManager so the user lands on the IME
         // picker (modern) and can pick their daily-driver keyboard back.
-        root.findViewById<ImageButton>(R.id.piqabu_globe_button).setOnClickListener {
+        root.findViewById<ImageButton>(PiqR.id.piqabu_globe_button).setOnClickListener {
             val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showInputMethodPicker()
         }
