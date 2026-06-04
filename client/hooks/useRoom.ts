@@ -16,6 +16,10 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
     const [pendingInvite, setPendingInvite] = useState<{ feature: string } | null>(null);
     const [inviteStatus, setInviteStatus] = useState<'none' | 'sent' | 'accepted' | 'declined'>('none');
     const [inviteFeature, setInviteFeature] = useState<string>('');
+    // Last server-side block message for this room, surfaced to the UI so
+    // the room screen can render a friendly error state (e.g. for the
+    // TIME_FENCED case where a stale share-link is being joined).
+    const [lastBlock, setLastBlock] = useState<{ message: string; ageMs?: number } | null>(null);
 
     const joinedRef = useRef(false);
 
@@ -105,9 +109,12 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
             }
         };
 
-        const handleSignalBlocked = ({ message, roomId: blockedRoom }: any) => {
+        const handleSignalBlocked = ({ message, roomId: blockedRoom, ageMs }: any) => {
             if (blockedRoom === roomId || !blockedRoom) {
                 console.log(`[SIGNAL] Blocked in ${roomId}: ${message}`);
+                if (typeof message === 'string') {
+                    setLastBlock({ message, ageMs });
+                }
             }
         };
 
@@ -203,6 +210,8 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         setInviteFeature('');
     }, []);
 
+    const clearBlock = useCallback(() => setLastBlock(null), []);
+
     return {
         linkStatus,
         remoteText,
@@ -221,5 +230,7 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         acceptInvite,
         declineInvite,
         clearInviteStatus,
+        lastBlock,
+        clearBlock,
     };
 }

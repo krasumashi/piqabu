@@ -23,6 +23,12 @@ import ListeningIndicator from '../../components/ListeningIndicator';
 import LiveGlassPanel from '../../components/LiveGlassPanel';
 import ScreenSharePanel from '../../components/ScreenSharePanel';
 import LiveLauncher from '../../components/LiveLauncher';
+import HandshakeScreen, {
+    hasAckedHandshake,
+    ackHandshake,
+    unackHandshake,
+} from '../../components/HandshakeScreen';
+import { usePartnerHandshake } from '../../hooks/usePartnerHandshake';
 import GridBackground from '../../components/GridBackground';
 import PresencePulse from '../../components/PresencePulse';
 import SandText from '../../components/SandText';
@@ -73,14 +79,21 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     setLiveGlassPartnerAccepted: (v: boolean) => void;
     setLiveGlassInitialMode: (m: 'lobby' | 'calling') => void;
 }) {
-    const { socket, deviceId, limits } = useRoomContext();
+    const { socket, deviceId, limits, removeRoom } = useRoomContext();
+    const router = useRouter();
     const { partnerPresence, sendPulseTap } = usePresence(socket, roomId);
     const {
         linkStatus, remoteText, remoteReveal,
         sendText, sendVanish, sendReveal,
         pendingInvite, inviteStatus, inviteFeature,
         sendInvite, acceptInvite, declineInvite, clearInviteStatus,
+        lastBlock, clearBlock,
     } = useRoom(roomId, socket, deviceId);
+
+    // Listens for `partner_handshake` and derives the mutual fingerprint
+    // (Receiver Flow 4 — server-trust check). The fingerprint is non-null
+    // only once both sides are in the room.
+    const { fingerprint } = usePartnerHandshake(roomId, socket, deviceId);
 
     const { addPartner } = useLinkedPartners();
 
@@ -97,6 +110,24 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const [videoPlaybackControl, setVideoPlaybackControl] = useState<any>(null);
     const [ghostSyncSent, setGhostSyncSent] = useState(false);
     const [liveLauncherOpen, setLiveLauncherOpen] = useState(false);
+    // Handshake screen visibility — shown the first time a room reaches
+    // LINKED state, per-room ack persisted to AsyncStorage so we never
+    // re-show for an already-acknowledged room.
+    const [handshakeVisible, setHandshakeVisible] = useState(false);
+    const [handshakeAckLoaded, setHandshakeAckLoaded] = useState(false);
+
+    // Load handshake ack state once per room mount.
+    useEffect(() => {
+        let active = true;
+        (async () => {
+            const acked = await hasAckedHandshake(roomId);
+            if (active) {
+                setHandshakeVisible(!acked);
+                setHandshakeAckLoaded(true);
+            }
+        })();
+        return () => { active = false; };
+    }, [roomId]);
 
     // ── Sand dissipation vanish (replaces segment-based untyping) ──
     const [sandOverlayText, setSandOverlayText] = useState<string | null>(null);
@@ -547,6 +578,50 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 }}
                 onSelectMirror={() => sendInvite('screen_share')}
             />
+
+            {/* Time-fenced expiry — a stale share-link the server rejected. */}
+            {lastBlock?.message === 'TIME_FENCED' && (
+                <View style={st.fenceOverlay} pointerEvents="auto">
+                    <View style={st.fenceCard}>
+                        <Ionicons name="time-outline" size={40} color={THEME.muted} />
+                        <Text style={st.fenceTitle}>LINK EXPIRED</Text>
+                        <Text style={st.fenceBody}>
+                            This share-link has been sitting unused for too long. Ask your correspondent to mint a fresh one.
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => {
+                                clearBlock();
+                                removeRoom(roomId);
+                                router.replace('/');
+                            }}
+                            style={st.fenceBtn}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={st.fenceBtnText}>BACK</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
+
+            {/* Handshake screen — first frame on a fresh deep-link join.
+                Shows mutual fingerprint + auto-keyboard prompt (Android). */}
+            {handshakeAckLoaded && handshakeVisible && linkStatus === 'LINKED' && (
+                <HandshakeScreen
+                    visible={true}
+                    roomCode={roomId}
+                    fingerprint={fingerprint}
+                    onStartTyping={async () => {
+                        await ackHandshake(roomId);
+                        setHandshakeVisible(false);
+                    }}
+                    onDismiss={async () => {
+                        await unackHandshake(roomId);
+                        setHandshakeVisible(false);
+                        removeRoom(roomId);
+                        router.replace('/');
+                    }}
+                />
+            )}
         </View>
     );
 }
@@ -891,6 +966,51 @@ const st = StyleSheet.create({
     addModalCreateText: {
         fontFamily: THEME.mono, fontSize: 10, fontWeight: '900', letterSpacing: 2.2,
         color: THEME.ink, textTransform: 'uppercase',
+    },
+
+    /* TIME_FENCED expired-link overlay (Receiver Flow 2). */
+    fenceOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: THEME.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        zIndex: 90,
+    },
+    fenceCard: {
+        alignItems: 'center',
+        maxWidth: 360,
+    },
+    fenceTitle: {
+        fontFamily: THEME.mono,
+        color: THEME.ink,
+        fontSize: 14,
+        letterSpacing: 3,
+        fontWeight: '900',
+        marginTop: 18,
+    },
+    fenceBody: {
+        fontFamily: THEME.mono,
+        color: THEME.muted,
+        fontSize: 11,
+        lineHeight: 16,
+        textAlign: 'center',
+        marginTop: 12,
+    },
+    fenceBtn: {
+        marginTop: 28,
+        paddingVertical: 12,
+        paddingHorizontal: 28,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+    },
+    fenceBtnText: {
+        fontFamily: THEME.mono,
+        color: THEME.ink,
+        fontSize: 10,
+        letterSpacing: 2.5,
+        fontWeight: '700',
     },
 
     // Screen share glow wrapper — full border glow visible on Android

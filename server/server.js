@@ -193,6 +193,27 @@ const rooms = new Map();
 // Multi-room participants: Map<socketId, { rooms: Set<roomId>, deviceId: string }>
 const participants = new Map();
 
+// Time-fenced minted codes: Map<code, createdAt>. When `request_room` mints
+// a code, we record the timestamp here. If the same code is later used in
+// `join_room` AFTER TIME_FENCE_MS has elapsed AND no room has been opened
+// against it yet, the join is rejected (TIME_FENCED). This kills stale
+// share-links sitting in WhatsApp history a week after they were sent.
+//
+// Once a room is opened against a code, the fence entry is dropped — an
+// active session is its own proof of liveness.
+const mintedCodes = new Map();
+const TIME_FENCE_MS = 30 * 60 * 1000; // 30 minutes
+
+// Periodic sweep so the map doesn't grow unboundedly with abandoned mints.
+setInterval(() => {
+    const now = Date.now();
+    for (const [code, mintedAt] of mintedCodes) {
+        if (now - mintedAt > TIME_FENCE_MS * 2) {
+            mintedCodes.delete(code);
+        }
+    }
+}, 5 * 60 * 1000);
+
 // Mount admin routes
 app.use('/admin', createAdminRouter({ io, rooms, participants }));
 
@@ -270,14 +291,19 @@ io.on('connection', (socket) => {
         do {
             code = generateSecureRoomCode();
             attempts++;
-        } while (rooms.has(code) && attempts < 100);
+        } while ((rooms.has(code) || mintedCodes.has(code)) && attempts < 100);
 
         if (attempts >= 100) {
             callback({ error: 'UNABLE_TO_GENERATE_CODE' });
             return;
         }
 
-        callback({ roomCode: code });
+        // Stamp the mint time so we can enforce the time-fence on stale
+        // share-links. Once anyone actually joins the room (see join_room),
+        // we drop the stamp — an active session can't be too old.
+        mintedCodes.set(code, Date.now());
+
+        callback({ roomCode: code, mintedAt: Date.now(), expiresInMs: TIME_FENCE_MS });
     });
 
     // --- Join Room (Multi-Room Aware) ---
@@ -330,6 +356,22 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // Time-fence check: if this code was minted via request_room more
+        // than TIME_FENCE_MS ago AND nobody has opened a room on it yet,
+        // reject. Only applies to minted-then-stale codes — manually typed
+        // codes that don't appear in mintedCodes flow straight through.
+        const mintedAt = mintedCodes.get(roomId);
+        if (mintedAt) {
+            const age = Date.now() - mintedAt;
+            const roomIsLive = currentRoom && currentRoom.size > 0;
+            if (age > TIME_FENCE_MS && !roomIsLive) {
+                recordFailedJoin(socket.id);
+                socket.emit('signal_blocked', { message: 'TIME_FENCED', roomId, ageMs: age });
+                mintedCodes.delete(roomId);
+                return;
+            }
+        }
+
         clearBruteForceRecord(socket.id);
 
         // Join Socket.IO room
@@ -340,14 +382,39 @@ io.on('connection', (socket) => {
         rooms.get(roomId).add(socket.id);
         participant.rooms.add(roomId);
 
+        // Active session — fence no longer applies.
+        mintedCodes.delete(roomId);
+
         console.log(`[JOIN] Device ${deviceId.substring(0, 8)}... joined ${roomId}. Room: ${rooms.get(roomId).size}, Total rooms: ${participant.rooms.size}`);
 
         // Notify room with roomId included
+        const roomSize = rooms.get(roomId).size;
         io.to(roomId).emit('link_status', {
             roomId,
-            status: rooms.get(roomId).size === 2 ? 'LINKED' : 'WAITING',
-            count: rooms.get(roomId).size,
+            status: roomSize === 2 ? 'LINKED' : 'WAITING',
+            count: roomSize,
         });
+
+        // When the room reaches 2 participants, hand each side the other's
+        // Ghost ID so they can compute the mutual fingerprint locally.
+        // Both screens should derive the same value — if they don't, the
+        // server is misbehaving and the channel is compromised.
+        if (roomSize === 2) {
+            const socketIds = Array.from(rooms.get(roomId));
+            const [a, b] = socketIds;
+            const aP = getParticipant(a);
+            const bP = getParticipant(b);
+            if (aP && bP) {
+                io.to(a).emit('partner_handshake', {
+                    roomId,
+                    partnerDeviceId: bP.deviceId,
+                });
+                io.to(b).emit('partner_handshake', {
+                    roomId,
+                    partnerDeviceId: aP.deviceId,
+                });
+            }
+        }
     });
 
     // --- Leave Room (Multi-Room) ---
