@@ -179,4 +179,15 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Piqabu Keyboard dependencies (Phase 3.x features).
+    // - androidx.biometric: used by Quick-Lock (triple-tap globe -> biometric
+    //   unlock). Already transitively in classpath via expo-local-authentication,
+    //   declaring explicitly so the IME doesn't break if that lib is ever removed.
+    // - androidx.exifinterface: used by the EXIF Stripper share-extension
+    //   activity to scrub location/device/timestamp metadata from shared photos.
+    // Version-matched with expo-local-authentication's transitive include
+    // so Gradle dedupes cleanly. Bump in lockstep if that lib updates.
+    implementation("androidx.biometric:biometric:1.2.0-alpha04")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 }

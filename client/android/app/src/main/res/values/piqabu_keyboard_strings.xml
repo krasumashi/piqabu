@@ -9,13 +9,54 @@
 <resources>
     <string name="piqabu_keyboard_label">Piqabu Keyboard</string>
     <string name="piqabu_keyboard_subtype_label">Piqabu (Private)</string>
+
+    <!-- Strip status -->
     <string name="piqabu_keyboard_status_idle">PIQA LIVE · IDLE</string>
     <string name="piqabu_keyboard_status_waiting">WAITING FOR CORRESPONDENT…</string>
     <string name="piqabu_keyboard_status_linked">LINKED</string>
     <string name="piqabu_keyboard_status_pro_required">PRO REQUIRED</string>
+    <string name="piqabu_keyboard_status_locked">LOCKED · TAP TO UNLOCK</string>
+
+    <!-- Strip buttons -->
     <string name="piqabu_keyboard_mint">MINT</string>
     <string name="piqabu_keyboard_end">END</string>
-    <string name="piqabu_keyboard_globe_desc">Switch keyboard</string>
+    <string name="piqabu_keyboard_reset">RESET</string>
+    <string name="piqabu_keyboard_globe_desc">Switch keyboard (triple-tap to lock)</string>
+
+    <!-- Piqabu Tools row -->
+    <string name="piqabu_keyboard_tool_paste">PASTE</string>
+    <string name="piqabu_keyboard_tool_paste_desc">Ghost Paste — clipboard wiped after</string>
+    <string name="piqabu_keyboard_tool_vanish">VANISH</string>
+    <string name="piqabu_keyboard_tool_vanish_desc">Vanishing send — lights up when a session is linked</string>
+    <string name="piqabu_keyboard_tool_lock_dot">●</string>
+    <string name="piqabu_keyboard_tool_lock_desc">Zero-trace typing — nothing leaves this device</string>
+
+    <!-- Idle body (deprecated copy, kept for legacy paths) -->
     <string name="piqabu_keyboard_idle_body">Tap MINT to open a private channel.\nKeystrokes stay off the host app until linked.</string>
     <string name="piqabu_keyboard_mint_phase2_toast">Live session lands in Phase 4 — networking not yet wired.</string>
+
+    <!-- Feedback toasts -->
+    <string name="piqabu_keyboard_paste_empty">Clipboard is empty.</string>
+    <string name="piqabu_keyboard_paste_done">Pasted — clipboard wiped.</string>
+    <string name="piqabu_keyboard_vanish_gated">VANISH lights up once you\'re linked with a correspondent.</string>
+    <string name="piqabu_keyboard_lock_armed">Locked. Tap to unlock.</string>
+    <string name="piqabu_keyboard_unlock_title">Unlock Piqabu Keyboard</string>
+    <string name="piqabu_keyboard_unlock_subtitle">Confirm it\'s you to keep typing privately.</string>
+    <string name="piqabu_keyboard_unlock_cancel">Cancel</string>
+
+    <!-- Decoy phrases (Phase 3.5) — long-press Return inserts one of these.
+         Kept boring and contextually plausible so they survive a glance. -->
+    <string-array name="piqabu_decoy_phrases">
+        <item>Running late, see you soon.</item>
+        <item>On a call — will reply later.</item>
+        <item>In a meeting, message back in a bit.</item>
+        <item>Driving. Back to you when I park.</item>
+        <item>Sorry, low battery — talk later.</item>
+    </string-array>
+
+    <!-- EXIF Stripper Share Extension -->
+    <string name="piqabu_exif_strip_label">Piqabu — Strip Metadata</string>
+    <string name="piqabu_exif_strip_working">SCRUBBING…</string>
+    <string name="piqabu_exif_strip_done">CLEAN. CHOOSE WHERE TO SEND.</string>
+    <string name="piqabu_exif_strip_failed">Couldn\'t process that image.</string>
 </resources>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Background for Piqabu Tools row buttons (VANISH, PASTE). Lighter than
+  the MINT button so they read as secondary affordances.
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/piqabu_keyboard_button_pressed"/>
+            <corners android:radius="8dp"/>
+            <stroke android:width="1dp" android:color="@color/piqabu_keyboard_edge2"/>
+        </shape>
+    </item>
+    <item android:state_enabled="false">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent"/>
+            <corners android:radius="8dp"/>
+            <stroke android:width="1dp" android:color="@color/piqabu_keyboard_edge2"/>
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent"/>
+            <corners android:radius="8dp"/>
+            <stroke android:width="1dp" android:color="@color/piqabu_keyboard_edge"/>
+        </shape>
+    </item>
+</selector>

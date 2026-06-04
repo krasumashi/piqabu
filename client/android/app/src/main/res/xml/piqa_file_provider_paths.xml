@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider paths for sharing scrubbed images out of the app cache.
+  We expose only the `piqa_exif_strip/` subdirectory; nothing else in our
+  cache is ever shareable.
+-->
+<paths>
+    <cache-path
+        name="piqa_exif_strip"
+        path="piqa_exif_strip/"/>
+</paths>

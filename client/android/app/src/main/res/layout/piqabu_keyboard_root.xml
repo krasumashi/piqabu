@@ -2,94 +2,203 @@
 <!--
   Piqabu Keyboard root layout.
 
-  Two zones:
-    1. Candidate strip (48 dp) — pulse dot, status label, MINT, globe.
-       This is the always-visible Piqabu identity inside the keyboard.
-    2. Body (200 dp idle) — Phase 4 replaces this with the live session
-       panel (remote feed / local input / send / end-session). Phase 2
-       shows a single inert hint instructing the user to mint.
+  Three zones:
+    1. Strip (48 dp)        — identity + status + MINT + globe.
+    2. Tools row (36 dp)    — Piqabu-specific tools (VANISH, PASTE,
+                              zero-trace indicator). Visible always so the
+                              feature surface is discoverable without
+                              long-presses.
+    3. QWERTY (≈200 dp)     — KeyboardView, dual-mode (Phase 2.6).
 
-  Total IME height: 248 dp. Sized to match a typical keyboard footprint
-  so the host app's layout doesn't shift when switching between Gboard
-  and Piqabu.
+  Lock overlay is a FrameLayout sibling at the root that covers everything
+  when LOCKED state is active. Tap-to-unlock fires BiometricPrompt.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="@color/piqabu_keyboard_bg">
+    android:layout_height="wrap_content">
 
-    <!-- Candidate strip -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="14dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:background="@color/piqabu_keyboard_bg">
 
-        <View
-            android:id="@+id/piqabu_pulse_dot"
-            android:layout_width="8dp"
-            android:layout_height="8dp"
-            android:background="@drawable/piqabu_pulse_dot"
-            android:layout_marginEnd="10dp"/>
-
-        <TextView
-            android:id="@+id/piqabu_status_label"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/piqabu_keyboard_status_idle"
-            android:textColor="@color/piqabu_keyboard_ink"
-            android:textSize="11sp"
-            android:textAllCaps="true"
-            android:fontFamily="monospace"
-            android:letterSpacing="0.15"/>
-
-        <Button
-            android:id="@+id/piqabu_mint_button"
-            android:layout_width="wrap_content"
-            android:layout_height="32dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:text="@string/piqabu_keyboard_mint"
-            android:textColor="@color/piqabu_keyboard_ink"
-            android:textSize="10sp"
-            android:textAllCaps="true"
-            android:fontFamily="monospace"
-            android:letterSpacing="0.18"
+        <!-- Strip -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
             android:paddingHorizontal="14dp"
-            android:paddingVertical="0dp"
-            android:background="@drawable/piqabu_mint_button_bg"
-            android:layout_marginEnd="8dp"
-            android:stateListAnimator="@null"/>
+            android:background="@color/piqabu_keyboard_bg">
 
-        <ImageButton
-            android:id="@+id/piqabu_globe_button"
-            android:layout_width="36dp"
+            <View
+                android:id="@+id/piqabu_pulse_dot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:background="@drawable/piqabu_pulse_dot"
+                android:layout_marginEnd="10dp"/>
+
+            <TextView
+                android:id="@+id/piqabu_status_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/piqabu_keyboard_status_idle"
+                android:textColor="@color/piqabu_keyboard_ink"
+                android:textSize="11sp"
+                android:textAllCaps="true"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.15"/>
+
+            <Button
+                android:id="@+id/piqabu_mint_button"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/piqabu_keyboard_mint"
+                android:textColor="@color/piqabu_keyboard_ink"
+                android:textSize="10sp"
+                android:textAllCaps="true"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="0dp"
+                android:background="@drawable/piqabu_mint_button_bg"
+                android:layout_marginEnd="8dp"
+                android:stateListAnimator="@null"/>
+
+            <ImageButton
+                android:id="@+id/piqabu_globe_button"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:src="@drawable/piqabu_ic_globe"
+                android:background="@drawable/piqabu_globe_button_bg"
+                android:contentDescription="@string/piqabu_keyboard_globe_desc"
+                android:scaleType="centerInside"/>
+        </LinearLayout>
+
+        <!-- Piqabu Tools row -->
+        <LinearLayout
+            android:id="@+id/piqabu_tools_row"
+            android:layout_width="match_parent"
             android:layout_height="36dp"
-            android:src="@drawable/piqabu_ic_globe"
-            android:background="@drawable/piqabu_globe_button_bg"
-            android:contentDescription="@string/piqabu_keyboard_globe_desc"
-            android:scaleType="centerInside"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="14dp"
+            android:background="@color/piqabu_keyboard_bg_dim">
+
+            <!-- ZERO TRACE indicator — purely informational. Tap shows
+                 a tooltip explaining the privacy posture. -->
+            <View
+                android:id="@+id/piqabu_zero_trace_dot"
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:background="@drawable/piqabu_zero_trace_dot"
+                android:layout_marginEnd="6dp"/>
+
+            <TextView
+                android:id="@+id/piqabu_zero_trace_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ZERO TRACE"
+                android:textColor="@color/piqabu_keyboard_faint"
+                android:textSize="9sp"
+                android:textAllCaps="true"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18"/>
+
+            <!-- Spacer -->
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1"/>
+
+            <Button
+                android:id="@+id/piqabu_tool_vanish"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/piqabu_keyboard_tool_vanish"
+                android:textColor="@color/piqabu_keyboard_faint"
+                android:textSize="9sp"
+                android:textAllCaps="true"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="0dp"
+                android:background="@drawable/piqabu_tool_button_bg"
+                android:layout_marginEnd="6dp"
+                android:stateListAnimator="@null"
+                android:contentDescription="@string/piqabu_keyboard_tool_vanish_desc"/>
+
+            <Button
+                android:id="@+id/piqabu_tool_paste"
+                android:layout_width="wrap_content"
+                android:layout_height="28dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/piqabu_keyboard_tool_paste"
+                android:textColor="@color/piqabu_keyboard_ink"
+                android:textSize="9sp"
+                android:textAllCaps="true"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="0dp"
+                android:background="@drawable/piqabu_tool_button_bg"
+                android:stateListAnimator="@null"
+                android:contentDescription="@string/piqabu_keyboard_tool_paste_desc"/>
+        </LinearLayout>
+
+        <!--
+          QWERTY body (Phase 2.6). Uses Android's built-in KeyboardView.
+          Pre-MINT (dual-mode), key events route to the host app's input
+          field. Post-MINT (Phase 4), they'll route to the Piqabu peer.
+        -->
+        <android.inputmethodservice.KeyboardView
+            android:id="@+id/piqabu_keyboard_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@color/piqabu_keyboard_bg_dim"
+            android:keyBackground="@drawable/piqabu_key_bg"
+            android:keyTextColor="@color/piqabu_keyboard_ink"
+            android:keyTextSize="18sp"
+            android:labelTextSize="14sp"
+            android:keyPreviewLayout="@layout/piqabu_key_preview"
+            android:shadowColor="@android:color/transparent"
+            android:shadowRadius="0"/>
     </LinearLayout>
 
-    <!--
-      QWERTY body (Phase 2.6). Uses Android's built-in KeyboardView.
-      Pre-MINT (dual-mode), key events route to the host app's input
-      field. Post-MINT (Phase 4), they'll route to the Piqabu peer.
-    -->
-    <android.inputmethodservice.KeyboardView
-        android:id="@+id/piqabu_keyboard_view"
+    <!-- Lock overlay (Phase 3.4) — fully opaque, covers strip + tools + QWERTY
+         when locked. Tap fires BiometricPrompt. Visibility toggled by code. -->
+    <LinearLayout
+        android:id="@+id/piqabu_lock_overlay"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/piqabu_keyboard_bg_dim"
-        android:keyBackground="@drawable/piqabu_key_bg"
-        android:keyTextColor="@color/piqabu_keyboard_ink"
-        android:keyTextSize="18sp"
-        android:labelTextSize="14sp"
-        android:keyPreviewLayout="@layout/piqabu_key_preview"
-        android:shadowColor="@android:color/transparent"
-        android:shadowRadius="0"/>
-</LinearLayout>
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@color/piqabu_keyboard_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <View
+            android:layout_width="14dp"
+            android:layout_height="14dp"
+            android:background="@drawable/piqabu_pulse_dot"
+            android:layout_marginBottom="14dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/piqabu_keyboard_status_locked"
+            android:textColor="@color/piqabu_keyboard_ink"
+            android:textSize="12sp"
+            android:textAllCaps="true"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.25"/>
+    </LinearLayout>
+</FrameLayout>
