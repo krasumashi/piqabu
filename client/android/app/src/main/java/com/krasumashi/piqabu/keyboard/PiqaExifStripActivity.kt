@@ -15,8 +15,9 @@ import java.io.FileOutputStream
  * Piqabu — Strip Metadata (Phase 3.6).
  *
  * A Share Extension Activity. Registered in the manifest with an intent
- * filter for SEND + image/* MIME types, so it appears in the system share
- * sheet whenever the user shares a photo from gallery / camera / any app.
+ * filter for SEND with an `image/...` MIME type, so it appears in the
+ * system share sheet whenever the user shares a photo from gallery /
+ * camera / any app.
  *
  * Flow:
  *   1. Receive Intent.ACTION_SEND with EXTRA_STREAM = source image URI.
