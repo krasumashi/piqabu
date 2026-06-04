@@ -37,6 +37,8 @@ const SUPPRESS_KEYBOARD_PROMPT_KEY = 'piqabu_keyboard_prompt_dismissed';
 interface Props {
     visible: boolean;
     roomCode: string;
+    /** Whether the partner has joined the room yet. WAITING vs LINKED. */
+    linked: boolean;
     fingerprint: FingerprintType | null;
     onStartTyping: () => void;
     onDismiss: () => void;
@@ -52,6 +54,7 @@ function openKeyboardSettings() {
 export default function HandshakeScreen({
     visible,
     roomCode,
+    linked,
     fingerprint,
     onStartTyping,
     onDismiss,
@@ -113,23 +116,39 @@ export default function HandshakeScreen({
                 {/* Pulse dot */}
                 <Animated.View style={[styles.pulseDot, { opacity: pulse }]} />
 
-                <Text style={styles.linkedLabel}>LINKED</Text>
+                <Text style={styles.linkedLabel}>
+                    {linked ? 'LINKED' : 'WAITING FOR CORRESPONDENT'}
+                </Text>
                 <Text style={styles.code}>{roomCode}</Text>
-                <Text style={styles.oneTime}>ONE-TIME CHANNEL</Text>
+                <Text style={styles.oneTime}>
+                    {linked ? 'ONE-TIME CHANNEL' : 'SHARE THE LINK · THEY TAP · YOU CONNECT'}
+                </Text>
+
+                {linked && (
+                    <>
+                        <View style={styles.divider} />
+                        <Fingerprint value={fingerprint} />
+                    </>
+                )}
 
                 <View style={styles.divider} />
 
-                <Fingerprint value={fingerprint} />
-
-                <View style={styles.divider} />
-
-                {/* Actions */}
-                <TouchableOpacity onPress={handleStart} style={styles.primary} activeOpacity={0.8}>
-                    <Text style={styles.primaryText}>START TYPING</Text>
+                {/* Actions — primary is enabled only once linked. */}
+                <TouchableOpacity
+                    onPress={handleStart}
+                    style={[styles.primary, !linked && styles.primaryDisabled]}
+                    activeOpacity={linked ? 0.8 : 1}
+                    disabled={!linked}
+                >
+                    <Text style={[styles.primaryText, !linked && styles.primaryTextDisabled]}>
+                        {linked ? 'START TYPING' : 'WAITING…'}
+                    </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={onDismiss} style={styles.secondary} activeOpacity={0.7}>
-                    <Text style={styles.secondaryText}>DISMISS</Text>
+                    <Text style={styles.secondaryText}>
+                        {linked ? 'DISMISS' : 'CANCEL'}
+                    </Text>
                 </TouchableOpacity>
 
                 {/* Auto-keyboard prompt — only the first time. */}
@@ -263,6 +282,11 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         marginTop: 8,
     },
+    primaryDisabled: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: THEME.edge2,
+    },
     primaryText: {
         fontFamily: THEME.mono,
         color: THEME.bg,
@@ -270,6 +294,9 @@ const styles = StyleSheet.create({
         letterSpacing: 3,
         fontWeight: '900',
         textAlign: 'center',
+    },
+    primaryTextDisabled: {
+        color: THEME.faint,
     },
     secondary: {
         paddingVertical: 12,

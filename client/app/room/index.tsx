@@ -603,12 +603,15 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 </View>
             )}
 
-            {/* Handshake screen — first frame on a fresh deep-link join.
-                Shows mutual fingerprint + auto-keyboard prompt (Android). */}
-            {handshakeAckLoaded && handshakeVisible && linkStatus === 'LINKED' && (
+            {/* Handshake screen — shown as the first frame for a fresh room
+                regardless of side. WAITING when only the local user is in
+                the room (sender side post-MINT), LINKED once the partner
+                joins. Cancel removes the room; Start Typing acknowledges. */}
+            {handshakeAckLoaded && handshakeVisible && (
                 <HandshakeScreen
                     visible={true}
                     roomCode={roomId}
+                    linked={linkStatus === 'LINKED'}
                     fingerprint={fingerprint}
                     onStartTyping={async () => {
                         await ackHandshake(roomId);

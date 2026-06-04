@@ -37,34 +37,13 @@
       </intent-filter>
       <meta-data android:name="android.view.im" android:resource="@xml/piqabu_keyboard_method"/>
     </service>
-
-    <!-- EXIF Stripper Share Extension (Phase 3.6).
-         Appears in the system share sheet whenever an image is shared.
-         Receives the image, scrubs EXIF in cache, re-launches SEND. -->
-    <activity
-        android:name=".keyboard.PiqaExifStripActivity"
-        android:label="@string/piqabu_exif_strip_label"
-        android:exported="true"
-        android:theme="@android:style/Theme.Translucent.NoTitleBar"
-        android:excludeFromRecents="true"
-        android:noHistory="true">
+    <activity android:name=".keyboard.PiqaExifStripActivity" android:label="@string/piqabu_exif_strip_label" android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:noHistory="true">
       <intent-filter>
         <action android:name="android.intent.action.SEND"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <data android:mimeType="image/*"/>
       </intent-filter>
     </activity>
-
-    <!-- FileProvider for the EXIF Stripper's scrubbed cache files. -->
-    <provider
-        android:name="androidx.core.content.FileProvider"
-        android:authorities="${applicationId}.fileprovider"
-        android:exported="false"
-        android:grantUriPermissions="true">
-      <meta-data
-          android:name="android.support.FILE_PROVIDER_PATHS"
-          android:resource="@xml/piqa_file_provider_paths"/>
-    </provider>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="portrait">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
@@ -76,6 +55,28 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="exp+client"/>
       </intent-filter>
+      <!--
+        Piqabu share-link deep link (piqabu.live/j/CODE). Used by:
+          - the Piqabu Keyboard's MINT (fires Intent.ACTION_VIEW with
+            setPackage(self) so the sender's main app opens to the
+            waiting room as soon as the URL is inserted into the host
+            app's compose box), and
+          - any tap on the link from WhatsApp / SMS / browser etc.
+        autoVerify is false until piqabu.live + the assetlinks.json file
+        are live; with false, browser taps prompt a chooser the first time
+        and the in-app Intent (which uses setPackage) resolves directly.
+      -->
+      <intent-filter android:autoVerify="false">
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https"/>
+        <data android:host="piqabu.live"/>
+        <data android:pathPrefix="/j/"/>
+      </intent-filter>
     </activity>
+    <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true">
+      <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/piqa_file_provider_paths"/>
+    </provider>
   </application>
 </manifest>

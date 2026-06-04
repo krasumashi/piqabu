@@ -1,10 +1,11 @@
 package com.krasumashi.piqabu.keyboard
 
-import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.inputmethodservice.InputMethodService
 import android.inputmethodservice.Keyboard
 import android.inputmethodservice.KeyboardView
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
@@ -27,7 +28,7 @@ import kotlin.random.Random
 /**
  * Piqabu Keyboard — the Resident half of the Resident/Theatre split.
  *
- * ## Privacy posture (Stealth Type — Phase 3.1)
+ * ## Privacy posture (Stealth Type)
  *
  * What this IME does **not** do, deliberately:
  *
@@ -43,25 +44,18 @@ import kotlin.random.Random
  *   - **No network calls** anywhere in this file. The Phase-4 session
  *     wiring will reach the Piqabu signal tower over a TLS Socket.IO
  *     channel, but no third-party analytics or telemetry ever ships.
- *   - **No subtype churn.** Single English-only subtype declared in
- *     `piqabu_keyboard_method.xml` — no auto-switching that would leak
- *     locale signals to the OS layer.
- *
- * The visible "ZERO TRACE" indicator in the tools row communicates this
- * to the user. The code-level guarantees are the substance behind it.
  *
  * ## Modes
  *
  *   - **Idle**: keys type into the host app's text field. Strip shows
- *     "PIQA LIVE · IDLE". Tools row is interactive (PASTE active, VANISH
- *     dimmed).
- *   - **Minted** (Phase 2.5): MINT has been tapped, share URL inserted
- *     into host app. Strip shows "MINTED · XXXXXX". MINT label flips to
- *     RESET. Phase 4 will gate VANISH to fully active here once the peer
- *     is linked.
- *   - **Locked** (Phase 3.4): Triple-tapping the globe puts the IME in
- *     LOCKED state. All input is blocked behind an overlay. Tapping the
- *     overlay fires AndroidX BiometricPrompt; success unlocks.
+ *     "PIQA LIVE · IDLE".
+ *   - **Minted**: MINT was tapped — the share URL inserted into the host
+ *     app's compose box, the local Piqabu app simultaneously opened to a
+ *     fresh room (waiting for the partner to tap the link). Strip shows
+ *     "MINTED · XXXXXX", MINT label flips to RESET.
+ *   - **Locked**: Triple-tapping the globe puts the IME in LOCKED state.
+ *     All input is blocked behind an overlay. Tapping the overlay fires
+ *     a device-credential confirmation; success unlocks.
  *
  * ## Lifecycle notes
  *
@@ -78,6 +72,9 @@ class PiqabuKeyboardService : InputMethodService() {
     /** 6-char alphabet mirrored from server.js (ROOM_CHARS). */
     private val roomChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
+    /** Share-link host. Must match the AndroidManifest intent-filter. */
+    private val shareHost = "piqabu.live"
+
     /** Current minted room code, or null when idle. */
     private var mintedCode: String? = null
 
@@ -90,19 +87,17 @@ class PiqabuKeyboardService : InputMethodService() {
     // --- Cached view references (re-set every onCreateInputView) ---
     private var statusLabel: TextView? = null
     private var mintButton: Button? = null
-    private var pasteButton: Button? = null
-    private var vanishButton: Button? = null
     private var keyboardView: KeyboardView? = null
     private var lockOverlay: LinearLayout? = null
     private var rootView: View? = null
 
-    // --- Globe triple-tap tracking (Phase 3.4 Quick-Lock) ---
+    // --- Globe triple-tap tracking (Quick-Lock) ---
     /** Window within which 3 globe taps trigger lock (ms). */
     private val tripleTapWindowMs = 1500L
     /** Timestamps of recent globe taps; oldest first. */
     private val globeTapTimes = ArrayDeque<Long>(3)
 
-    // --- Long-press tracking (Phase 3.5 Decoy Send) ---
+    // --- Long-press tracking (Decoy Send) ---
     /** Long-press threshold (ms). */
     private val longPressMs = 500L
     /** Code currently being held down, or 0 if none. */
@@ -124,8 +119,6 @@ class PiqabuKeyboardService : InputMethodService() {
 
         statusLabel = root.findViewById(PiqR.id.piqabu_status_label)
         mintButton = root.findViewById(PiqR.id.piqabu_mint_button)
-        pasteButton = root.findViewById(PiqR.id.piqabu_tool_paste)
-        vanishButton = root.findViewById(PiqR.id.piqabu_tool_vanish)
         keyboardView = root.findViewById(PiqR.id.piqabu_keyboard_view)
         lockOverlay = root.findViewById(PiqR.id.piqabu_lock_overlay)
 
@@ -133,18 +126,6 @@ class PiqabuKeyboardService : InputMethodService() {
         mintButton?.setOnClickListener { onMintTap() }
         root.findViewById<ImageButton>(PiqR.id.piqabu_globe_button).setOnClickListener {
             onGlobeTap()
-        }
-
-        // Tools row wiring
-        pasteButton?.setOnClickListener { ghostPaste() }
-        // VANISH stays gated until Phase 4 session wiring lands.
-        vanishButton?.isEnabled = false
-        vanishButton?.setOnClickListener {
-            Toast.makeText(
-                this,
-                getString(PiqR.string.piqabu_keyboard_vanish_gated),
-                Toast.LENGTH_SHORT,
-            ).show()
         }
 
         // QWERTY wiring
@@ -162,21 +143,19 @@ class PiqabuKeyboardService : InputMethodService() {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  Phase 2.5  MINT (idempotent IDLE ⇄ MINTED toggle)
+    //  MINT (idempotent IDLE ⇄ MINTED toggle)
     // ─────────────────────────────────────────────────────────────────────
 
     /**
      * MINT button: idempotent two-state toggle.
      *
      *   - Idle → generates a 6-char code locally, inserts the share URL
-     *     into the host app's compose box, flips strip to MINTED, button
-     *     label to RESET.
+     *     into the host app's compose box, AND fires an Intent to open
+     *     the local Piqabu app to a fresh room of that code. The sender
+     *     sees a "WAITING FOR CORRESPONDENT" handshake screen until the
+     *     partner taps the WhatsApp link.
      *   - Already minted → clears local state, strip back to IDLE, button
-     *     label back to MINT. Does not delete what the user already
-     *     inserted/sent.
-     *
-     * Phase 4 will replace the local code with a server-issued one and
-     * open a Socket.IO peer session.
+     *     label back to MINT. Does not delete what was already inserted.
      */
     private fun onMintTap() {
         if (mintedCode != null) {
@@ -189,10 +168,26 @@ class PiqabuKeyboardService : InputMethodService() {
             return
         }
         val code = generateLocalCode()
-        ic.commitText("https://piqabu.live/j/$code", 1)
+        val link = "https://$shareHost/j/$code"
+        ic.commitText(link, 1)
         mintedCode = code
         statusLabel?.text = "MINTED · $code"
         mintButton?.setText(PiqR.string.piqabu_keyboard_reset)
+
+        // Open the local Piqabu app to the waiting room. We target our own
+        // package explicitly so this never falls through to a browser even
+        // if the user hasn't tapped "always open with Piqabu" yet for the
+        // share-link domain.
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link)).apply {
+                setPackage(packageName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (t: Throwable) {
+            // Silent fallback — the link is still in the host app and the
+            // user can open Piqabu manually.
+        }
     }
 
     private fun resetToIdle() {
@@ -206,52 +201,7 @@ class PiqabuKeyboardService : InputMethodService() {
         (1..6).map { roomChars[Random.nextInt(roomChars.length)] }.joinToString("")
 
     // ─────────────────────────────────────────────────────────────────────
-    //  Phase 3.3  Ghost Paste
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Reads the system clipboard, inserts the text via InputConnection,
-     * then wipes the system clipboard so other apps can't re-read what we
-     * just pasted. Solves the "I pasted my OTP and now any app in the
-     * background can read it" leak.
-     *
-     * `clearPrimaryClip()` is API 28+. Pre-28, we set the primary clip to
-     * an empty string as a fallback.
-     */
-    private fun ghostPaste() {
-        val ic = currentInputConnection ?: return
-        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-
-        val clip = cm.primaryClip
-        if (clip == null || clip.itemCount == 0) {
-            Toast.makeText(this, getString(PiqR.string.piqabu_keyboard_paste_empty), Toast.LENGTH_SHORT).show()
-            return
-        }
-        val text = clip.getItemAt(0).coerceToText(this) ?: return
-        if (text.isEmpty()) {
-            Toast.makeText(this, getString(PiqR.string.piqabu_keyboard_paste_empty), Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        ic.commitText(text, 1)
-
-        // Wipe the system clipboard. Best-effort.
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                cm.clearPrimaryClip()
-            } else {
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("", ""))
-            }
-        } catch (t: Throwable) {
-            // If a security exception or OEM weirdness intervenes, the
-            // paste already succeeded — just skip the wipe silently.
-        }
-
-        Toast.makeText(this, getString(PiqR.string.piqabu_keyboard_paste_done), Toast.LENGTH_SHORT).show()
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    //  Phase 3.4  Quick-Lock (triple-tap globe → biometric)
+    //  Quick-Lock (triple-tap globe → biometric)
     // ─────────────────────────────────────────────────────────────────────
 
     /**
@@ -290,7 +240,6 @@ class PiqabuKeyboardService : InputMethodService() {
         locked = false
         lockOverlay?.visibility = View.GONE
         keyboardView?.isEnabled = true
-        // Restore label based on current state.
         if (mintedCode != null) {
             statusLabel?.text = "MINTED · $mintedCode"
         } else {
@@ -298,17 +247,6 @@ class PiqabuKeyboardService : InputMethodService() {
         }
     }
 
-    /**
-     * Build and show a BiometricPrompt when the user taps the lock overlay.
-     *
-     * IMEs run in a Service context, not an Activity, so we can't use the
-     * Activity-bound BiometricPrompt constructors. The plain `BiometricPrompt`
-     * with an Executor + AuthenticationCallback works against this Service
-     * directly.
-     *
-     * Reachable via `currentInputBinding` only when there's a bound IME
-     * client — which is the case anytime the keyboard is visible.
-     */
     private fun promptBiometricUnlock() {
         val bm = BiometricManager.from(this)
         val can = bm.canAuthenticate(
@@ -316,15 +254,10 @@ class PiqabuKeyboardService : InputMethodService() {
             BiometricManager.Authenticators.DEVICE_CREDENTIAL
         )
         if (can != BiometricManager.BIOMETRIC_SUCCESS) {
-            // No biometric configured on the device — just disengage to
-            // avoid trapping the user. Lock is best-effort, not a vault.
             disengageLock()
             return
         }
 
-        // BiometricPrompt needs an Activity or FragmentActivity. Inside an
-        // IME we can't get one — fall back to KeyguardManager-based
-        // device-credential prompt instead.
         val km = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
         if (!km.isKeyguardSecure) {
             disengageLock()
@@ -335,19 +268,12 @@ class PiqabuKeyboardService : InputMethodService() {
             getString(PiqR.string.piqabu_keyboard_unlock_subtitle),
         )
         if (intent != null) {
-            // Launching a confirm-credential Activity from an IME context is
-            // OK so long as we add NEW_TASK. The user confirms, the Activity
-            // closes, focus returns to whatever app they were in — the
-            // keyboard is still up. We optimistically unlock here; the OS
-            // gates the rest by requiring a confirmed device credential to
-            // even reach a sensitive surface.
-            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             try {
                 startActivity(intent)
                 disengageLock()
             } catch (t: Throwable) {
-                // If launching fails, leave the lock engaged — the user can
-                // switch keyboards to escape.
+                // Leave engaged if launch fails.
             }
         } else {
             disengageLock()
@@ -355,18 +281,13 @@ class PiqabuKeyboardService : InputMethodService() {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  Phase 3.5  Decoy Send (long-press Return)
+    //  Decoy Send (long-press Return)
     // ─────────────────────────────────────────────────────────────────────
 
     /**
      * Inserts a random benign phrase from the predefined decoy list.
      * Does **not** auto-send — the user manually taps Send when ready,
      * which preserves agency in the moment.
-     *
-     * The list lives in `piqabu_decoy_phrases` (string-array). The user's
-     * real composed text isn't touched; the decoy appends to whatever is
-     * already in the host app's compose box, so the user can backspace
-     * and choose which lands.
      */
     private fun insertDecoyPhrase() {
         val ic = currentInputConnection ?: return
@@ -380,17 +301,6 @@ class PiqabuKeyboardService : InputMethodService() {
     //  QWERTY action listener
     // ─────────────────────────────────────────────────────────────────────
 
-    /**
-     * Routes QWERTY key events. Pre-MINT (dual-mode), every keystroke goes
-     * to the host app's input field. Phase 4 will branch on
-     * `mintedCode != null && partnerLinked` and route to the Piqabu peer
-     * instead.
-     *
-     * Long-press detection: `onPress` schedules the long-press runnable,
-     * `onRelease` cancels it. If the runnable fires before release, it
-     * sets `longPressFired = true` and the subsequent `onKey` is ignored
-     * (so the user gets only the decoy, not decoy + a regular Enter).
-     */
     private val keyboardActionListener = object : KeyboardView.OnKeyboardActionListener {
 
         override fun onPress(primaryCode: Int) {
@@ -398,8 +308,6 @@ class PiqabuKeyboardService : InputMethodService() {
             pressedKey = primaryCode
             longPressFired = false
             handler.removeCallbacks(longPressRunnable)
-            // Only the Return key has a long-press alternate today; if we
-            // grow that set, drop the guard and dispatch in the runnable.
             if (primaryCode == Keyboard.KEYCODE_DONE) {
                 handler.postDelayed(longPressRunnable, longPressMs)
             }

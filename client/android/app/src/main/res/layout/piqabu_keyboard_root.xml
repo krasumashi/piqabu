@@ -2,16 +2,17 @@
 <!--
   Piqabu Keyboard root layout.
 
-  Three zones:
-    1. Strip (48 dp)        — identity + status + MINT + globe.
-    2. Tools row (36 dp)    — Piqabu-specific tools (VANISH, PASTE,
-                              zero-trace indicator). Visible always so the
-                              feature surface is discoverable without
-                              long-presses.
-    3. QWERTY (≈200 dp)     — KeyboardView, dual-mode (Phase 2.6).
+  Two zones:
+    1. Strip (48 dp)    — identity + status + MINT + globe.
+    2. QWERTY (≈200 dp) — KeyboardView, dual-mode (Phase 2.6).
 
   Lock overlay is a FrameLayout sibling at the root that covers everything
   when LOCKED state is active. Tap-to-unlock fires BiometricPrompt.
+
+  The previous "Piqabu Tools" row (ZERO TRACE indicator + VANISH + PASTE
+  buttons) was removed at the user's request — the keyboard reads cleaner
+  without it. Ghost Paste / vanishing-send live on as in-app features and
+  can return to the keyboard later in a less obtrusive form.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -79,80 +80,6 @@
                 android:scaleType="centerInside"/>
         </LinearLayout>
 
-        <!-- Piqabu Tools row -->
-        <LinearLayout
-            android:id="@+id/piqabu_tools_row"
-            android:layout_width="match_parent"
-            android:layout_height="36dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="14dp"
-            android:background="@color/piqabu_keyboard_bg_dim">
-
-            <!-- ZERO TRACE indicator — purely informational. Tap shows
-                 a tooltip explaining the privacy posture. -->
-            <View
-                android:id="@+id/piqabu_zero_trace_dot"
-                android:layout_width="6dp"
-                android:layout_height="6dp"
-                android:background="@drawable/piqabu_zero_trace_dot"
-                android:layout_marginEnd="6dp"/>
-
-            <TextView
-                android:id="@+id/piqabu_zero_trace_label"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="ZERO TRACE"
-                android:textColor="@color/piqabu_keyboard_faint"
-                android:textSize="9sp"
-                android:textAllCaps="true"
-                android:fontFamily="monospace"
-                android:letterSpacing="0.18"/>
-
-            <!-- Spacer -->
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1"/>
-
-            <Button
-                android:id="@+id/piqabu_tool_vanish"
-                android:layout_width="wrap_content"
-                android:layout_height="28dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:text="@string/piqabu_keyboard_tool_vanish"
-                android:textColor="@color/piqabu_keyboard_faint"
-                android:textSize="9sp"
-                android:textAllCaps="true"
-                android:fontFamily="monospace"
-                android:letterSpacing="0.18"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="0dp"
-                android:background="@drawable/piqabu_tool_button_bg"
-                android:layout_marginEnd="6dp"
-                android:stateListAnimator="@null"
-                android:contentDescription="@string/piqabu_keyboard_tool_vanish_desc"/>
-
-            <Button
-                android:id="@+id/piqabu_tool_paste"
-                android:layout_width="wrap_content"
-                android:layout_height="28dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:text="@string/piqabu_keyboard_tool_paste"
-                android:textColor="@color/piqabu_keyboard_ink"
-                android:textSize="9sp"
-                android:textAllCaps="true"
-                android:fontFamily="monospace"
-                android:letterSpacing="0.18"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="0dp"
-                android:background="@drawable/piqabu_tool_button_bg"
-                android:stateListAnimator="@null"
-                android:contentDescription="@string/piqabu_keyboard_tool_paste_desc"/>
-        </LinearLayout>
-
         <!--
           QWERTY body (Phase 2.6). Uses Android's built-in KeyboardView.
           Pre-MINT (dual-mode), key events route to the host app's input
@@ -172,7 +99,7 @@
             android:shadowRadius="0"/>
     </LinearLayout>
 
-    <!-- Lock overlay (Phase 3.4) — fully opaque, covers strip + tools + QWERTY
+    <!-- Lock overlay (Phase 3.4) — fully opaque, covers strip + QWERTY
          when locked. Tap fires BiometricPrompt. Visibility toggled by code. -->
     <LinearLayout
         android:id="@+id/piqabu_lock_overlay"
