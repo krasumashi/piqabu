@@ -36,7 +36,11 @@ export default function JoinByCode() {
             return;
         }
         acted.current = true;
-        addRoom(raw);
+        // Mark this room as deep-link origin so the room screen knows to
+        // show the handshake/waiting screen as the first frame. Rooms
+        // added from the landing screen's Generate flow stay 'manual'
+        // and skip straight to the chat UI.
+        addRoom(raw, 'deeplink');
         router.replace('/room');
     }, [hydrated, code]);
 

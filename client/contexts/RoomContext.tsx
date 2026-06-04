@@ -16,7 +16,7 @@ interface RoomContextValue {
     rooms: RoomTab[];
     activeRoomId: string | null;
     hydrated: boolean;
-    addRoom: (roomId: string) => { success: boolean; reason?: string };
+    addRoom: (roomId: string, origin?: 'manual' | 'deeplink') => { success: boolean; reason?: string };
     removeRoom: (roomId: string) => void;
     switchRoom: (roomId: string) => void;
 

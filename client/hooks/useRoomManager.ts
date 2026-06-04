@@ -4,6 +4,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export interface RoomTab {
     roomId: string;
     createdAt: number;
+    /**
+     * Where the room came from. Determines whether the handshake/waiting
+     * screen appears as the first frame in /room.
+     *   - `manual`   — user generated + entered from the landing screen.
+     *                  Opens straight into the existing chat UI.
+     *   - `deeplink` — user tapped a piqabu.live/j/CODE link, OR the
+     *                  keyboard's MINT button fired Intent.ACTION_VIEW
+     *                  on the share-link. Shows the handshake screen
+     *                  (WAITING -> LINKED states) before the chat UI.
+     */
+    origin?: 'manual' | 'deeplink';
 }
 
 const DEFAULT_MAX_ROOMS = 99; // [TESTING] Hard bypassed Free tier limits
@@ -66,7 +77,10 @@ export function useRoomManager(maxRooms: number = DEFAULT_MAX_ROOMS) {
         AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session)).catch(() => {});
     }, [rooms, activeRoomId, hydrated]);
 
-    const addRoom = useCallback((roomId: string): { success: boolean; reason?: string } => {
+    const addRoom = useCallback((
+        roomId: string,
+        origin: 'manual' | 'deeplink' = 'manual',
+    ): { success: boolean; reason?: string } => {
         // Check if already exists
         if (rooms.some(r => r.roomId === roomId)) {
             setActiveRoomId(roomId);
@@ -81,6 +95,7 @@ export function useRoomManager(maxRooms: number = DEFAULT_MAX_ROOMS) {
         const newRoom: RoomTab = {
             roomId,
             createdAt: Date.now(),
+            origin,
         };
 
         setRooms(prev => [...prev, newRoom]);

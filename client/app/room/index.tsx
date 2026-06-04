@@ -79,8 +79,16 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     setLiveGlassPartnerAccepted: (v: boolean) => void;
     setLiveGlassInitialMode: (m: 'lobby' | 'calling') => void;
 }) {
-    const { socket, deviceId, limits, removeRoom } = useRoomContext();
+    const { socket, deviceId, limits, removeRoom, rooms } = useRoomContext();
     const router = useRouter();
+
+    // Whether this room came from a deep-link (keyboard MINT or a tapped
+    // share-link). Drives whether the handshake/waiting screen renders
+    // as the first frame. Manual landing-screen Generate flows have
+    // origin='manual' and skip the handshake entirely — they open
+    // straight into the chat UI as before.
+    const currentRoom = rooms.find(r => r.roomId === roomId);
+    const isDeepLinkRoom = currentRoom?.origin === 'deeplink';
     const { partnerPresence, sendPulseTap } = usePresence(socket, roomId);
     const {
         linkStatus, remoteText, remoteReveal,
@@ -603,11 +611,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 </View>
             )}
 
-            {/* Handshake screen — shown as the first frame for a fresh room
-                regardless of side. WAITING when only the local user is in
-                the room (sender side post-MINT), LINKED once the partner
-                joins. Cancel removes the room; Start Typing acknowledges. */}
-            {handshakeAckLoaded && handshakeVisible && (
+            {/* Handshake screen — shown ONLY for deep-link rooms (keyboard
+                MINT or tapped share-link). Manual generate-from-landing
+                rooms skip this and go straight to the chat UI.
+                WAITING when only the local user is in the room (sender side
+                post-MINT), LINKED once the partner joins. */}
+            {isDeepLinkRoom && handshakeAckLoaded && handshakeVisible && (
                 <HandshakeScreen
                     visible={true}
                     roomCode={roomId}
