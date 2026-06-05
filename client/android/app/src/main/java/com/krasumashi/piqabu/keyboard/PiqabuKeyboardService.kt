@@ -84,6 +84,19 @@ class PiqabuKeyboardService : InputMethodService() {
     /** True while the lock overlay is showing keys disabled. */
     private var locked: Boolean = false
 
+    /**
+     * Set to true right after MINT inserts the URL into the host app's
+     * compose box. We then watch `onUpdateSelection` for the field
+     * clearing (the user tapped Send in the host app) and fire the
+     * Intent that opens the Piqabu app to the waiting room at THAT
+     * moment, not at MINT time. RESET also clears this so a cancelled
+     * mint doesn't open the app on the next unrelated field-clear.
+     */
+    private var awaitingSend: Boolean = false
+
+    /** Share link to launch once the field clears. */
+    private var pendingLink: String? = null
+
     // --- Cached view references (re-set every onCreateInputView) ---
     private var statusLabel: TextView? = null
     private var mintButton: Button? = null
@@ -150,12 +163,13 @@ class PiqabuKeyboardService : InputMethodService() {
      * MINT button: idempotent two-state toggle.
      *
      *   - Idle → generates a 6-char code locally, inserts the share URL
-     *     into the host app's compose box, AND fires an Intent to open
-     *     the local Piqabu app to a fresh room of that code. The sender
-     *     sees a "WAITING FOR CORRESPONDENT" handshake screen until the
-     *     partner taps the WhatsApp link.
+     *     into the host app's compose box, and arms send-detection. The
+     *     Piqabu app is NOT opened at this moment — that would be too
+     *     eager (the user might back out). It opens only when we detect
+     *     the host app's compose box clearing (the actual Send).
      *   - Already minted → clears local state, strip back to IDLE, button
-     *     label back to MINT. Does not delete what was already inserted.
+     *     label back to MINT, disarms send-detection. Does not delete
+     *     what was already inserted.
      */
     private fun onMintTap() {
         if (mintedCode != null) {
@@ -174,10 +188,26 @@ class PiqabuKeyboardService : InputMethodService() {
         statusLabel?.text = "MINTED · $code"
         mintButton?.setText(PiqR.string.piqabu_keyboard_reset)
 
-        // Open the local Piqabu app to the waiting room. We target our own
-        // package explicitly so this never falls through to a browser even
-        // if the user hasn't tapped "always open with Piqabu" yet for the
-        // share-link domain.
+        // Arm send detection — Piqabu opens when the field clears.
+        awaitingSend = true
+        pendingLink = link
+    }
+
+    private fun resetToIdle() {
+        mintedCode = null
+        awaitingSend = false
+        pendingLink = null
+        statusLabel?.setText(PiqR.string.piqabu_keyboard_status_idle)
+        mintButton?.setText(PiqR.string.piqabu_keyboard_mint)
+    }
+
+    /**
+     * Fires the deep-link Intent that opens the local Piqabu app to the
+     * waiting room. setPackage(self) ensures we always land in Piqabu,
+     * never in a browser, even before piqabu.live + assetlinks.json go
+     * live.
+     */
+    private fun launchPiqabuApp(link: String) {
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(link)).apply {
                 setPackage(packageName)
@@ -185,15 +215,47 @@ class PiqabuKeyboardService : InputMethodService() {
             }
             startActivity(intent)
         } catch (t: Throwable) {
-            // Silent fallback — the link is still in the host app and the
-            // user can open Piqabu manually.
+            // Silent fallback — the link is still in the host app's
+            // compose box and the user can open Piqabu manually.
         }
     }
 
-    private fun resetToIdle() {
-        mintedCode = null
-        statusLabel?.setText(PiqR.string.piqabu_keyboard_status_idle)
-        mintButton?.setText(PiqR.string.piqabu_keyboard_mint)
+    /**
+     * Detect the host app's compose box clearing after MINT. Each time
+     * the selection changes, if we're armed and the field is now empty,
+     * fire the Intent that opens Piqabu.
+     *
+     * "Field is empty" is detected as: newSel at (0, 0) AND nothing
+     * before or after the cursor. This catches both the natural Send
+     * action (WhatsApp clears its input on send) and the rare case
+     * where the user manually wipes the field — either way the URL
+     * has left the compose box and it's the right moment to open the
+     * Piqabu side.
+     */
+    override fun onUpdateSelection(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int,
+        candidatesStart: Int,
+        candidatesEnd: Int,
+    ) {
+        super.onUpdateSelection(
+            oldSelStart, oldSelEnd, newSelStart, newSelEnd,
+            candidatesStart, candidatesEnd,
+        )
+        if (!awaitingSend) return
+        if (newSelStart != 0 || newSelEnd != 0) return
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(1, 0)
+        val after = ic.getTextAfterCursor(1, 0)
+        val fieldEmpty = (before?.length ?: 0) == 0 && (after?.length ?: 0) == 0
+        if (!fieldEmpty) return
+
+        val link = pendingLink ?: return
+        awaitingSend = false
+        pendingLink = null
+        launchPiqabuApp(link)
     }
 
     /** 6-char code matching the server's CSPRNG alphabet (server.js:203). */
@@ -358,5 +420,10 @@ class PiqabuKeyboardService : InputMethodService() {
         handler.removeCallbacks(longPressRunnable)
         pressedKey = 0
         longPressFired = false
+        // Don't keep an arm dangling across keyboard hide/show — if the
+        // user dismisses the IME without sending, we drop the intent
+        // rather than firing it on a future, unrelated field-clear.
+        awaitingSend = false
+        pendingLink = null
     }
 }
