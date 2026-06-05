@@ -90,21 +90,16 @@ class PiqabuKeyboardService : InputMethodService() {
     private var locked: Boolean = false
 
     /**
-     * Set to true right after MINT inserts the URL into the host app's
-     * compose box. We then watch `onUpdateSelection` for the field
-     * clearing (the user tapped Send in the host app) and fire the
-     * Intent that opens the Piqabu app to the waiting room at THAT
-     * moment, not at MINT time. RESET also clears this so a cancelled
-     * mint doesn't open the app on the next unrelated field-clear.
+     * True once the user has tapped OPEN (or re-OPEN) — the keyboard
+     * strip then reflects the JOINED state with a brighter pulse and
+     * "JOINED · CODE" label. Reset by tapping RESET.
      */
-    private var awaitingSend: Boolean = false
-
-    /** Share link to launch once the field clears. */
-    private var pendingLink: String? = null
+    private var joined: Boolean = false
 
     // --- Cached view references (re-set every onCreateInputView) ---
     private var statusLabel: TextView? = null
     private var mintButton: Button? = null
+    private var openButton: Button? = null
     private var keyboardView: KeyboardView? = null
     private var lockOverlay: LinearLayout? = null
     private var pulseDot: View? = null
@@ -138,6 +133,7 @@ class PiqabuKeyboardService : InputMethodService() {
 
         statusLabel = root.findViewById(PiqR.id.piqabu_status_label)
         mintButton = root.findViewById(PiqR.id.piqabu_mint_button)
+        openButton = root.findViewById(PiqR.id.piqabu_open_button)
         keyboardView = root.findViewById(PiqR.id.piqabu_keyboard_view)
         lockOverlay = root.findViewById(PiqR.id.piqabu_lock_overlay)
         pulseDot = root.findViewById(PiqR.id.piqabu_pulse_dot)
@@ -147,6 +143,7 @@ class PiqabuKeyboardService : InputMethodService() {
 
         // Strip wiring
         mintButton?.setOnClickListener { onMintTap() }
+        openButton?.setOnClickListener { onOpenTap() }
         root.findViewById<ImageButton>(PiqR.id.piqabu_globe_button).setOnClickListener {
             onGlobeTap()
         }
@@ -173,13 +170,13 @@ class PiqabuKeyboardService : InputMethodService() {
      * MINT button: idempotent two-state toggle.
      *
      *   - Idle → generates a 6-char code locally, inserts the share URL
-     *     into the host app's compose box, and arms send-detection. The
-     *     Piqabu app is NOT opened at this moment — that would be too
-     *     eager (the user might back out). It opens only when we detect
-     *     the host app's compose box clearing (the actual Send).
-     *   - Already minted → clears local state, strip back to IDLE, button
-     *     label back to MINT, disarms send-detection. Does not delete
-     *     what was already inserted.
+     *     into the host app's compose box, reveals the OPEN button,
+     *     enters MINTED state on the strip. The Piqabu app is NOT
+     *     opened here — the user explicitly taps OPEN when they're
+     *     ready to switch over to the waiting room.
+     *   - Already minted/joined → RESET. Clears all state, hides the
+     *     OPEN button, strip returns to IDLE. Does not delete what was
+     *     already inserted into the host app.
      */
     private fun onMintTap() {
         if (mintedCode != null) {
@@ -195,26 +192,35 @@ class PiqabuKeyboardService : InputMethodService() {
         val link = "https://$shareHost/j/$code"
         ic.commitText(link, 1)
         mintedCode = code
+        joined = false
+
         statusLabel?.text = "MINTED · $code"
         mintButton?.setText(PiqR.string.piqabu_keyboard_reset)
-
-        // Arm send detection — Piqabu opens when the field clears.
-        awaitingSend = true
-        pendingLink = link
-
-        // Strip enters WAITING state: pulse goes from dim to soft white,
-        // status reads "WAITING · CODE" so the user understands the URL
-        // is in their compose box but they haven't sent yet.
-        statusLabel?.text = "WAITING · $code"
+        openButton?.visibility = View.VISIBLE
         applyPulseState(StripState.WAITING)
+    }
+
+    /**
+     * OPEN button: launches the Piqabu app to the waiting room for the
+     * currently-minted code. Flips strip to JOINED state with the
+     * brighter pulse. Tapping again re-opens (handy if the user
+     * backgrounded Piqabu and wants to switch back).
+     */
+    private fun onOpenTap() {
+        val code = mintedCode ?: return
+        val link = "https://$shareHost/j/$code"
+        launchPiqabuApp(link)
+        joined = true
+        statusLabel?.text = "JOINED · $code"
+        applyPulseState(StripState.LINKED)
     }
 
     private fun resetToIdle() {
         mintedCode = null
-        awaitingSend = false
-        pendingLink = null
+        joined = false
         statusLabel?.setText(PiqR.string.piqabu_keyboard_status_idle)
         mintButton?.setText(PiqR.string.piqabu_keyboard_mint)
+        openButton?.visibility = View.GONE
         applyPulseState(StripState.IDLE)
     }
 
@@ -254,47 +260,6 @@ class PiqabuKeyboardService : InputMethodService() {
         }
     }
 
-    /**
-     * Detect the host app's compose box clearing after MINT. Each time
-     * the selection changes, if we're armed and the field is now empty,
-     * fire the Intent that opens Piqabu.
-     *
-     * "Field is empty" is detected as: newSel at (0, 0) AND nothing
-     * before or after the cursor. This catches both the natural Send
-     * action (WhatsApp clears its input on send) and the rare case
-     * where the user manually wipes the field — either way the URL
-     * has left the compose box and it's the right moment to open the
-     * Piqabu side.
-     */
-    override fun onUpdateSelection(
-        oldSelStart: Int,
-        oldSelEnd: Int,
-        newSelStart: Int,
-        newSelEnd: Int,
-        candidatesStart: Int,
-        candidatesEnd: Int,
-    ) {
-        super.onUpdateSelection(
-            oldSelStart, oldSelEnd, newSelStart, newSelEnd,
-            candidatesStart, candidatesEnd,
-        )
-        if (!awaitingSend) return
-        if (newSelStart != 0 || newSelEnd != 0) return
-        val ic = currentInputConnection ?: return
-        val before = ic.getTextBeforeCursor(1, 0)
-        val after = ic.getTextAfterCursor(1, 0)
-        val fieldEmpty = (before?.length ?: 0) == 0 && (after?.length ?: 0) == 0
-        if (!fieldEmpty) return
-
-        val link = pendingLink ?: return
-        awaitingSend = false
-        pendingLink = null
-        launchPiqabuApp(link)
-        // Session has been handed off to the main app — reset the
-        // keyboard so the next time the user opens it in any text field,
-        // it starts at a clean IDLE.
-        resetToIdle()
-    }
 
     /** 6-char code matching the server's CSPRNG alphabet (server.js:203). */
     private fun generateLocalCode(): String =
@@ -341,12 +306,20 @@ class PiqabuKeyboardService : InputMethodService() {
         lockOverlay?.visibility = View.GONE
         keyboardView?.isEnabled = true
         // Restore whichever strip state we were in pre-lock.
-        if (awaitingSend && mintedCode != null) {
-            statusLabel?.text = "WAITING · $mintedCode"
-            applyPulseState(StripState.WAITING)
-        } else {
-            statusLabel?.setText(PiqR.string.piqabu_keyboard_status_idle)
-            applyPulseState(StripState.IDLE)
+        val code = mintedCode
+        when {
+            code != null && joined -> {
+                statusLabel?.text = "JOINED · $code"
+                applyPulseState(StripState.LINKED)
+            }
+            code != null -> {
+                statusLabel?.text = "MINTED · $code"
+                applyPulseState(StripState.WAITING)
+            }
+            else -> {
+                statusLabel?.setText(PiqR.string.piqabu_keyboard_status_idle)
+                applyPulseState(StripState.IDLE)
+            }
         }
     }
 
@@ -461,10 +434,9 @@ class PiqabuKeyboardService : InputMethodService() {
         handler.removeCallbacks(longPressRunnable)
         pressedKey = 0
         longPressFired = false
-        // Don't keep an arm dangling across keyboard hide/show — if the
-        // user dismisses the IME without sending, we drop the intent
-        // rather than firing it on a future, unrelated field-clear.
-        awaitingSend = false
-        pendingLink = null
+        // Note: we intentionally do NOT clear mintedCode here. The user
+        // might dismiss the keyboard (swap to Gboard) while a session is
+        // armed and come back to the Piqabu keyboard later expecting the
+        // OPEN button to still be there.
     }
 }

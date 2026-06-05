@@ -52,6 +52,27 @@
                 android:fontFamily="monospace"
                 android:letterSpacing="0.15"/>
 
+            <!-- OPEN button — hidden when idle, revealed after MINT so the
+                 user has an explicit affordance to launch Piqabu. -->
+            <Button
+                android:id="@+id/piqabu_open_button"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="@string/piqabu_keyboard_open"
+                android:textColor="@color/piqabu_keyboard_ink"
+                android:textSize="10sp"
+                android:textAllCaps="true"
+                android:fontFamily="monospace"
+                android:letterSpacing="0.18"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="0dp"
+                android:background="@drawable/piqabu_mint_button_bg"
+                android:layout_marginEnd="6dp"
+                android:visibility="gone"
+                android:stateListAnimator="@null"/>
+
             <Button
                 android:id="@+id/piqabu_mint_button"
                 android:layout_width="wrap_content"

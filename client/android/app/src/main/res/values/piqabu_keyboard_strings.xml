@@ -21,6 +21,7 @@
     <string name="piqabu_keyboard_mint">MINT</string>
     <string name="piqabu_keyboard_end">END</string>
     <string name="piqabu_keyboard_reset">RESET</string>
+    <string name="piqabu_keyboard_open">OPEN</string>
     <string name="piqabu_keyboard_globe_desc">Switch keyboard (triple-tap to lock)</string>
 
     <!-- Piqabu Tools row -->

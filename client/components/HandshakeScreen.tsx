@@ -24,6 +24,7 @@ import {
     Easing,
     Linking,
     Platform,
+    BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -150,6 +151,22 @@ export default function HandshakeScreen({
                         {linked ? 'DISMISS' : 'CANCEL'}
                     </Text>
                 </TouchableOpacity>
+
+                {/* WAITING-state only: a quick way back to the host app
+                    (WhatsApp etc) without losing the session. The room
+                    stays alive in the rooms list; user can come back via
+                    the OPEN button on the keyboard. Android-only —
+                    BackHandler.exitApp moves the task to back. */}
+                {!linked && Platform.OS === 'android' && (
+                    <TouchableOpacity
+                        onPress={() => BackHandler.exitApp()}
+                        style={styles.tertiary}
+                        activeOpacity={0.7}
+                    >
+                        <Ionicons name="arrow-back-outline" size={12} color={THEME.muted} />
+                        <Text style={styles.tertiaryText}>BACK TO HOST APP</Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* Auto-keyboard prompt — only the first time. */}
                 {showKeyboardPrompt && (
@@ -308,6 +325,21 @@ const styles = StyleSheet.create({
         color: THEME.muted,
         fontSize: 10,
         letterSpacing: 2,
+        fontWeight: '600',
+    },
+    tertiary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        paddingHorizontal: 18,
+        marginTop: 4,
+    },
+    tertiaryText: {
+        fontFamily: THEME.mono,
+        color: THEME.muted,
+        fontSize: 9,
+        letterSpacing: 1.6,
         fontWeight: '600',
     },
     keyboardPrompt: {
