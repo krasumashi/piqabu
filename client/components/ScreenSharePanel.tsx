@@ -730,6 +730,14 @@ export default function ScreenSharePanel({
 
                 <Text style={styles.viewingLabel}>VIEWING CORRESPONDENT'S SCREEN</Text>
 
+                {/* On-device debug strip — surfaces the viewer-side state
+                    so we don't always need adb logcat to diagnose. Status,
+                    whether the remote stream object arrived, whether the
+                    stream URL was extracted, whether RTCView is wired. */}
+                <Text style={styles.debugStrip}>
+                    {`status=${status} | remoteStream=${!!remoteStream} | streamURL=${nativeStreamURL ? 'OK' : '-'} | RTCView=${!!RTCViewNative ? 'OK' : 'NO'}`}
+                </Text>
+
                 {/* Stream display */}
                 <View style={styles.feedContainer}>
                     {status === 'ended' ? (
@@ -759,17 +767,17 @@ export default function ScreenSharePanel({
                         <View nativeID="__screen_share_video_container__" style={styles.webVideoContainer} />
                     ) : nativeStreamURL && RTCViewNative ? (
                         // Render the video plain — no color-matrix or blur
-                        // wrappers. Both filters previously hid the actual
-                        // frames (color matrix on a hardware-accelerated
-                        // SurfaceView often renders black; the BlurView
-                        // overlay was fully opaque on Android with the
-                        // dimezisBlurView method). RTCView straight up
-                        // works; filters can come back later as a separate
-                        // surface that doesn't sit on top of the video.
+                        // wrappers. `zOrder={1}` is critical on Android:
+                        // SurfaceView's default zOrder is *behind* the
+                        // window, so without this the video gets painted
+                        // under everything else and looks invisible.
+                        // LiveGlass (which works) sets zOrder=1 the same
+                        // way.
                         <RTCViewNative
                             streamURL={nativeStreamURL}
                             style={styles.nativeVideo}
                             objectFit="contain"
+                            zOrder={1}
                         />
                     ) : (
                         <View style={styles.noSignal}>
@@ -843,6 +851,15 @@ const styles = StyleSheet.create({
     },
     webVideoContainer: { flex: 1, backgroundColor: '#000' },
     nativeVideo: { flex: 1 },
+    debugStrip: {
+        fontFamily: THEME.mono,
+        fontSize: 8,
+        color: THEME.faint,
+        letterSpacing: 0.6,
+        paddingHorizontal: 14,
+        paddingVertical: 4,
+        textAlign: 'center',
+    },
     noSignal: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
     noSignalText: {
         fontFamily: THEME.mono, fontSize: 10, color: THEME.faint,
