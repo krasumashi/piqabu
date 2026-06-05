@@ -95,10 +95,6 @@ export default function LiveLauncher({
     }, [visible]);
 
     const handleSelect = (mode: 'glass' | 'mirror') => {
-        // Live Mirror is gated as "coming soon" until the WebRTC screen
-        // capture pipeline ships. The card is rendered as disabled below;
-        // this guard is belt-and-braces in case the touchable still fires.
-        if (mode === 'mirror') return;
         // Dismiss first so the sheet animates away cleanly,
         // then fire the parent callback on the next frame.
         onDismiss();
@@ -162,22 +158,19 @@ export default function LiveLauncher({
 
                         <TouchableOpacity
                             onPress={() => handleSelect('mirror')}
-                            style={[styles.optionCard, styles.optionCardDisabled]}
-                            activeOpacity={1}
-                            disabled
+                            style={styles.optionCard}
+                            activeOpacity={0.75}
                         >
-                            <View style={[styles.optionIconWrap, styles.optionIconWrapDisabled]}>
-                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.faint} />
+                            <View style={styles.optionIconWrap}>
+                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.ink} />
                             </View>
                             <View style={styles.optionTextWrap}>
-                                <Text style={[styles.optionLabel, { color: THEME.muted }]}>LIVE MIRROR</Text>
+                                <Text style={styles.optionLabel}>LIVE MIRROR</Text>
                                 <Text style={styles.optionDesc}>
                                     Share your screen. View-only — no save, no screenshots.
                                 </Text>
                             </View>
-                            <View style={styles.comingSoonPill}>
-                                <Text style={styles.comingSoonText}>SOON</Text>
-                            </View>
+                            <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
                         </TouchableOpacity>
                     </View>
 

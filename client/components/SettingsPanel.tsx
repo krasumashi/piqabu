@@ -8,6 +8,8 @@ import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
 import { setSecureItem } from '../lib/platform/storage';
 import { wipeAllPiqabuState } from '../lib/wipe';
+import { useProAccess } from '../lib/pro';
+import PiqabuProPaywall from './PiqabuProPaywall';
 
 /**
  * Open the Android system IME settings screen so the user can toggle
@@ -36,6 +38,8 @@ export default function SettingsPanel({
     const { panicEnabled, biometricEnabled, setPanicEnabled, setBiometricEnabled, triggerPanic } = useSecurity();
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { isPro, refresh: refreshPro } = useProAccess();
+    const [paywallVisible, setPaywallVisible] = useState(false);
 
     /**
      * Clear the onboarded flag and jump straight back to the onboarding
@@ -242,13 +246,22 @@ export default function SettingsPanel({
                         <Text style={styles.sectionLabel}>PIQABU KEYBOARD</Text>
 
                         <TouchableOpacity
-                            onPress={openKeyboardSettings}
+                            onPress={() => {
+                                if (isPro) openKeyboardSettings();
+                                else setPaywallVisible(true);
+                            }}
                             style={styles.item}
                             activeOpacity={0.7}
                         >
                             <View style={styles.itemRow}>
-                                <Ionicons name="keypad-outline" size={14} color={THEME.muted} />
-                                <Text style={styles.itemLabel}>ENABLE KEYBOARD</Text>
+                                <Ionicons
+                                    name={isPro ? 'keypad-outline' : 'lock-closed-outline'}
+                                    size={14}
+                                    color={THEME.muted}
+                                />
+                                <Text style={styles.itemLabel}>
+                                    {isPro ? 'ENABLE KEYBOARD' : 'UNLOCK WITH PIQABU PRO'}
+                                </Text>
                             </View>
                             <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
                         </TouchableOpacity>
@@ -309,6 +322,14 @@ export default function SettingsPanel({
                     <Text style={styles.footerText}>NO ACCOUNTS. NO HISTORY.</Text>
                 </View>
             </RNAnimated.View>
+
+            {/* Pseudo paywall — unlocks keyboard activation (and other Pro
+                tiers in future). Tap Subscribe sets the local Pro flag. */}
+            <PiqabuProPaywall
+                visible={paywallVisible}
+                onDismiss={() => setPaywallVisible(false)}
+                onSubscribed={() => { refreshPro(); }}
+            />
         </View>
     );
 }

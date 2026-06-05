@@ -5,6 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useFirstLaunch } from '../lib/onboarding/useFirstLaunch';
 import GridBackground from '../components/GridBackground';
+import PiqabuProPaywall from '../components/PiqabuProPaywall';
+import { useProAccess } from '../lib/pro';
 
 const { width } = Dimensions.get('window');
 
@@ -75,6 +77,8 @@ export default function Onboarding() {
     const [activeIndex, setActiveIndex] = useState(0);
     const flatListRef = useRef<FlatList>(null);
     const scrollX = useRef(new Animated.Value(0)).current;
+    const { isPro, refresh: refreshPro } = useProAccess();
+    const [paywallVisible, setPaywallVisible] = useState(false);
 
     const handleNext = () => {
         if (activeIndex < slides.length - 1) {
@@ -110,10 +114,17 @@ export default function Onboarding() {
                 {item.description}
             </Text>
 
-            {/* In-slide CTA — keyboard slide deep-links to system IME settings */}
+            {/* In-slide CTA — gated on Pro tier (pseudo paywall for now). */}
             {item.cta === 'enable_keyboard' && (
                 <TouchableOpacity
-                    onPress={openKeyboardSettings}
+                    onPress={() => {
+                        if (Platform.OS !== 'android') return;
+                        if (isPro) {
+                            openKeyboardSettings();
+                        } else {
+                            setPaywallVisible(true);
+                        }
+                    }}
                     activeOpacity={0.75}
                     style={{
                         marginTop: 28,
@@ -127,12 +138,18 @@ export default function Onboarding() {
                         gap: 10,
                     }}
                 >
-                    <Ionicons name="add-circle-outline" size={16} color="#FFFFFF" />
+                    <Ionicons
+                        name={Platform.OS !== 'android' ? 'phone-portrait-outline' : (isPro ? 'add-circle-outline' : 'lock-closed-outline')}
+                        size={16}
+                        color="#FFFFFF"
+                    />
                     <Text
                         className="text-signal font-mono font-bold uppercase"
                         style={{ letterSpacing: 2, fontSize: 11 }}
                     >
-                        {Platform.OS === 'android' ? 'Enable Piqabu Keyboard' : 'Android only for now'}
+                        {Platform.OS !== 'android'
+                            ? 'Android only for now'
+                            : (isPro ? 'Enable Piqabu Keyboard' : 'Unlock with Piqabu Pro')}
                     </Text>
                 </TouchableOpacity>
             )}
@@ -213,6 +230,13 @@ export default function Onboarding() {
             </View>
 
             <StatusBar style="light" />
+
+            {/* Pseudo paywall — tap "Subscribe" sets pro flag locally. */}
+            <PiqabuProPaywall
+                visible={paywallVisible}
+                onDismiss={() => setPaywallVisible(false)}
+                onSubscribed={() => { refreshPro(); }}
+            />
         </View>
     );
 }
