@@ -543,6 +543,44 @@ export default function ScreenSharePanel({
         return () => clearTimeout(t);
     }, [status]);
 
+    /* ─────────── temporarily release FLAG_SECURE during share ────────── */
+
+    // The app globally sets FLAG_SECURE via _layout.tsx
+    // (ScreenCapture.preventScreenCaptureAsync) for screenshot/recents
+    // privacy. But FLAG_SECURE has a *side effect* during MediaProjection:
+    // Android composites secure surfaces as solid black in the capture
+    // output. That means while the sharer is foreground on Piqabu, the
+    // captured frames are all-black. The encoder's first keyframe is then
+    // committed to that black baseline and downstream deltas inherit
+    // from it — which is why every frame the receiver ever sees is black
+    // even after the sharer navigates away.
+    //
+    // Release FLAG_SECURE for the duration of the share session, restore
+    // when the panel closes.
+    useEffect(() => {
+        if (!visible || !isSharer || Platform.OS === 'web') return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const ScreenCapture = require('expo-screen-capture');
+                await ScreenCapture.allowScreenCaptureAsync();
+                console.log('[ScreenShare] FLAG_SECURE released for share session');
+            } catch (e: any) {
+                console.warn('[ScreenShare] allowScreenCaptureAsync failed:', e?.message);
+            }
+        })();
+        return () => {
+            if (cancelled) return;
+            (async () => {
+                try {
+                    const ScreenCapture = require('expo-screen-capture');
+                    await ScreenCapture.preventScreenCaptureAsync();
+                    console.log('[ScreenShare] FLAG_SECURE restored after share session');
+                } catch { }
+            })();
+        };
+    }, [visible, isSharer]);
+
     /* ─────────── auto-minimize sharer once active ────────────────────── */
 
     useEffect(() => {
