@@ -6,6 +6,7 @@ import { Video, ResizeMode } from 'expo-av';
 import { THEME } from '../constants/Theme';
 import { CONFIG } from '../constants/Config';
 import DocumentViewer from './DocumentViewer';
+import SignatureModal from './SignatureModal';
 
 // Detect media type from URI (supports both data URIs and server URLs)
 function isVideoUri(uri: string): boolean {
@@ -33,17 +34,21 @@ function resolveUri(uri: string): string {
 }
 
 export default function PeepDeck({
-    remoteImage, visible, onClose, videoControls,
+    remoteImage, visible, onClose, videoControls, onSign,
 }: {
     remoteImage: string | null;
     visible: boolean;
     onClose: () => void;
     videoControls?: { action: string; position?: number } | null;
+    /** Optional callback for the SIGN & RETURN flow on PDFs. Receives the
+     *  formatted signature line ready to wire into sendText. */
+    onSign?: (signatureLine: string) => void;
 }) {
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
     const [focusedItem, setFocusedItem] = useState<string | null>(null);
     const videoRef = useRef<any>(null);
+    const [signatureVisible, setSignatureVisible] = useState(false);
 
     useEffect(() => {
         if (!videoControls || !videoRef.current) return;
@@ -113,6 +118,7 @@ export default function PeepDeck({
         const focusIsPdf = isPdfUri(focusedItem);
         const focusIsDoc = isDocUri(focusedItem);
         return (
+            <>
             <Modal visible={true} animationType="fade" transparent>
                 <View style={styles.focusModal}>
                     <View style={styles.focusHeader}>
@@ -150,6 +156,19 @@ export default function PeepDeck({
                             <View style={{ flex: 1, width: '100%' }}>
                                 <DocumentViewer uri={focusResolved} />
                                 <Watermark />
+                                {/* SIGN & RETURN — v1 type-name signature
+                                    flow. Only render when the parent wired
+                                    onSign (sendText callback in /room). */}
+                                {onSign && (
+                                    <TouchableOpacity
+                                        onPress={() => setSignatureVisible(true)}
+                                        style={styles.signButton}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Ionicons name="create-outline" size={14} color={THEME.bg} />
+                                        <Text style={styles.signButtonText}>SIGN & RETURN</Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         ) : focusIsDoc ? (
                             // Non-PDF documents (DOCX, XLSX, etc.) are
@@ -167,6 +186,16 @@ export default function PeepDeck({
                     </View>
                 </View>
             </Modal>
+
+            {/* SIGN & RETURN modal — mounted alongside the focus modal so
+                it can overlay the PDF view. Sends back a formatted
+                "✓ SIGNED · ..." line via the parent's sendText. */}
+            <SignatureModal
+                visible={signatureVisible}
+                onDismiss={() => setSignatureVisible(false)}
+                onSign={(line) => onSign?.(line)}
+            />
+            </>
         );
     }
 
@@ -485,6 +514,30 @@ const styles = StyleSheet.create({
         letterSpacing: 12 * 0.22,
         color: THEME.muted,
         textTransform: 'uppercase',
+    },
+    signButton: {
+        position: 'absolute',
+        bottom: 26,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: THEME.ink,
+        paddingHorizontal: 18,
+        paddingVertical: 12,
+        borderRadius: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        elevation: 12,
+    },
+    signButtonText: {
+        fontFamily: THEME.mono,
+        color: THEME.bg,
+        fontSize: 11,
+        letterSpacing: 2.5,
+        fontWeight: '900',
     },
     pdfFocusCard: {
         alignItems: 'center',

@@ -524,6 +524,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 }}
                 remoteImage={remoteReveal}
                 videoControls={videoPlaybackControl}
+                onSign={(line) => sendText(line)}
             />
             <WhisperPanel
                 visible={activeOverlay === 'whisper'}

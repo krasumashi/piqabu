@@ -19,7 +19,7 @@
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-    View, Text, StyleSheet, Modal, TouchableOpacity, Platform, AppState, AppStateStatus,
+    View, Text, StyleSheet, Modal, TouchableOpacity, Platform, AppState, AppStateStatus, BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
@@ -593,7 +593,19 @@ export default function ScreenSharePanel({
 
     useEffect(() => {
         if (status === 'active' && isSharer && onMinimize && !minimized) {
-            const t = setTimeout(() => onMinimize(), 1500);
+            const t = setTimeout(() => {
+                // Collapse the in-app panel to a pill so the room is ready
+                // to come back to.
+                onMinimize();
+                // Then background the Piqabu app entirely. Without this the
+                // screen being captured IS Piqabu's own UI — a recursive
+                // loop that often shows up as "nothing streams" on the
+                // receiver. MediaProjection's foreground service keeps the
+                // native capture alive across the background transition.
+                if (Platform.OS === 'android') {
+                    try { BackHandler.exitApp(); } catch { /* noop */ }
+                }
+            }, 1500);
             return () => clearTimeout(t);
         }
     }, [status, isSharer, onMinimize, minimized]);

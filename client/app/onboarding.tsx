@@ -7,8 +7,15 @@ import { useFirstLaunch } from '../lib/onboarding/useFirstLaunch';
 import GridBackground from '../components/GridBackground';
 import PiqabuProPaywall from '../components/PiqabuProPaywall';
 import { useProAccess } from '../lib/pro';
+import KeyboardFeaturesSlide from '../components/KeyboardFeaturesSlide';
 
 const { width } = Dimensions.get('window');
+
+interface KeyboardFeature {
+    icon: keyof typeof Ionicons.glyphMap;
+    title: string;
+    desc: string;
+}
 
 interface Slide {
     icon: keyof typeof Ionicons.glyphMap;
@@ -21,6 +28,11 @@ interface Slide {
      * Input Method Settings screen.
      */
     cta?: 'enable_keyboard';
+    /** Slide layout variant. 'features' renders a stacked feature-list with
+     *  staggered entrance animation instead of the centered icon layout. */
+    kind?: 'standard' | 'features';
+    /** Feature rows for the 'features' kind. */
+    features?: KeyboardFeature[];
 }
 
 /**
@@ -66,8 +78,47 @@ const slides: Slide[] = [
         icon: 'keypad-outline',
         title: 'PIQABU KEYBOARD',
         subtitle: 'Private channels, one key away',
-        description: 'Add the Piqabu Keyboard so you can summon a private channel from inside any chat app -- WhatsApp, Telegram, anywhere you type. Tap below to enable it in your system settings.',
+        description: 'Add the Piqabu Keyboard so you can summon a private channel from inside any chat app -- WhatsApp, Telegram, anywhere you type.',
+    },
+    {
+        icon: 'shield-checkmark-outline',
+        title: 'WHAT IT DOES',
+        subtitle: 'Six silent privacy features',
+        description: '',
+        kind: 'features',
         cta: 'enable_keyboard',
+        features: [
+            {
+                icon: 'send-outline',
+                title: 'MINT FROM ANYWHERE',
+                desc: 'Generate a private channel from any text field — WhatsApp, Telegram, anywhere.',
+            },
+            {
+                icon: 'eye-off-outline',
+                title: 'ZERO TRACE TYPING',
+                desc: 'No keystrokes leave your device. No suggestions, no learning, no cloud uploads.',
+            },
+            {
+                icon: 'finger-print-outline',
+                title: 'QUICK-LOCK',
+                desc: 'Triple-tap the globe to lock the keyboard behind your device biometric.',
+            },
+            {
+                icon: 'swap-horizontal-outline',
+                title: 'DECOY SEND',
+                desc: 'Long-press Return to insert a plausible decoy phrase under pressure.',
+            },
+            {
+                icon: 'flash-outline',
+                title: 'ONE-TAP RECONNECT',
+                desc: 'The OPEN button brings up the Piqabu app to the waiting room in a single tap.',
+            },
+            {
+                icon: 'lock-closed-outline',
+                title: 'PRIVATE BY DEFAULT',
+                desc: 'No autocorrect, no candidates strip, no clipboard leaks. The keyboard never phones home.',
+            },
+        ],
     },
 ];
 
@@ -93,7 +144,22 @@ export default function Onboarding() {
         router.replace('/');
     };
 
-    const renderSlide = ({ item, index }: { item: Slide; index: number }) => (
+    const renderSlide = ({ item, index }: { item: Slide; index: number }) => {
+        if (item.kind === 'features' && item.features) {
+            return (
+                <KeyboardFeaturesSlide
+                    item={item}
+                    active={index === activeIndex}
+                    onCtaPress={() => {
+                        if (Platform.OS !== 'android') return;
+                        if (isPro) openKeyboardSettings();
+                        else setPaywallVisible(true);
+                    }}
+                    isPro={isPro}
+                />
+            );
+        }
+        return (
         <View style={{ width }} className="flex-1 items-center justify-center p-8">
             {/* Animated Icon */}
             <View className="w-28 h-28 border-2 border-signal/40 rounded-full items-center justify-center mb-10">
@@ -154,7 +220,8 @@ export default function Onboarding() {
                 </TouchableOpacity>
             )}
         </View>
-    );
+        );
+    };
 
     const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
         if (viewableItems.length > 0) {
