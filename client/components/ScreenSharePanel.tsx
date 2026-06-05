@@ -22,8 +22,6 @@ import {
     View, Text, StyleSheet, Modal, TouchableOpacity, Platform, AppState, AppStateStatus, BackHandler,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
-import { BlurView } from 'expo-blur';
 import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
 import { fetchIceServers } from '../lib/iceServers';
@@ -46,15 +44,6 @@ const NativeRTCSessionDescription: any = RNWebRTC?.RTCSessionDescription;
 const NativeRTCIceCandidate: any = RNWebRTC?.RTCIceCandidate;
 const nativeMediaDevices: any = RNWebRTC?.mediaDevices;
 const RTCViewNative: React.ComponentType<any> | undefined = RNWebRTC?.RTCView;
-
-/* ────────────────────────── grayscale wrapper ────────────────────────────── */
-
-let NativeGrayscale: any = null;
-if (Platform.OS !== 'web') {
-    try {
-        NativeGrayscale = require('react-native-color-matrix-image-filters').Grayscale;
-    } catch { }
-}
 
 /* ──────────────────────────────── props ──────────────────────────────────── */
 
@@ -83,14 +72,6 @@ export default function ScreenSharePanel({
     const [error, setError] = useState<string | null>(null);
     const [nativeStreamURL, setNativeStreamURL] = useState<string | null>(null);
     const [remoteStream, setRemoteStream] = useState<any>(null);
-
-    // Sharer-side controls (broadcast to viewer over a separate channel)
-    const [blur, setBlur] = useState(0);
-    const [isBnW, setIsBnW] = useState(true);
-
-    // Viewer-side received controls
-    const [remoteBlur, setRemoteBlur] = useState(0);
-    const [remoteIsBnW, setRemoteIsBnW] = useState(true);
 
     /* ── refs ─────────────────────────────────────────────────────────── */
     const pcRef = useRef<any>(null);
@@ -265,8 +246,6 @@ export default function ScreenSharePanel({
         setError(null);
         setNativeStreamURL(null);
         setRemoteStream(null);
-        setBlur(0);
-        setRemoteBlur(0);
         partnerReady.current = false;
         makingOffer.current = false;
         negotiationStarted.current = false;
@@ -543,31 +522,6 @@ export default function ScreenSharePanel({
         return () => cleanup();
     }, [visible, cleanup]);
 
-    /* ─────────── sharer broadcasts blur / B&W to viewer ──────────────── */
-
-    useEffect(() => {
-        if (!socket || !roomId || !visible || !isSharer) return;
-        socket.emit('transmit_screen_share_controls', {
-            roomId,
-            controls: { blur, isBnW },
-        });
-    }, [blur, isBnW, socket, roomId, visible, isSharer]);
-
-    /* ─────────── viewer receives blur / B&W ──────────────────────────── */
-
-    useEffect(() => {
-        if (!socket || !roomId || !visible || isSharer) return;
-        const handler = (data: any) => {
-            if (data.roomId !== roomId) return;
-            setRemoteBlur(data.controls?.blur ?? 0);
-            if (data.controls?.isBnW !== undefined) {
-                setRemoteIsBnW(!!data.controls.isBnW);
-            }
-        };
-        socket.on('transmit_screen_share_controls', handler);
-        return () => { socket.off('transmit_screen_share_controls', handler); };
-    }, [socket, roomId, visible, isSharer]);
-
     /* ─────────── biometric bypass while sharing (sharer only) ────────── */
 
     useEffect(() => {
@@ -749,34 +703,6 @@ export default function ScreenSharePanel({
                         )}
                     </View>
 
-                    {/* Controls (only meaningful while connected/connecting) */}
-                    {(status === 'active' || status === 'connecting') && (
-                        <View style={styles.controls}>
-                            <TouchableOpacity
-                                style={[styles.bnwBtn, !isBnW && styles.bnwBtnActive]}
-                                onPress={() => setIsBnW(!isBnW)}
-                                activeOpacity={0.7}
-                            >
-                                <Ionicons name={isBnW ? 'contrast' : 'color-palette'} size={16} color={isBnW ? '#fff' : '#000'} />
-                            </TouchableOpacity>
-                            <View style={styles.blurControl}>
-                                <Text style={styles.controlLabel}>BLUR</Text>
-                                <Slider
-                                    style={styles.slider}
-                                    minimumValue={0}
-                                    maximumValue={100}
-                                    step={5}
-                                    value={blur}
-                                    onValueChange={(v: number) => setBlur(Math.round(v))}
-                                    minimumTrackTintColor="rgba(255,255,255,0.5)"
-                                    maximumTrackTintColor="rgba(255,255,255,0.15)"
-                                    thumbTintColor="#fff"
-                                />
-                                <Text style={styles.controlValue}>{blur}%</Text>
-                            </View>
-                        </View>
-                    )}
-
                     {/* Stop sharing */}
                     <TouchableOpacity onPress={handleStop} style={styles.endBtn} activeOpacity={0.7}>
                         <Ionicons name="stop-circle-outline" size={16} color={THEME.muted} style={{ marginRight: 8 }} />
@@ -832,39 +758,24 @@ export default function ScreenSharePanel({
                     ) : Platform.OS === 'web' ? (
                         <View nativeID="__screen_share_video_container__" style={styles.webVideoContainer} />
                     ) : nativeStreamURL && RTCViewNative ? (
-                        <View style={{ flex: 1 }}>
-                            {NativeGrayscale && remoteIsBnW ? (
-                                <NativeGrayscale style={StyleSheet.absoluteFill}>
-                                    <RTCViewNative
-                                        streamURL={nativeStreamURL}
-                                        style={styles.nativeVideo}
-                                        objectFit="contain"
-                                    />
-                                </NativeGrayscale>
-                            ) : (
-                                <RTCViewNative
-                                    streamURL={nativeStreamURL}
-                                    style={styles.nativeVideo}
-                                    objectFit="contain"
-                                />
-                            )}
-                        </View>
+                        // Render the video plain — no color-matrix or blur
+                        // wrappers. Both filters previously hid the actual
+                        // frames (color matrix on a hardware-accelerated
+                        // SurfaceView often renders black; the BlurView
+                        // overlay was fully opaque on Android with the
+                        // dimezisBlurView method). RTCView straight up
+                        // works; filters can come back later as a separate
+                        // surface that doesn't sit on top of the video.
+                        <RTCViewNative
+                            streamURL={nativeStreamURL}
+                            style={styles.nativeVideo}
+                            objectFit="contain"
+                        />
                     ) : (
                         <View style={styles.noSignal}>
                             <Ionicons name="videocam-off-outline" size={32} color={THEME.faint} />
                             <Text style={styles.noSignalText}>NO STREAM</Text>
                         </View>
-                    )}
-
-                    {/* Remote-controlled blur overlay */}
-                    {remoteBlur > 0 && status === 'active' && (
-                        <BlurView
-                            intensity={remoteBlur}
-                            tint="dark"
-                            style={StyleSheet.absoluteFillObject}
-                            experimentalBlurMethod="dimezisBlurView"
-                            pointerEvents="none"
-                        />
                     )}
                 </View>
 
