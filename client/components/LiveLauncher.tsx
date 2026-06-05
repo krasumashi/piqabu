@@ -28,6 +28,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
+import { useProAccess } from '../lib/pro';
 
 interface LiveLauncherProps {
     visible: boolean;
@@ -45,6 +46,7 @@ export default function LiveLauncher({
     const translateY = useRef(new RNAnimated.Value(400)).current;
     const backdrop = useRef(new RNAnimated.Value(0)).current;
     const dotPulse = useRef(new RNAnimated.Value(1)).current;
+    const { isPro } = useProAccess();
 
     useEffect(() => {
         if (visible) {
@@ -148,7 +150,14 @@ export default function LiveLauncher({
                                 <Ionicons name="videocam-outline" size={26} color={THEME.ink} />
                             </View>
                             <View style={styles.optionTextWrap}>
-                                <Text style={styles.optionLabel}>LIVE GLASS</Text>
+                                <View style={styles.optionLabelRow}>
+                                    <Text style={styles.optionLabel}>LIVE GLASS</Text>
+                                    {!isPro && (
+                                        <View style={styles.proPill}>
+                                            <Text style={styles.proPillText}>PRO</Text>
+                                        </View>
+                                    )}
+                                </View>
                                 <Text style={styles.optionDesc}>
                                     Camera-to-camera. Blur and noir filters on by default.
                                 </Text>
@@ -165,7 +174,14 @@ export default function LiveLauncher({
                                 <Ionicons name="phone-portrait-outline" size={26} color={THEME.ink} />
                             </View>
                             <View style={styles.optionTextWrap}>
-                                <Text style={styles.optionLabel}>LIVE MIRROR</Text>
+                                <View style={styles.optionLabelRow}>
+                                    <Text style={styles.optionLabel}>LIVE MIRROR</Text>
+                                    {!isPro && (
+                                        <View style={styles.proPill}>
+                                            <Text style={styles.proPillText}>PRO</Text>
+                                        </View>
+                                    )}
+                                </View>
                                 <Text style={styles.optionDesc}>
                                     Share your screen. View-only — no save, no screenshots.
                                 </Text>
@@ -307,13 +323,33 @@ const styles = StyleSheet.create({
     optionTextWrap: {
         flex: 1,
     },
+    optionLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 3,
+    },
     optionLabel: {
         fontFamily: THEME.mono,
         fontSize: 12,
         letterSpacing: 1.6,
         fontWeight: '800',
         color: THEME.ink,
-        marginBottom: 3,
+    },
+    proPill: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+    },
+    proPillText: {
+        fontFamily: THEME.mono,
+        fontSize: 8,
+        letterSpacing: 1.2,
+        fontWeight: '900',
+        color: THEME.muted,
     },
     optionDesc: {
         fontFamily: THEME.mono,
