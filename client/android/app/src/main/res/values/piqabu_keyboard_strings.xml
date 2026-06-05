@@ -22,6 +22,12 @@
     <string name="piqabu_keyboard_end">END</string>
     <string name="piqabu_keyboard_reset">RESET</string>
     <string name="piqabu_keyboard_open">OPEN</string>
+
+    <!-- Keyboard layout switcher labels. Literal "?123" inline in XML
+         attrs gets parsed by AAPT as a theme-attr reference, so we route
+         these through string resources instead. -->
+    <string name="piqabu_keyboard_layout_symbols">\?123</string>
+    <string name="piqabu_keyboard_layout_letters">ABC</string>
     <string name="piqabu_keyboard_globe_desc">Switch keyboard (triple-tap to lock)</string>
 
     <!-- Piqabu Tools row -->

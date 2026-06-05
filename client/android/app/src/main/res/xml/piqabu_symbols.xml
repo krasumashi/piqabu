@@ -56,13 +56,13 @@
         <Key android:codes="58"  android:keyLabel=":"/>
         <Key android:codes="59"  android:keyLabel=";"/>
         <Key android:codes="33"  android:keyLabel="!"/>
-        <Key android:codes="63"  android:keyLabel="?"/>
+        <Key android:codes="63"  android:keyLabel="\?"/>
         <Key android:codes="-5"  android:keyLabel="⌫" android:keyWidth="15%p" android:isRepeatable="true"/>
     </Row>
 
     <!-- Row 4: ABC (mode switch back), comma, space, period, enter -->
     <Row>
-        <Key android:codes="-2"  android:keyLabel="ABC" android:keyWidth="15%p"/>
+        <Key android:codes="-2"  android:keyLabel="@string/piqabu_keyboard_layout_letters" android:keyWidth="15%p"/>
         <Key android:codes="44"  android:keyLabel="," android:keyWidth="10%p"/>
         <Key android:codes="32"  android:keyLabel="space" android:keyWidth="50%p" android:isRepeatable="true"/>
         <Key android:codes="46"  android:keyLabel="." android:keyWidth="10%p"/>

@@ -67,7 +67,7 @@
     <!-- Row 4: ?123 (mode switch), comma, space, period, enter
          -2 = KEYCODE_MODE_CHANGE (we use this for SYMBOLS layout switch). -->
     <Row>
-        <Key android:codes="-2"  android:keyLabel="?123" android:keyWidth="15%p"/>
+        <Key android:codes="-2"  android:keyLabel="@string/piqabu_keyboard_layout_symbols" android:keyWidth="15%p"/>
         <Key android:codes="44"  android:keyLabel="," android:keyWidth="10%p"/>
         <Key android:codes="32"  android:keyLabel="space" android:keyWidth="50%p" android:isRepeatable="true"/>
         <Key android:codes="46"  android:keyLabel="." android:keyWidth="10%p"/>
