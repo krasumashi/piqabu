@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Piqabu Keyboard — Numbers + symbols layout.
+
+  Switched in via the ?123 key on the QWERTY layout. The ABC key on
+  the bottom row of this layout switches back to letters.
+
+  Privacy posture is unchanged: no suggestions, no learning, no extra
+  symbols beyond the common set people actually use in chat.
+
+  Key codes follow ASCII for printable chars (0-9 = 48-57; symbols use
+  their ASCII codes). Special keys:
+    -2  KEYCODE_MODE_CHANGE (used here as the ABC switch back to QWERTY)
+    -4  KEYCODE_DONE
+    -5  KEYCODE_DELETE
+-->
+<Keyboard xmlns:android="http://schemas.android.com/apk/res/android"
+    android:keyWidth="10%p"
+    android:horizontalGap="2px"
+    android:verticalGap="4px"
+    android:keyHeight="48dp">
+
+    <!-- Row 1: digits 0-9 -->
+    <Row>
+        <Key android:codes="49" android:keyLabel="1"/>
+        <Key android:codes="50" android:keyLabel="2"/>
+        <Key android:codes="51" android:keyLabel="3"/>
+        <Key android:codes="52" android:keyLabel="4"/>
+        <Key android:codes="53" android:keyLabel="5"/>
+        <Key android:codes="54" android:keyLabel="6"/>
+        <Key android:codes="55" android:keyLabel="7"/>
+        <Key android:codes="56" android:keyLabel="8"/>
+        <Key android:codes="57" android:keyLabel="9"/>
+        <Key android:codes="48" android:keyLabel="0"/>
+    </Row>
+
+    <!-- Row 2: at, hash, dollar, underscore, ampersand, hyphen, plus, paren-open, paren-close, slash -->
+    <Row>
+        <Key android:codes="64"  android:keyLabel="\@"/>
+        <Key android:codes="35"  android:keyLabel="#"/>
+        <Key android:codes="36"  android:keyLabel="$"/>
+        <Key android:codes="95"  android:keyLabel="_"/>
+        <Key android:codes="38"  android:keyLabel="&amp;"/>
+        <Key android:codes="45"  android:keyLabel="-"/>
+        <Key android:codes="43"  android:keyLabel="+"/>
+        <Key android:codes="40"  android:keyLabel="("/>
+        <Key android:codes="41"  android:keyLabel=")"/>
+        <Key android:codes="47"  android:keyLabel="/"/>
+    </Row>
+
+    <!-- Row 3: punctuation + backspace -->
+    <Row>
+        <Key android:codes="42"  android:keyLabel="*" android:horizontalGap="5%p"/>
+        <Key android:codes="34"  android:keyLabel="&quot;"/>
+        <Key android:codes="39"  android:keyLabel="\'"/>
+        <Key android:codes="58"  android:keyLabel=":"/>
+        <Key android:codes="59"  android:keyLabel=";"/>
+        <Key android:codes="33"  android:keyLabel="!"/>
+        <Key android:codes="63"  android:keyLabel="?"/>
+        <Key android:codes="-5"  android:keyLabel="⌫" android:keyWidth="15%p" android:isRepeatable="true"/>
+    </Row>
+
+    <!-- Row 4: ABC (mode switch back), comma, space, period, enter -->
+    <Row>
+        <Key android:codes="-2"  android:keyLabel="ABC" android:keyWidth="15%p"/>
+        <Key android:codes="44"  android:keyLabel="," android:keyWidth="10%p"/>
+        <Key android:codes="32"  android:keyLabel="space" android:keyWidth="50%p" android:isRepeatable="true"/>
+        <Key android:codes="46"  android:keyLabel="." android:keyWidth="10%p"/>
+        <Key android:codes="-4"  android:keyLabel="↵" android:keyWidth="15%p"/>
+    </Row>
+</Keyboard>

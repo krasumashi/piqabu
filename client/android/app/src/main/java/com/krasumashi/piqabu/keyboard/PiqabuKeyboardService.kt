@@ -74,6 +74,9 @@ class PiqabuKeyboardService : InputMethodService() {
     /** Strip identity states. Drives the pulse-dot tint + status label. */
     private enum class StripState { IDLE, WAITING, LINKED }
 
+    /** Which Keyboard XML the QWERTY view is currently showing. */
+    private enum class KeyboardLayout { LETTERS, SYMBOLS }
+
     /** 6-char alphabet mirrored from server.js (ROOM_CHARS). */
     private val roomChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
@@ -95,6 +98,9 @@ class PiqabuKeyboardService : InputMethodService() {
      * "JOINED · CODE" label. Reset by tapping RESET.
      */
     private var joined: Boolean = false
+
+    /** Current QWERTY view layout — LETTERS by default; SYMBOLS after ?123. */
+    private var currentLayout: KeyboardLayout = KeyboardLayout.LETTERS
 
     // --- Cached view references (re-set every onCreateInputView) ---
     private var statusLabel: TextView? = null
@@ -148,9 +154,9 @@ class PiqabuKeyboardService : InputMethodService() {
             onGlobeTap()
         }
 
-        // QWERTY wiring
+        // QWERTY wiring — load the current layout (defaults to letters).
         keyboardView?.apply {
-            keyboard = Keyboard(this@PiqabuKeyboardService, PiqR.xml.piqabu_qwerty)
+            keyboard = loadKeyboardForLayout(currentLayout)
             isPreviewEnabled = false  // Per-key floating preview off — feels
                                       // cleaner / more discreet without it.
             setOnKeyboardActionListener(keyboardActionListener)
@@ -264,6 +270,29 @@ class PiqabuKeyboardService : InputMethodService() {
     /** 6-char code matching the server's CSPRNG alphabet (server.js:203). */
     private fun generateLocalCode(): String =
         (1..6).map { roomChars[Random.nextInt(roomChars.length)] }.joinToString("")
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Keyboard layout switching (?123 / ABC)
+    // ─────────────────────────────────────────────────────────────────────
+
+    private fun loadKeyboardForLayout(layout: KeyboardLayout): Keyboard = when (layout) {
+        KeyboardLayout.LETTERS -> Keyboard(this, PiqR.xml.piqabu_qwerty)
+        KeyboardLayout.SYMBOLS -> Keyboard(this, PiqR.xml.piqabu_symbols)
+    }
+
+    private fun toggleLayout() {
+        currentLayout = if (currentLayout == KeyboardLayout.LETTERS) {
+            KeyboardLayout.SYMBOLS
+        } else {
+            KeyboardLayout.LETTERS
+        }
+        capsOn = false  // Drop caps when switching — fresh state.
+        keyboardView?.apply {
+            keyboard = loadKeyboardForLayout(currentLayout)
+            isShifted = false
+            invalidateAllKeys()
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────────
     //  Quick-Lock (triple-tap globe → biometric)
@@ -402,16 +431,17 @@ class PiqabuKeyboardService : InputMethodService() {
             }
             val ic = currentInputConnection ?: return
             when (primaryCode) {
-                Keyboard.KEYCODE_DELETE -> ic.deleteSurroundingText(1, 0)
-                Keyboard.KEYCODE_SHIFT  -> {
+                Keyboard.KEYCODE_DELETE      -> ic.deleteSurroundingText(1, 0)
+                Keyboard.KEYCODE_SHIFT       -> {
                     capsOn = !capsOn
                     keyboardView?.isShifted = capsOn
                     keyboardView?.invalidateAllKeys()
                 }
-                Keyboard.KEYCODE_DONE   -> {
+                Keyboard.KEYCODE_DONE        -> {
                     ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
                     ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP,   KeyEvent.KEYCODE_ENTER))
                 }
+                Keyboard.KEYCODE_MODE_CHANGE -> toggleLayout()
                 else -> {
                     val ch = primaryCode.toChar()
                     val typed = if (capsOn && ch.isLetter()) ch.uppercaseChar() else ch
