@@ -101,7 +101,16 @@ export default function ScreenSharePanel({
         try {
             const iceServers = await fetchIceServers();
             console.log('[ScreenShare] ICE servers:', iceServers.length, 'configured');
-            return new PC({ iceServers });
+            // `iceTransportPolicy: 'relay'` forces all candidates to go
+            // through TURN relays — skips direct (host) and reflexive
+            // (srflx) candidate pairs that often fail across hostile
+            // NATs / firewalls / cellular carriers. Tradeoff: every
+            // packet routes through Metered's relay (latency + bandwidth
+            // cost), but reliability goes up dramatically for cross-
+            // network sessions, which is exactly the screen-share use
+            // case (you and your correspondent are usually NOT on the
+            // same WiFi).
+            return new PC({ iceServers, iceTransportPolicy: 'relay' });
         } catch (err: any) {
             setError(`Failed to create peer connection: ${err?.message ?? err}`);
             setStatus('error');
