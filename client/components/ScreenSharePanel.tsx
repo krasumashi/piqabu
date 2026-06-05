@@ -766,18 +766,20 @@ export default function ScreenSharePanel({
                     ) : Platform.OS === 'web' ? (
                         <View nativeID="__screen_share_video_container__" style={styles.webVideoContainer} />
                     ) : nativeStreamURL && RTCViewNative ? (
-                        // Render the video plain — no color-matrix or blur
-                        // wrappers. `zOrder={1}` is critical on Android:
-                        // SurfaceView's default zOrder is *behind* the
-                        // window, so without this the video gets painted
-                        // under everything else and looks invisible.
-                        // LiveGlass (which works) sets zOrder=1 the same
-                        // way.
+                        // Render the video plain. Two critical things vs
+                        // the earlier broken version, both copied from
+                        // LiveGlass's working remote-view render:
+                        //   1. style with explicit width:100%/height:100%
+                        //      — `flex: 1` does NOT measure correctly with
+                        //      RTCView's SurfaceView and the surface
+                        //      renders at 0x0, looking like a black square.
+                        //   2. zOrder={0} — the full-screen remote case;
+                        //      zOrder=1 is for PIP overlays.
                         <RTCViewNative
                             streamURL={nativeStreamURL}
-                            style={styles.nativeVideo}
+                            style={{ width: '100%', height: '100%' }}
                             objectFit="contain"
-                            zOrder={1}
+                            zOrder={0}
                         />
                     ) : (
                         <View style={styles.noSignal}>
