@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
 import { setSecureItem } from '../lib/platform/storage';
+import { wipeAllPiqabuState } from '../lib/wipe';
 
 /**
  * Open the Android system IME settings screen so the user can toggle
@@ -45,6 +46,32 @@ export default function SettingsPanel({
         onClose();
         // Defer the route push so the panel can animate out cleanly.
         setTimeout(() => router.replace('/onboarding'), 200);
+    };
+
+    /**
+     * "Wipe Everything" — irreversible. Clears secure store, AsyncStorage,
+     * file-system cache. Returns the app to brand-new install state on
+     * next launch.
+     */
+    const handleWipeEverything = () => {
+        Alert.alert(
+            'WIPE EVERYTHING?',
+            'This clears your Ghost ID, every room, every preference, every cached file. There is no undo. The app will return to a brand-new install state.',
+            [
+                { text: 'CANCEL', style: 'cancel' },
+                {
+                    text: 'WIPE',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await wipeAllPiqabuState();
+                        onClose();
+                        // Bounce to landing — _layout will re-trigger onboarding
+                        // because the onboarded flag is gone.
+                        setTimeout(() => router.replace('/'), 150);
+                    },
+                },
+            ],
+        );
     };
     const slideAnim = useRef(new RNAnimated.Value(300)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
@@ -269,6 +296,12 @@ export default function SettingsPanel({
                 <TouchableOpacity onPress={onLeaveChannel} style={styles.dangerItem} activeOpacity={0.7}>
                     <Text style={styles.dangerLabel}>LEAVE CHANNEL</Text>
                     <Ionicons name="log-out-outline" size={14} color={THEME.bad} />
+                </TouchableOpacity>
+
+                {/* Wipe Everything — destructive, with confirmation. */}
+                <TouchableOpacity onPress={handleWipeEverything} style={styles.dangerItem} activeOpacity={0.7}>
+                    <Text style={styles.dangerLabel}>WIPE EVERYTHING</Text>
+                    <Ionicons name="trash-outline" size={14} color={THEME.bad} />
                 </TouchableOpacity>
 
                 {/* Footer */}

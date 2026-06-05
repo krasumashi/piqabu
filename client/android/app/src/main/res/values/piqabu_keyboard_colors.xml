@@ -18,4 +18,10 @@
     <color name="piqabu_keyboard_button">#1A1C20</color>
     <color name="piqabu_keyboard_button_pressed">#26282D</color>
     <color name="piqabu_keyboard_pulse">#FFFFFF</color>
+    <!-- Pulse-dot state colors. IDLE = faint, almost off. WAITING = soft
+         white (the URL is armed, hasn't been sent yet). LINKED (Phase 4)
+         = bright white. -->
+    <color name="piqabu_keyboard_pulse_idle">#3A3A38</color>
+    <color name="piqabu_keyboard_pulse_waiting">#C8C8C2</color>
+    <color name="piqabu_keyboard_pulse_linked">#FFFFFF</color>
 </resources>

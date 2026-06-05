@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { AppState } from 'react-native';
 import { Socket } from 'socket.io-client';
 
 export type LinkStatus = 'WAITING' | 'LINKED' | 'SIGNAL LOST' | 'DISCONNECTED';
@@ -48,6 +49,30 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
             }
         };
     }, [socket, deviceId, roomId]);
+
+    /**
+     * Memory-wipe on background. When the app moves to background, zero
+     * out the in-memory message buffers — remoteText, remoteReveal,
+     * remoteWhisper. The Socket.IO connection itself isn't touched; on
+     * 'active' return, fresh state will land if the session is still
+     * alive, or the user sees an empty pane (which is the correct
+     * representation of an abandoned/ephemeral chat).
+     *
+     * This reduces the surface area of a forensic memory grab while the
+     * app sits in recents — combined with FLAG_SECURE blocking the
+     * recents thumbnail, there's nothing to scrape even if the OS
+     * preserves the process.
+     */
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (state) => {
+            if (state === 'background' || state === 'inactive') {
+                setRemoteText('');
+                setRemoteReveal(null);
+                setRemoteWhisper(null);
+            }
+        });
+        return () => sub.remove();
+    }, []);
 
     // Listen to events filtered by roomId
     useEffect(() => {

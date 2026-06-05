@@ -2,6 +2,7 @@ package com.krasumashi.piqabu.keyboard
 
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.inputmethodservice.InputMethodService
 import android.inputmethodservice.Keyboard
 import android.inputmethodservice.KeyboardView
@@ -16,6 +17,7 @@ import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.biometric.BiometricManager
 // Aliased so there is no chance of clashing with `android.R` in nested scopes.
 // The app's R lives at the namespace declared in `app/build.gradle`
@@ -69,6 +71,9 @@ import kotlin.random.Random
  */
 class PiqabuKeyboardService : InputMethodService() {
 
+    /** Strip identity states. Drives the pulse-dot tint + status label. */
+    private enum class StripState { IDLE, WAITING, LINKED }
+
     /** 6-char alphabet mirrored from server.js (ROOM_CHARS). */
     private val roomChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
@@ -102,6 +107,7 @@ class PiqabuKeyboardService : InputMethodService() {
     private var mintButton: Button? = null
     private var keyboardView: KeyboardView? = null
     private var lockOverlay: LinearLayout? = null
+    private var pulseDot: View? = null
     private var rootView: View? = null
 
     // --- Globe triple-tap tracking (Quick-Lock) ---
@@ -134,6 +140,10 @@ class PiqabuKeyboardService : InputMethodService() {
         mintButton = root.findViewById(PiqR.id.piqabu_mint_button)
         keyboardView = root.findViewById(PiqR.id.piqabu_keyboard_view)
         lockOverlay = root.findViewById(PiqR.id.piqabu_lock_overlay)
+        pulseDot = root.findViewById(PiqR.id.piqabu_pulse_dot)
+
+        // Initial state — IDLE pulse colour.
+        applyPulseState(StripState.IDLE)
 
         // Strip wiring
         mintButton?.setOnClickListener { onMintTap() }
@@ -191,6 +201,12 @@ class PiqabuKeyboardService : InputMethodService() {
         // Arm send detection — Piqabu opens when the field clears.
         awaitingSend = true
         pendingLink = link
+
+        // Strip enters WAITING state: pulse goes from dim to soft white,
+        // status reads "WAITING · CODE" so the user understands the URL
+        // is in their compose box but they haven't sent yet.
+        statusLabel?.text = "WAITING · $code"
+        applyPulseState(StripState.WAITING)
     }
 
     private fun resetToIdle() {
@@ -199,6 +215,24 @@ class PiqabuKeyboardService : InputMethodService() {
         pendingLink = null
         statusLabel?.setText(PiqR.string.piqabu_keyboard_status_idle)
         mintButton?.setText(PiqR.string.piqabu_keyboard_mint)
+        applyPulseState(StripState.IDLE)
+    }
+
+    /**
+     * Tints the pulse dot based on strip state. IDLE = faint (almost
+     * off — visually quiet so it doesn't distract from typing).
+     * WAITING = soft white (the URL is armed but unsent). LINKED is
+     * reserved for Phase 4 when the peer session lights up.
+     */
+    private fun applyPulseState(state: StripState) {
+        val colorRes = when (state) {
+            StripState.IDLE    -> PiqR.color.piqabu_keyboard_pulse_idle
+            StripState.WAITING -> PiqR.color.piqabu_keyboard_pulse_waiting
+            StripState.LINKED  -> PiqR.color.piqabu_keyboard_pulse_linked
+        }
+        pulseDot?.backgroundTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(this, colorRes),
+        )
     }
 
     /**
@@ -256,6 +290,10 @@ class PiqabuKeyboardService : InputMethodService() {
         awaitingSend = false
         pendingLink = null
         launchPiqabuApp(link)
+        // Session has been handed off to the main app — reset the
+        // keyboard so the next time the user opens it in any text field,
+        // it starts at a clean IDLE.
+        resetToIdle()
     }
 
     /** 6-char code matching the server's CSPRNG alphabet (server.js:203). */
@@ -302,10 +340,13 @@ class PiqabuKeyboardService : InputMethodService() {
         locked = false
         lockOverlay?.visibility = View.GONE
         keyboardView?.isEnabled = true
-        if (mintedCode != null) {
-            statusLabel?.text = "MINTED · $mintedCode"
+        // Restore whichever strip state we were in pre-lock.
+        if (awaitingSend && mintedCode != null) {
+            statusLabel?.text = "WAITING · $mintedCode"
+            applyPulseState(StripState.WAITING)
         } else {
             statusLabel?.setText(PiqR.string.piqabu_keyboard_status_idle)
+            applyPulseState(StripState.IDLE)
         }
     }
 
