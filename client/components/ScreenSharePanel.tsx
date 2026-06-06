@@ -19,7 +19,7 @@
  */
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
-    View, Text, StyleSheet, Modal, TouchableOpacity, Platform, AppState, AppStateStatus, BackHandler,
+    View, Text, StyleSheet, Modal, TouchableOpacity, Platform, AppState, AppStateStatus,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
@@ -594,19 +594,19 @@ export default function ScreenSharePanel({
 
     useEffect(() => {
         if (status === 'active' && isSharer && onMinimize && !minimized) {
-            const t = setTimeout(() => {
-                // Collapse the in-app panel to a pill so the room is ready
-                // to come back to.
-                onMinimize();
-                // Then background the Piqabu app entirely. Without this the
-                // screen being captured IS Piqabu's own UI — a recursive
-                // loop that often shows up as "nothing streams" on the
-                // receiver. MediaProjection's foreground service keeps the
-                // native capture alive across the background transition.
-                if (Platform.OS === 'android') {
-                    try { BackHandler.exitApp(); } catch { /* noop */ }
-                }
-            }, 1500);
+            // Collapse the in-app panel to a pill so the room is ready to
+            // come back to. We deliberately do NOT background the entire
+            // Piqabu app here — when React Native is backgrounded on
+            // Android, the JS engine throttles/pauses and the WebRTC peer
+            // connection dies within seconds (ICE goes connected ->
+            // disconnected -> failed). MediaProjection's native
+            // foreground service keeps the *capture* alive across
+            // backgrounding, but the WebRTC bridge runs in JS and can't
+            // survive it. Keeping Piqabu foreground is the price of a
+            // stable share session today; a future Phase-N move would be
+            // to move the peer connection into a native module that
+            // survives JS pause.
+            const t = setTimeout(() => onMinimize(), 1500);
             return () => clearTimeout(t);
         }
     }, [status, isSharer, onMinimize, minimized]);
