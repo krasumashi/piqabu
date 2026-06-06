@@ -97,8 +97,13 @@ export default function LiveLauncher({
     }, [visible]);
 
     const handleSelect = (mode: 'glass' | 'mirror') => {
-        // Dismiss first so the sheet animates away cleanly,
-        // then fire the parent callback on the next frame.
+        // Live Mirror is gated as "COMING SOON" — the react-native-webrtc
+        // screen-capture path produces frames the receiver can't render
+        // reliably across Android devices. Defer until we have a proper
+        // server-relayed pipeline (LiveKit / Mediasoup) or definitive
+        // logcat diagnosis. The card is rendered as disabled below;
+        // this guard is belt-and-braces in case the touchable still fires.
+        if (mode === 'mirror') return;
         onDismiss();
         requestAnimationFrame(() => {
             if (mode === 'glass') onSelectGlass();
@@ -167,26 +172,24 @@ export default function LiveLauncher({
 
                         <TouchableOpacity
                             onPress={() => handleSelect('mirror')}
-                            style={styles.optionCard}
-                            activeOpacity={0.75}
+                            style={[styles.optionCard, styles.optionCardDisabled]}
+                            activeOpacity={1}
+                            disabled
                         >
-                            <View style={styles.optionIconWrap}>
-                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.ink} />
+                            <View style={[styles.optionIconWrap, styles.optionIconWrapDisabled]}>
+                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.faint} />
                             </View>
                             <View style={styles.optionTextWrap}>
                                 <View style={styles.optionLabelRow}>
-                                    <Text style={styles.optionLabel}>LIVE MIRROR</Text>
-                                    {!isPro && (
-                                        <View style={styles.proPill}>
-                                            <Text style={styles.proPillText}>PRO</Text>
-                                        </View>
-                                    )}
+                                    <Text style={[styles.optionLabel, { color: THEME.muted }]}>LIVE MIRROR</Text>
                                 </View>
                                 <Text style={styles.optionDesc}>
                                     Share your screen. View-only — no save, no screenshots.
                                 </Text>
                             </View>
-                            <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
+                            <View style={styles.comingSoonPill}>
+                                <Text style={styles.comingSoonText}>SOON</Text>
+                            </View>
                         </TouchableOpacity>
                     </View>
 
