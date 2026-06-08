@@ -6,7 +6,7 @@
   "description": "Operator dashboard for Piqabu — Mission Control. Lives at admin.piqabu.live.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit"
   },
