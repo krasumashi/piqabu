@@ -6,10 +6,11 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
-import { setSecureItem } from '../lib/platform/storage';
+import { setSecureItem, getSecureItem } from '../lib/platform/storage';
 import { wipeAllPiqabuState } from '../lib/wipe';
 import { useProAccess } from '../lib/pro';
 import PiqabuProPaywall from './PiqabuProPaywall';
+import { CONFIG } from '../constants/Config';
 
 /**
  * Open the Android system IME settings screen so the user can toggle
@@ -88,8 +89,17 @@ export default function SettingsPanel({
         if (!feedbackText.trim()) return;
         setSubmittingParams(true);
         try {
-            const deviceId = await AsyncStorage.getItem('piqabu_device_id') || 'unknown';
-            const res = await fetch('https://piqabu.onrender.com/api/feedback', {
+            // The Ghost ID lives in expo-secure-store under `piqabu_ghost_id`
+            // — same key useSocketManager reads. Earlier this code was
+            // hitting AsyncStorage with a wrong key, defaulting to
+            // "unknown", which silently broke the reply pipeline: the
+            // server now validates the deviceId as a UUID and rejects
+            // "unknown" with a 400.
+            const deviceId = await getSecureItem('piqabu_ghost_id');
+            if (!deviceId) {
+                throw new Error('Device identity not yet provisioned. Please try again in a moment.');
+            }
+            const res = await fetch(`${CONFIG.SIGNAL_TOWER_URL}/api/feedback`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deviceId, message: feedbackText.trim() }),

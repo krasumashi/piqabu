@@ -31,12 +31,13 @@ interface RoomContextValue {
     maintenanceMode: boolean;
     maintenanceMessage: string;
     adminBroadcast: string | null;
+    dismissAdminBroadcast: () => void;
 }
 
 const RoomCtx = createContext<RoomContextValue | null>(null);
 
 export function RoomProvider({ children }: { children: React.ReactNode }) {
-    const { socket, deviceId, isConnected, requestRoomCode, maintenanceMode, maintenanceMessage, adminBroadcast } = useSocketManager();
+    const { socket, deviceId, isConnected, requestRoomCode, maintenanceMode, maintenanceMessage, adminBroadcast, dismissAdminBroadcast } = useSocketManager();
     const { tier, isPro, limits, isLoading: isSubLoading, refresh: refreshSubscription } = useSubscription(deviceId);
     const { rooms, activeRoomId, hydrated, addRoom, removeRoom, switchRoom } = useRoomManager(limits.maxRooms);
 
@@ -61,6 +62,7 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
                 maintenanceMode,
                 maintenanceMessage,
                 adminBroadcast,
+                dismissAdminBroadcast,
             }}
         >
             {children}

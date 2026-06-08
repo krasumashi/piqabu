@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import { CONFIG } from '../constants/Config';
 import { getSecureItem, setSecureItem } from '../lib/platform/storage';
 import { generateUUID } from '../lib/platform/crypto';
+import { setProAccess } from '../lib/pro';
 
 export function useSocketManager() {
     const [socket, setSocket] = useState<Socket | null>(null);
@@ -61,6 +62,20 @@ export function useSocketManager() {
                 setTimeout(() => setAdminBroadcast(null), 10000);
             });
 
+            // Tier override from Mission Control (POST /admin/devices/:id/tier).
+            // Flip the local Pro flag in secure-store so the keyboard /
+            // paywall gates immediately reflect the change, and surface a
+            // banner so the user knows something happened without having
+            // to refresh anything manually.
+            newSocket.on('subscription_updated', async (data: { tier?: string }) => {
+                const isPro = data?.tier === 'pro';
+                try { await setProAccess(isPro); } catch { /* noop */ }
+                setAdminBroadcast(isPro
+                    ? 'Your Piqabu Pro entitlement is now active. Keyboard + extras unlocked.'
+                    : 'Your Piqabu Pro entitlement has been removed.');
+                setTimeout(() => setAdminBroadcast(null), 10000);
+            });
+
             newSocket.on('force_disconnect', (data: { message: string }) => {
                 if (Platform.OS === 'web') {
                     alert(data.message || 'You have been disconnected.');
@@ -110,6 +125,12 @@ export function useSocketManager() {
         });
     }, []);
 
+    /** Manual dismiss for the broadcast banner — user tap dismisses
+     *  before the 10s auto-clear fires. */
+    const dismissAdminBroadcast = useCallback(() => {
+        setAdminBroadcast(null);
+    }, []);
+
     return {
         socket,
         deviceId,
@@ -118,5 +139,6 @@ export function useSocketManager() {
         maintenanceMode,
         maintenanceMessage,
         adminBroadcast,
+        dismissAdminBroadcast,
     };
 }

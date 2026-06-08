@@ -12,6 +12,7 @@ import { SecurityProvider, useSecurity } from '../contexts/SecurityContext';
 import PanicCalculator from '../components/PanicCalculator';
 import BiometricLockScreen from '../components/BiometricLockScreen';
 import OperatorBanner from '../components/OperatorBanner';
+import SystemBanner from '../components/SystemBanner';
 
 // Web Tailwind CSS
 if (Platform.OS === 'web') {
@@ -64,6 +65,7 @@ export default function RootLayout() {
                     </Stack>
                     <StatusBar style="light" />
                     <SecurityOverlays />
+                    <SystemBannerMount />
                     <OperatorBannerMount />
                 </RoomProvider>
             </SecurityProvider>
@@ -87,4 +89,19 @@ function SecurityOverlays() {
 function OperatorBannerMount() {
     const { socket } = useRoomContext();
     return <OperatorBanner socket={socket} />;
+}
+
+// Renders the maintenance + admin_broadcast system banners, also global.
+// Lives at a slightly lower zIndex than OperatorBanner so a personal
+// reply still takes precedence visually.
+function SystemBannerMount() {
+    const { maintenanceMode, maintenanceMessage, adminBroadcast, dismissAdminBroadcast } = useRoomContext();
+    return (
+        <SystemBanner
+            maintenanceMode={maintenanceMode}
+            maintenanceMessage={maintenanceMessage}
+            broadcast={adminBroadcast}
+            onDismissBroadcast={dismissAdminBroadcast}
+        />
+    );
 }
