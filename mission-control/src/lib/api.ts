@@ -14,9 +14,10 @@
 const KEY_STORAGE = 'piqabu_mc_admin_key';
 const BASE_STORAGE = 'piqabu_mc_api_base';
 
-/** Default API base if the user hasn't overridden it. */
-export const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE
-    || (import.meta.env.PROD ? 'https://piqabu.onrender.com' : '');
+/** Default API base if the user hasn't overridden it. Same-origin in
+ *  production (Mission Control is served by the Node server itself, so
+ *  /admin/* is reachable as a relative URL); proxied in dev via Vite. */
+export const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || '';
 
 export function getAdminKey(): string | null {
     return sessionStorage.getItem(KEY_STORAGE);

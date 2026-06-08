@@ -171,8 +171,48 @@ app.get('/ice-servers', (req, res) => {
 // Stripe subscription routes (checkout, status, webhook)
 app.use(stripeRoutes);
 
-// Serve static files (admin dashboard)
+// Serve static files (legacy admin dashboard at /admin/index.html)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ─────────────────────────────────────────────────────────────────────────
+//  Mission Control SPA — Phase 1 dashboard built from ../mission-control.
+//  Served at /mission/* and as the root content of admin.piqabu.live.
+//  The /admin/* API router below remains the single source of truth for
+//  data; this only serves the React static bundle.
+// ─────────────────────────────────────────────────────────────────────────
+const missionControlDist = path.join(__dirname, '..', 'mission-control', 'dist');
+const missionControlIndex = path.join(missionControlDist, 'index.html');
+
+// (1) If hostname is admin.piqabu.live, rewrite "/" to "/mission/" so
+//     visitors land on the dashboard without typing the path. We use a
+//     rewrite (mutate req.url) rather than a redirect so the browser bar
+//     stays clean and there's no extra round-trip.
+app.use((req, res, next) => {
+    const host = (req.hostname || '').toLowerCase();
+    if (host === 'admin.piqabu.live' && (req.url === '/' || req.url === '')) {
+        req.url = '/mission/';
+    }
+    next();
+});
+
+// (2) Static assets from the build output.
+app.use('/mission', express.static(missionControlDist, {
+    maxAge: '1h',
+    index: false, // we handle index.html ourselves so the SPA fallback works
+}));
+
+// (3) SPA fallback: any GET under /mission/* that didn't match a real
+//     file returns the SPA's index.html so client-side routing works on
+//     refresh and deep links.
+app.get(/^\/mission(?:\/.*)?$/, (req, res, next) => {
+    res.sendFile(missionControlIndex, (err) => {
+        if (err) {
+            // Build hasn't run yet (e.g. local dev without `npm run build:mission`)
+            // — fall through to the next handler so we don't 500 the user.
+            next();
+        }
+    });
+});
 
 const server = http.createServer(app);
 const io = new Server(server, {

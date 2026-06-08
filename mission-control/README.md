@@ -1,53 +1,67 @@
 # Piqabu Mission Control
 
-Operator dashboard for Piqabu — separate React + TypeScript SPA, calls the existing `/admin/*` endpoints on the Piqabu server. Designed to live at `admin.piqabu.live` (Netlify).
+Operator dashboard for Piqabu — separate React + TypeScript SPA, **served by the Piqabu Node server itself** alongside the API.
 
 ## Status
 
 | Phase | Surface | State |
 |---|---|---|
-| 1 | Login, Pulse, Devices, Helpdesk (read-only) | ✅ Scaffolded |
-| 2 | Helpdesk reply, Levers (maintenance / broadcast / kill-switch / tier), Audit log | 🔧 Stubs in place |
+| 1 | Login, Pulse, Devices, Helpdesk (read-only) | ✅ Working |
+| 2 | Helpdesk reply, Levers (maintenance / broadcast / kill-switch / tier), Audit log | 🔧 Stubs |
+
+## Where it lives
+
+- **Production:** [https://admin.piqabu.live](https://admin.piqabu.live) (after DNS) or [https://piqabu.onrender.com/mission/](https://piqabu.onrender.com/mission/) directly.
+- Same Render service, same Node process, same TLS cert as the API. No separate hosting.
+- The Node server (`server/server.js`) serves `mission-control/dist` as static under `/mission/*`. When the request hostname is `admin.piqabu.live`, `/` rewrites to `/mission/` so visitors land cleanly.
 
 ## Local dev
 
 ```bash
-cd mission-control
+# In one terminal — start the Piqabu API server
+cd S:\piqabu\server
 npm install
-# Make sure the Piqabu server is running locally (server/server.js on :3000)
-# and ADMIN_API_KEY is set in its env. The Vite dev server proxies /admin
-# and /socket.io to localhost:3000 so login + data calls work.
+ADMIN_API_KEY=any-string-you-want node server.js
+
+# In another terminal — start the Mission Control dev server
+cd S:\piqabu\mission-control
+npm install
 npm run dev
 ```
 
-Open <http://localhost:5174>. Use the `ADMIN_API_KEY` env value as the login key.
+Open <http://localhost:5174>. Vite proxies `/admin/*` and `/socket.io/*` to your local Node server. Log in with whatever you set `ADMIN_API_KEY` to.
 
-If you want to point at the Render server instead of local, click ▸ API ENDPOINT on the login screen and paste `https://piqabu.onrender.com`.
+## Production deploy
 
-## Production deploy (Netlify)
+Already wired into `server/render.yaml`:
 
-1. Push this folder to GitHub (the `mission-control/` subdir of the piqabu repo is fine).
-2. In Netlify, **New site from Git** → pick the repo:
-   - **Base directory:** `mission-control`
-   - **Build command:** `npm run build`
-   - **Publish directory:** `mission-control/dist`
-3. Site settings → **Domain management** → add `admin.piqabu.live`. Cloudflare DNS gets a CNAME pointing at the Netlify subdomain.
-4. **Environment variables** (Netlify build settings):
-   - `VITE_API_BASE=https://piqabu.onrender.com`
+```yaml
+buildCommand: |
+  npm install
+  cd ../mission-control && npm install && npm run build
+```
 
-That's it. Netlify rebuilds on every push to `main`.
+Every push to `main` triggers Render to:
+
+1. `npm install` in `server/`
+2. `cd ../mission-control && npm install && npm run build` → produces `mission-control/dist/`
+3. Start `node server.js` — which serves the freshly-built SPA at `/mission/`
+
+### One-time domain setup
+
+1. In your Cloudflare DNS for `piqabu.live`:
+   - Add a `CNAME` record: `admin` → `piqabu.onrender.com` (or whatever Render shows as the target)
+2. In the Render dashboard for the `piqabu-signal-tower` service:
+   - Settings → Custom Domains → add `admin.piqabu.live`
+   - Render provisions a free Let's Encrypt cert automatically
+
+After DNS propagates (~5 minutes), `admin.piqabu.live` serves the dashboard.
 
 ## Auth
 
-- Server-side: middleware in `server/routes/admin.js` checks `x-admin-key` against `ADMIN_API_KEY` env var on Render.
-- Client-side: key entered at login lives in `sessionStorage` (clears on tab close). Every API call attaches it as a header.
-- Tab close ≈ logout. Refresh keeps the session.
-
-## What's missing for production
-
-- HTTPS-only redirects (Netlify does this by default once a custom domain is attached).
-- IP allow-listing on the `/admin/*` route on Render (optional second layer — easy add via Express middleware).
-- 2FA for the operator key (Phase 3 — TOTP layer wrapping the existing `x-admin-key` check).
+- Server: middleware in `server/routes/admin.js` checks the `x-admin-key` header against the `ADMIN_API_KEY` env var on Render.
+- Client: key entered at login is held in `sessionStorage` and attached to every API call. Tab close clears it.
+- This is operator-grade enough for now. Phase 3 wraps the key check in TOTP for stronger MFA.
 
 ## File map
 

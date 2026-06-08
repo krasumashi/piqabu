@@ -2,7 +2,15 @@ services:
   - type: web
     name: piqabu-signal-tower
     env: node
-    buildCommand: npm install
+    # Build step:
+    #   1. npm install in this service (the Node server)
+    #   2. cd ../mission-control && npm install + npm run build to produce
+    #      the React static bundle the Node server serves at /mission/.
+    # Render runs this from server/ as the rootDir, so ../mission-control
+    # is correct relative to the repo layout.
+    buildCommand: |
+      npm install
+      cd ../mission-control && npm install && npm run build
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
