@@ -3,14 +3,19 @@ services:
     name: piqabu-signal-tower
     env: node
     # Build step:
-    #   1. npm install in this service (the Node server)
-    #   2. cd ../mission-control && npm install + npm run build to produce
-    #      the React static bundle the Node server serves at /mission/.
+    #   1. npm install in this service (the Node server) — production deps
+    #      only, which is what we want for the runtime
+    #   2. cd ../mission-control && npm install --include=dev + npm run
+    #      build to produce the React static bundle the Node server
+    #      serves at /mission/. The --include=dev flag is required
+    #      because Render sets NODE_ENV=production, which by default
+    #      makes npm skip devDependencies — and vite/tsc/tailwind all
+    #      live there.
     # Render runs this from server/ as the rootDir, so ../mission-control
     # is correct relative to the repo layout.
     buildCommand: |
       npm install
-      cd ../mission-control && npm install && npm run build
+      cd ../mission-control && npm install --include=dev && npm run build
     startCommand: node server.js
     envVars:
       - key: NODE_ENV
