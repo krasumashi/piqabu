@@ -180,7 +180,20 @@ function markReplyRead(id) {
     }
 }
 
-/** All replies for a given deviceId that haven't been delivered yet. */
+/**
+ * All replies for a given deviceId that haven't been *read* yet.
+ *
+ * Persistence rule (per product call): the reply stays pending and
+ * re-delivers on every reconnect until the user explicitly dismisses
+ * the banner (which acks back with operator_message_dismissed and
+ * marks readAt). This is robust against the common failure modes of
+ * a flaky network — app open → quick close, network blip mid-emit,
+ * banner shown but never tapped — all of which would otherwise lose
+ * the reply.
+ *
+ * deliveredAt is kept as a diagnostic stamp ("first time the server
+ * emitted this") but isn't a gate on re-delivery.
+ */
 function pendingRepliesFor(deviceId) {
     const state = loadState();
     if (!state.feedback) return [];
@@ -188,7 +201,7 @@ function pendingRepliesFor(deviceId) {
         f.deviceId === deviceId
         && f.reply
         && f.reply.sentAt
-        && !f.reply.deliveredAt
+        && !f.reply.readAt
     );
 }
 

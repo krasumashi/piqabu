@@ -74,6 +74,10 @@ function createAdminRouter({ io, rooms, participants }) {
     router.post('/maintenance', express.json(), (req, res) => {
         const { enabled, message } = req.body || {};
         const state = adminStore.setMaintenance(enabled, message);
+        adminStore.addLog(enabled ? 'warn' : 'info',
+            `Maintenance mode ${enabled ? 'enabled' : 'disabled'}`,
+            { message: message || '' },
+        );
 
         // Notify all connected clients
         if (enabled) {
@@ -137,6 +141,7 @@ function createAdminRouter({ io, rooms, participants }) {
         const { deviceId } = req.params;
         const { reason } = req.body || {};
         adminStore.blockDevice(deviceId, reason);
+        adminStore.addLog('warn', `Device blocked`, { deviceId, reason: reason || '' });
         res.json({ success: true, message: `Device ${deviceId.substring(0, 8)}... blocked` });
     });
 
@@ -144,6 +149,7 @@ function createAdminRouter({ io, rooms, participants }) {
     router.post('/devices/:deviceId/unblock', (req, res) => {
         const { deviceId } = req.params;
         adminStore.unblockDevice(deviceId);
+        adminStore.addLog('info', `Device unblocked`, { deviceId });
         res.json({ success: true, message: `Device ${deviceId.substring(0, 8)}... unblocked` });
     });
 
@@ -163,6 +169,7 @@ function createAdminRouter({ io, rooms, participants }) {
             }
         });
 
+        adminStore.addLog('warn', `Device kicked`, { deviceId, kickedSockets: kicked });
         res.json({ success: true, message: `Kicked ${kicked} connection(s) for device ${deviceId.substring(0, 8)}...` });
     });
 
@@ -173,6 +180,10 @@ function createAdminRouter({ io, rooms, participants }) {
             return res.status(400).json({ error: 'message is required' });
         }
         io.emit('admin_broadcast', { message, timestamp: new Date().toISOString() });
+        adminStore.addLog('info', `Broadcast sent`, {
+            preview: message.substring(0, 60),
+            recipients: io.sockets.sockets.size,
+        });
         res.json({ success: true, message: `Broadcast sent to ${io.sockets.sockets.size} clients` });
     });
 

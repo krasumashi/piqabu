@@ -59,10 +59,19 @@ app.post('/api/feedback', express.json(), healthLimiter, (req, res) => {
     if (!deviceId || !message || typeof message !== 'string') {
         return res.status(400).json({ error: 'Missing deviceId or message' });
     }
-    // Cap message length to prevent abuse
+    // Sanitize the deviceId the same way the Socket.IO middleware does
+    // (validateDeviceId trims + UUID-validates). Without this, a feedback
+    // record stored with stray whitespace would never match the socket's
+    // sanitized deviceId during the reply-delivery lookup, and replies
+    // would silently never reach the user.
+    const validated = validateDeviceId(deviceId);
+    if (!validated.valid) {
+        return res.status(400).json({ error: validated.error || 'Invalid deviceId' });
+    }
+    const cleanDeviceId = validated.sanitized;
     const cleanMessage = message.substring(0, 1000);
-    adminStore.addFeedback(deviceId, cleanMessage);
-    adminStore.addLog('info', 'New user feedback received', { deviceId });
+    adminStore.addFeedback(cleanDeviceId, cleanMessage);
+    adminStore.addLog('info', 'New user feedback received', { deviceId: cleanDeviceId });
     res.json({ success: true });
 });
 
