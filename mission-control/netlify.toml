@@ -1,0 +1,23 @@
+# Netlify deployment config for Mission Control.
+# Set up the site to deploy this directory:
+#   - Base directory:  mission-control
+#   - Build command:   npm run build
+#   - Publish directory: mission-control/dist
+# SPA fallback so deep-linked routes (e.g. /devices/abc) resolve to index.html.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"

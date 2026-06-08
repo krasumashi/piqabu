@@ -24,12 +24,18 @@ function createAdminRouter({ io, rooms, participants }) {
         const connectedSockets = io.sockets.sockets.size;
         const activeRooms = rooms.size;
         const totalParticipants = participants.size;
+        // Total devices the subscriptionStore has ever seen (lifetime
+        // Ghost IDs). Used by Mission Control's Pulse pane.
+        let totalDevices = 0;
+        try { totalDevices = subscriptionStore.countAll?.() ?? 0; } catch { /* noop */ }
 
         res.json({
             uptime: process.uptime(),
+            serverTime: Date.now(),
             connectedSockets,
             activeRooms,
             totalParticipants,
+            totalDevices,
             maintenanceMode: state.maintenanceMode,
             maintenanceMessage: state.maintenanceMessage,
             blockedDevices: state.blockedDevices.length,
@@ -172,19 +178,23 @@ function createAdminRouter({ io, rooms, participants }) {
     // GET /admin/active-devices — list all connected sockets
     router.get('/active-devices', (req, res) => {
         const deviceList = [];
+        let proCount = 0;
+        let freeCount = 0;
         io.sockets.sockets.forEach((socket, socketId) => {
             const data = socket.data || {};
             const p = participants.get(socketId);
+            const tier = data.tier || 'free';
+            if (tier === 'pro') proCount += 1; else freeCount += 1;
             deviceList.push({
                 socketId: socketId.substring(0, 8),
                 deviceId: data.deviceId ? data.deviceId.substring(0, 12) + '...' : 'unknown',
                 fullDeviceId: data.deviceId || 'unknown',
-                tier: data.tier || 'free',
+                tier,
                 ip: socket.handshake.address || 'unknown',
                 roomsJoined: p ? p.rooms.size : 0,
             });
         });
-        res.json({ devices: deviceList });
+        res.json({ devices: deviceList, proCount, freeCount });
     });
 
     // POST /admin/devices/:deviceId/tier — manually set pro/free status

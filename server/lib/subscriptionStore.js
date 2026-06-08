@@ -101,9 +101,23 @@ function findByStripeCustomer(customerId) {
     return null;
 }
 
+/**
+ * Total number of devices we've ever issued a subscription record for.
+ * Used by Mission Control's Pulse pane as the "lifetime devices" metric.
+ */
+function countAll() {
+    try {
+        const store = loadStore();
+        return Object.keys(store).length;
+    } catch {
+        return 0;
+    }
+}
+
 module.exports = {
     getSubscription,
     getTier,
     setSubscription,
     findByStripeCustomer,
+    countAll,
 };

@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Reset + base. Mission Control is monospace-only — every text element
+   shares the same family. Letter-spacing is the texture of the brand. */
+
+html, body, #root {
+    height: 100%;
+}
+
+body {
+    background: #060709;
+    color: rgba(245, 243, 235, 0.92);
+    font-family: "Space Mono", ui-monospace, monospace;
+    -webkit-font-smoothing: antialiased;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Subtle grid background for empty space — matches the Piqabu app's
+   GridBackground component at low intensity. */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+        linear-gradient(to right, rgba(245, 243, 235, 0.025) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(245, 243, 235, 0.025) 1px, transparent 1px);
+    background-size: 28px 28px;
+    z-index: -1;
+}
+
+/* Inputs */
+input, button, textarea {
+    font-family: inherit;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(245, 243, 235, 0.12); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(245, 243, 235, 0.22); }
