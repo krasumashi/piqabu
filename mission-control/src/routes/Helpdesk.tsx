@@ -2,12 +2,20 @@ import { useEffect, useState } from 'react';
 import { apiFetch, ApiError } from '../lib/api';
 import { relativeTime, shortClock } from '../lib/time';
 
+interface FeedbackReply {
+    message: string;
+    sentAt: string;
+    deliveredAt?: string | null;
+    readAt?: string | null;
+}
+
 interface FeedbackEntry {
     id: string;
     deviceId: string;
     message: string;
     createdAt: number | string;
     resolved?: boolean;
+    reply?: FeedbackReply;
     [key: string]: unknown;
 }
 
@@ -29,6 +37,10 @@ export default function Helpdesk() {
     const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('open');
     const [lastUpdated, setLastUpdated] = useState(0);
     const [active, setActive] = useState<FeedbackEntry | null>(null);
+    const [replyDraft, setReplyDraft] = useState('');
+    const [sending, setSending] = useState(false);
+    const [sendError, setSendError] = useState<string | null>(null);
+    const [sendStatus, setSendStatus] = useState<'idle' | 'delivered' | 'queued'>('idle');
 
     useEffect(() => {
         let alive = true;
@@ -50,11 +62,60 @@ export default function Helpdesk() {
         return () => { alive = false; clearInterval(id); };
     }, []);
 
+    // Reset reply state whenever the operator picks a different thread.
+    useEffect(() => {
+        setReplyDraft('');
+        setSendError(null);
+        setSendStatus('idle');
+    }, [active?.id]);
+
     const filtered = (entries ?? []).filter(e => {
         if (filter === 'open') return !e.resolved;
         if (filter === 'resolved') return !!e.resolved;
         return true;
     });
+
+    const sendReply = async () => {
+        if (!active || !replyDraft.trim() || sending) return;
+        setSending(true);
+        setSendError(null);
+        try {
+            const res = await apiFetch<{
+                success: boolean;
+                deliveredImmediately?: boolean;
+                queuedForReconnect?: boolean;
+            }>(`/admin/feedback/${active.id}/reply`, {
+                method: 'POST',
+                body: JSON.stringify({ message: replyDraft.trim() }),
+            });
+            setSendStatus(res.deliveredImmediately ? 'delivered' : 'queued');
+            setReplyDraft('');
+            // Optimistically reflect the reply locally so the thread shows it
+            // without waiting for the next poll cycle.
+            const updated: FeedbackEntry = {
+                ...active,
+                resolved: true,
+                reply: {
+                    message: active ? (active.reply?.message ?? '') : '',
+                    sentAt: new Date().toISOString(),
+                    deliveredAt: res.deliveredImmediately ? new Date().toISOString() : null,
+                    readAt: null,
+                },
+            };
+            updated.reply = {
+                message: replyDraft.trim(),
+                sentAt: new Date().toISOString(),
+                deliveredAt: res.deliveredImmediately ? new Date().toISOString() : null,
+                readAt: null,
+            };
+            setActive(updated);
+            setEntries(prev => prev?.map(e => e.id === updated.id ? updated : e) ?? null);
+        } catch (e) {
+            setSendError(e instanceof ApiError ? e.message : 'Network error');
+        } finally {
+            setSending(false);
+        }
+    };
 
     return (
         <div className="grid md:grid-cols-[360px_1fr] gap-6 min-h-[60vh]">
@@ -145,9 +206,68 @@ export default function Helpdesk() {
                         <div className="text-ink text-sm leading-relaxed whitespace-pre-wrap flex-1">
                             {active.message}
                         </div>
+
+                        {/* Existing reply (if one was already sent) */}
+                        {active.reply && (
+                            <div className="mt-6 pt-6 border-t border-edge2">
+                                <div className="text-faint text-[9px] tracking-widest font-bold mb-2">
+                                    YOUR REPLY · SENT {shortClock(active.reply.sentAt)}
+                                    {active.reply.deliveredAt && (
+                                        <span className="text-ok"> · DELIVERED</span>
+                                    )}
+                                    {!active.reply.deliveredAt && (
+                                        <span className="text-warn"> · QUEUED FOR RECONNECT</span>
+                                    )}
+                                    {active.reply.readAt && (
+                                        <span className="text-ok"> · READ</span>
+                                    )}
+                                </div>
+                                <div className="text-ink text-sm leading-relaxed whitespace-pre-wrap bg-paper2/50 border border-edge2 rounded-lg p-4">
+                                    {active.reply.message}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Compose new reply */}
                         <div className="mt-6 pt-6 border-t border-edge2">
-                            <div className="text-faint text-[10px] tracking-widest leading-relaxed">
-                                Phase 1 is read-only. Reply UI lands in Phase 2, paired with an in-app inbound channel so messages reach the user inside Piqabu. For now, take notes and respond out-of-band.
+                            <div className="text-faint text-[9px] tracking-widest font-bold mb-3">
+                                {active.reply ? 'SEND ANOTHER REPLY' : 'WRITE A REPLY'}
+                            </div>
+                            <textarea
+                                value={replyDraft}
+                                onChange={e => setReplyDraft(e.target.value)}
+                                placeholder="Reply to this device. The user sees it as an in-app banner; tap dismiss closes it."
+                                rows={4}
+                                maxLength={4000}
+                                disabled={sending}
+                                className="w-full bg-paper2 border border-edge rounded-lg px-4 py-3 text-ink text-xs tracking-wider placeholder:text-faint focus:outline-none focus:border-ink resize-none disabled:opacity-50"
+                            />
+                            {sendError && (
+                                <div className="text-bad text-[10px] tracking-wider mt-2">
+                                    {sendError}
+                                </div>
+                            )}
+                            {sendStatus === 'delivered' && (
+                                <div className="text-ok text-[10px] tracking-widest mt-2">
+                                    ✓ DELIVERED · Device acknowledged in real time
+                                </div>
+                            )}
+                            {sendStatus === 'queued' && (
+                                <div className="text-warn text-[10px] tracking-widest mt-2">
+                                    ⏳ QUEUED · Device is offline; delivered on next connect
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center mt-3 gap-3">
+                                <span className="text-faint text-[9px] tracking-widest">
+                                    {replyDraft.length} / 4000
+                                </span>
+                                <button
+                                    onClick={sendReply}
+                                    disabled={sending || !replyDraft.trim()}
+                                    className="bg-ink text-bg px-5 py-2 rounded-lg text-[10px] tracking-widest font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-pulse transition-colors"
+                                >
+                                    {sending ? 'SENDING…' : 'SEND REPLY'}
+                                </button>
                             </div>
                         </div>
                     </>

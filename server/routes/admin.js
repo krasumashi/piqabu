@@ -1,6 +1,7 @@
 const express = require('express');
 const adminStore = require('../lib/adminStore');
 const subscriptionStore = require('../lib/subscriptionStore');
+const deviceRegistry = require('../lib/deviceRegistry');
 
 function createAdminRouter({ io, rooms, participants }) {
     const router = express.Router();
@@ -24,10 +25,13 @@ function createAdminRouter({ io, rooms, participants }) {
         const connectedSockets = io.sockets.sockets.size;
         const activeRooms = rooms.size;
         const totalParticipants = participants.size;
-        // Total devices the subscriptionStore has ever seen (lifetime
-        // Ghost IDs). Used by Mission Control's Pulse pane.
+        // Total devices the registry has ever seen (lifetime Ghost IDs).
+        // Used by Mission Control's Pulse pane. The deviceRegistry is the
+        // source of truth — subscriptionStore only has entries for
+        // devices that ever had a tier set, which excludes the bulk of
+        // free-tier traffic.
         let totalDevices = 0;
-        try { totalDevices = subscriptionStore.countAll?.() ?? 0; } catch { /* noop */ }
+        try { totalDevices = deviceRegistry.count(); } catch { /* noop */ }
 
         res.json({
             uptime: process.uptime(),
@@ -84,10 +88,48 @@ function createAdminRouter({ io, rooms, participants }) {
         res.json({ success: true, maintenanceMode: state.maintenanceMode, maintenanceMessage: state.maintenanceMessage });
     });
 
-    // GET /admin/devices — list blocked devices
+    // GET /admin/devices — merged device list for Mission Control.
+    // Joins:
+    //   - deviceRegistry (every Ghost ID ever connected + firstSeen/lastSeen)
+    //   - subscriptionStore (tier for the subset of devices that ever
+    //     had a subscription record set)
+    //   - adminStore.blockedDevices (block status + reason)
+    //   - io.sockets (which devices are online right this second)
+    //
+    // The old "blocked devices only" shape is preserved as a sub-array
+    // for backward compat with any caller still expecting it.
     router.get('/devices', (req, res) => {
         const state = adminStore.getState();
-        res.json({ blockedDevices: state.blockedDevices });
+        const blockedMap = new Map();
+        for (const b of state.blockedDevices) blockedMap.set(b.deviceId, b);
+
+        // Build a set of currently-connected deviceIds for the online flag.
+        const onlineNow = new Set();
+        io.sockets.sockets.forEach(sock => {
+            const id = sock.data?.deviceId;
+            if (id) onlineNow.add(id);
+        });
+
+        const devices = deviceRegistry.getAll().map(entry => {
+            const blocked = blockedMap.get(entry.deviceId);
+            const sub = subscriptionStore.getSubscription(entry.deviceId);
+            return {
+                deviceId: entry.deviceId,
+                firstSeen: entry.firstSeen,
+                lastSeen: entry.lastSeen,
+                tier: sub?.tier || 'free',
+                online: onlineNow.has(entry.deviceId),
+                blocked: !!blocked,
+                blockedReason: blocked?.reason || null,
+                blockedAt: blocked?.blockedAt || null,
+            };
+        });
+
+        res.json({
+            devices,
+            // Backward-compat with the original endpoint shape.
+            blockedDevices: state.blockedDevices,
+        });
     });
 
     // POST /admin/devices/:deviceId/block
@@ -173,6 +215,50 @@ function createAdminRouter({ io, rooms, participants }) {
         const { id } = req.params;
         adminStore.deleteFeedback(id);
         res.json({ success: true });
+    });
+
+    // POST /admin/feedback/:id/reply — operator sends a reply to the user.
+    //
+    // Stores the reply on the feedback record. If the target device has
+    // a live socket, emits 'operator_message' immediately. If they're
+    // offline, the message stays queued and the server delivers it on
+    // their next connection (see deliverPendingRepliesForSocket in
+    // server.js).
+    router.post('/feedback/:id/reply', express.json(), (req, res) => {
+        const { id } = req.params;
+        const { message } = req.body || {};
+        if (!message || typeof message !== 'string' || !message.trim()) {
+            return res.status(400).json({ error: 'Message body required' });
+        }
+        const item = adminStore.replyToFeedback(id, message.trim());
+        if (!item) {
+            return res.status(404).json({ error: 'Feedback not found' });
+        }
+        // Try immediate delivery if any socket for this deviceId is live.
+        let deliveredToCount = 0;
+        io.sockets.sockets.forEach(sock => {
+            if (sock.data?.deviceId === item.deviceId) {
+                sock.emit('operator_message', {
+                    id: item.id,
+                    message: item.reply.message,
+                    sentAt: item.reply.sentAt,
+                    inReplyTo: item.message,
+                });
+                deliveredToCount += 1;
+            }
+        });
+        if (deliveredToCount > 0) {
+            adminStore.markReplyDelivered(id);
+        }
+        adminStore.addLog('info', `Operator replied to feedback ${id.substring(0, 6)}`, {
+            deviceId: item.deviceId,
+            online: deliveredToCount > 0,
+        });
+        res.json({
+            success: true,
+            deliveredImmediately: deliveredToCount > 0,
+            queuedForReconnect: deliveredToCount === 0,
+        });
     });
 
     // GET /admin/active-devices — list all connected sockets

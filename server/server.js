@@ -22,6 +22,7 @@ const {
     validateInviteFeature,
 } = require('./middleware/validation');
 const { getTier } = require('./lib/subscriptionStore');
+const deviceRegistry = require('./lib/deviceRegistry');
 const adminStore = require('./lib/adminStore');
 const stripeRoutes = require('./routes/stripe');
 const { createAdminRouter } = require('./routes/admin');
@@ -308,6 +309,10 @@ io.use((socket, next) => {
         socket.data.deviceId = result.sanitized;
         // Look up tier from subscription store
         socket.data.tier = getTier(result.sanitized);
+        // Record the device in the lifetime registry — sets firstSeen
+        // on first encounter, refreshes lastSeen on every reconnect.
+        // Best-effort; failures here mustn't break the handshake.
+        try { deviceRegistry.touch(result.sanitized); } catch { /* noop */ }
     } else {
         socket.data.tier = 'free';
     }
@@ -320,6 +325,35 @@ io.on('connection', (socket) => {
     // Heartbeat
     socket.on('heartbeat', () => {
         socket.emit('heartbeat_ack');
+    });
+
+    // --- Operator messages (Mission Control replies) ---
+    // On connect, deliver any pending operator replies queued for this
+    // device while it was offline.
+    try {
+        const deviceId = socket.data?.deviceId;
+        if (deviceId) {
+            const pending = adminStore.pendingRepliesFor(deviceId);
+            for (const item of pending) {
+                socket.emit('operator_message', {
+                    id: item.id,
+                    message: item.reply.message,
+                    sentAt: item.reply.sentAt,
+                    inReplyTo: item.message,
+                });
+                adminStore.markReplyDelivered(item.id);
+            }
+        }
+    } catch (e) {
+        console.warn('[OperatorMessages] pending delivery failed:', e?.message);
+    }
+
+    // Client acks dismissal — server marks the reply as read so it
+    // stops re-delivering on future reconnects.
+    socket.on('operator_message_dismissed', (data) => {
+        const id = data?.id;
+        if (typeof id !== 'string') return;
+        adminStore.markReplyRead(id);
     });
 
     // --- Server-Side Room Code Generation ---

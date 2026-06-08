@@ -7,10 +7,11 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
-import { RoomProvider } from '../contexts/RoomContext';
+import { RoomProvider, useRoomContext } from '../contexts/RoomContext';
 import { SecurityProvider, useSecurity } from '../contexts/SecurityContext';
 import PanicCalculator from '../components/PanicCalculator';
 import BiometricLockScreen from '../components/BiometricLockScreen';
+import OperatorBanner from '../components/OperatorBanner';
 
 // Web Tailwind CSS
 if (Platform.OS === 'web') {
@@ -63,6 +64,7 @@ export default function RootLayout() {
                     </Stack>
                     <StatusBar style="light" />
                     <SecurityOverlays />
+                    <OperatorBannerMount />
                 </RoomProvider>
             </SecurityProvider>
         </ThemeProvider>
@@ -78,4 +80,11 @@ function SecurityOverlays() {
             <BiometricLockScreen visible={biometricLocked && !panicActive} onAuthenticate={authenticate} />
         </>
     );
+}
+
+// Renders the operator-reply banner globally — sits above every screen
+// so the user sees replies regardless of where they are in the app.
+function OperatorBannerMount() {
+    const { socket } = useRoomContext();
+    return <OperatorBanner socket={socket} />;
 }

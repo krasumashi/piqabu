@@ -132,6 +132,66 @@ function deleteFeedback(id) {
     return state;
 }
 
+/**
+ * Operator reply to a feedback item. The reply lives on the feedback
+ * record itself so the helpdesk thread stays threaded. Delivery state
+ * machine:
+ *   sentAt       — when the operator hit Send
+ *   deliveredAt  — set the moment we emit it to a live socket
+ *   readAt       — set when the device acks dismissal
+ * If a reply has sentAt but no deliveredAt, the server should emit it
+ * on the recipient's next reconnect (see deliverPendingReplies).
+ */
+function replyToFeedback(id, message) {
+    const state = loadState();
+    if (!state.feedback) return null;
+    const item = state.feedback.find(f => f.id === id);
+    if (!item) return null;
+    item.reply = {
+        message: String(message ?? '').slice(0, 4000),
+        sentAt: new Date().toISOString(),
+        deliveredAt: null,
+        readAt: null,
+    };
+    item.resolved = true;
+    saveState(state);
+    return item;
+}
+
+function markReplyDelivered(id) {
+    const state = loadState();
+    if (!state.feedback) return;
+    const item = state.feedback.find(f => f.id === id);
+    if (!item || !item.reply) return;
+    if (!item.reply.deliveredAt) {
+        item.reply.deliveredAt = new Date().toISOString();
+        saveState(state);
+    }
+}
+
+function markReplyRead(id) {
+    const state = loadState();
+    if (!state.feedback) return;
+    const item = state.feedback.find(f => f.id === id);
+    if (!item || !item.reply) return;
+    if (!item.reply.readAt) {
+        item.reply.readAt = new Date().toISOString();
+        saveState(state);
+    }
+}
+
+/** All replies for a given deviceId that haven't been delivered yet. */
+function pendingRepliesFor(deviceId) {
+    const state = loadState();
+    if (!state.feedback) return [];
+    return state.feedback.filter(f =>
+        f.deviceId === deviceId
+        && f.reply
+        && f.reply.sentAt
+        && !f.reply.deliveredAt
+    );
+}
+
 module.exports = {
     getState,
     setMaintenance,
@@ -142,4 +202,8 @@ module.exports = {
     addFeedback,
     resolveFeedback,
     deleteFeedback,
+    replyToFeedback,
+    markReplyDelivered,
+    markReplyRead,
+    pendingRepliesFor,
 };
