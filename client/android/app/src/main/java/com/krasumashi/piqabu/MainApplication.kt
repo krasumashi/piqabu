@@ -16,6 +16,8 @@ import com.facebook.react.defaults.DefaultReactNativeHost
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
+import com.krasumashi.piqabu.bridge.PiqabuKeyboardBridgePackage
+
 class MainApplication : Application(), ReactApplication {
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
@@ -23,8 +25,11 @@ class MainApplication : Application(), ReactApplication {
       object : DefaultReactNativeHost(this) {
         override fun getPackages(): List<ReactPackage> =
             PackageList(this).packages.apply {
-              // Packages that cannot be autolinked yet can be added manually here, for example:
-              // add(MyReactNativePackage())
+              // PiqabuKeyboardBridge — exposes a single setProStatus()
+              // method to JS so the keyboard IME process can read the
+              // Pro flag from a plaintext SharedPreferences file shared
+              // by UID. See bridge/PiqabuKeyboardBridgeModule.kt.
+              add(PiqabuKeyboardBridgePackage())
             }
 
           override fun getJSMainModuleName(): String = ".expo/.virtual-metro-entry"

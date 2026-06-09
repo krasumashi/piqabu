@@ -16,6 +16,7 @@ import SystemBanner from '../components/SystemBanner';
 import LockoutOverlay from '../components/LockoutOverlay';
 import UpdateBanner from '../components/UpdateBanner';
 import UpdateWall from '../components/UpdateWall';
+import { syncProStatusToBridge } from '../lib/pro';
 
 // Web Tailwind CSS
 if (Platform.OS === 'web') {
@@ -50,6 +51,18 @@ export default function RootLayout() {
     useEffect(() => {
         if (Platform.OS !== 'web') {
             ScreenCapture.preventScreenCaptureAsync();
+        }
+    }, []);
+
+    // Reconcile Pro status with the IME bridge SharedPreferences on
+    // every launch. Without this, a returning Pro user whose bridge
+    // prefs file was wiped (fresh install + restore from backup, or
+    // running a build for the first time after the bridge module
+    // landed) would see the keyboard paywall until they re-trigger
+    // setProAccess. Cheap to fire on every launch.
+    useEffect(() => {
+        if (Platform.OS === 'android') {
+            void syncProStatusToBridge();
         }
     }, []);
 

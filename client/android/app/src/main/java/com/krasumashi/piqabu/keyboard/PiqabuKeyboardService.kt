@@ -108,6 +108,7 @@ class PiqabuKeyboardService : InputMethodService() {
     private var openButton: Button? = null
     private var keyboardView: KeyboardView? = null
     private var lockOverlay: LinearLayout? = null
+    private var paywallOverlay: LinearLayout? = null
     private var pulseDot: View? = null
     private var rootView: View? = null
 
@@ -142,6 +143,7 @@ class PiqabuKeyboardService : InputMethodService() {
         openButton = root.findViewById(PiqR.id.piqabu_open_button)
         keyboardView = root.findViewById(PiqR.id.piqabu_keyboard_view)
         lockOverlay = root.findViewById(PiqR.id.piqabu_lock_overlay)
+        paywallOverlay = root.findViewById(PiqR.id.piqabu_paywall_overlay)
         pulseDot = root.findViewById(PiqR.id.piqabu_pulse_dot)
 
         // Initial state — IDLE pulse colour.
@@ -165,7 +167,75 @@ class PiqabuKeyboardService : InputMethodService() {
         // Lock overlay tap → biometric prompt
         lockOverlay?.setOnClickListener { promptBiometricUnlock() }
 
+        // Pro paywall overlay tap → deep-link into the main app's
+        // upgrade route. Re-applied on every onCreateInputView via
+        // applyProGate so subscribing while the keyboard is active
+        // makes the next IME activation render keys instead of the
+        // paywall. The paywall covers the entire root, so taps on the
+        // strip / keys underneath cannot leak through.
+        paywallOverlay?.setOnClickListener { launchPaywall() }
+
+        applyProGate()
+
         return root
+    }
+
+    /**
+     * Re-check Pro status every time the keyboard becomes visible.
+     * Important: a user might subscribe in the main app, switch back to
+     * a host app, and the IME view is still cached from the previous
+     * onCreateInputView. onStartInputView fires on every activation, so
+     * this is where we reconcile.
+     */
+    override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        applyProGate()
+    }
+
+    /**
+     * Toggle the Pro paywall overlay based on SecureStoreReader. When
+     * the paywall is up: status label reads "PRO REQUIRED", the keys
+     * are visually obscured by the overlay, and any tap on the overlay
+     * deep-links into the main app's upgrade flow.
+     *
+     * Important: the OS can't stop a user from enabling Piqabu Keyboard
+     * in System Settings. The runtime gate IS the enforcement — once
+     * Pro is true in the bridge prefs, the overlay drops and keys
+     * become usable; until then the keyboard refuses to render its
+     * input affordances.
+     */
+    private fun applyProGate() {
+        val isPro = SecureStoreReader.isPro(applicationContext)
+        if (isPro) {
+            paywallOverlay?.visibility = View.GONE
+        } else {
+            paywallOverlay?.visibility = View.VISIBLE
+            statusLabel?.setText(PiqR.string.piqabu_keyboard_status_pro_required)
+        }
+    }
+
+    /**
+     * Open the main app on the upgrade route. We deliberately use the
+     * branded HTTPS deep link (piqabu.live/upgrade) so the main app's
+     * existing expo-linking handler picks it up; setPackage(self)
+     * forces the resolution to land in Piqabu and not in a browser
+     * even before the assetlinks.json fully verifies.
+     *
+     * If the deep-link route doesn't exist yet in the JS app, this
+     * still opens Piqabu to the default screen, which is acceptable
+     * fallback — the user gets dropped into the app and can find
+     * Settings → Upgrade manually.
+     */
+    private fun launchPaywall() {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://$shareHost/upgrade")).apply {
+                setPackage(packageName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Open Piqabu to upgrade.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────

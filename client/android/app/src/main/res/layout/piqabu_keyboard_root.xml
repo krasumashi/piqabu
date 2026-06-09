@@ -120,6 +120,64 @@
             android:shadowRadius="0"/>
     </LinearLayout>
 
+    <!-- Pro paywall overlay — covers strip + keys when SecureStoreReader
+         reports the device is not on Pro. Tap fires a deep-link Intent
+         into the main app's paywall screen so the user can subscribe.
+         Visibility is set in PiqabuKeyboardService.onCreateInputView. -->
+    <LinearLayout
+        android:id="@+id/piqabu_paywall_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@color/piqabu_keyboard_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone"
+        android:paddingHorizontal="24dp">
+
+        <View
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:background="@drawable/piqabu_pulse_dot"
+            android:layout_marginBottom="14dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/piqabu_keyboard_paywall_title"
+            android:textColor="@color/piqabu_keyboard_ink"
+            android:textSize="11sp"
+            android:textAllCaps="true"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.25"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/piqabu_keyboard_paywall_body"
+            android:textColor="@color/piqabu_keyboard_ink"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:alpha="0.62"
+            android:layout_marginBottom="14dp"/>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/piqabu_keyboard_paywall_cta"
+            android:textColor="@color/piqabu_keyboard_ink"
+            android:textSize="10sp"
+            android:textAllCaps="true"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.25"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:background="@drawable/piqabu_mint_button_bg"/>
+    </LinearLayout>
+
     <!-- Lock overlay (Phase 3.4) — fully opaque, covers strip + QWERTY
          when locked. Tap fires BiometricPrompt. Visibility toggled by code. -->
     <LinearLayout

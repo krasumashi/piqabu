@@ -51,6 +51,13 @@
     <string name="piqabu_keyboard_unlock_subtitle">Confirm it\'s you to keep typing privately.</string>
     <string name="piqabu_keyboard_unlock_cancel">Cancel</string>
 
+    <!-- Pro paywall overlay — shown when a non-Pro device activates the
+         keyboard. Covers strip + keys; tap fires a deep-link into the
+         main app's paywall. -->
+    <string name="piqabu_keyboard_paywall_title">PIQABU KEYBOARD</string>
+    <string name="piqabu_keyboard_paywall_body">Private keyboard is a Pro feature.\nTap to open Piqabu and upgrade.</string>
+    <string name="piqabu_keyboard_paywall_cta">UPGRADE IN PIQABU</string>
+
     <!-- Decoy phrases (Phase 3.5) — long-press Return inserts one of these.
          Kept boring and contextually plausible so they survive a glance. -->
     <string-array name="piqabu_decoy_phrases">
