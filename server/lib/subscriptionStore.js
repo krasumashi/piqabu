@@ -41,18 +41,51 @@ function saveStore(store) {
     }
 }
 
+// 14-day grace window after proUntil before Pro hard-locks. Per the
+// product call ("soft expiry"), the user is still treated as Pro inside
+// the grace window; the client surfaces a "renew now" prompt during it.
+// Outside the window, getTier returns 'free'.
+const GRACE_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;
+
 /**
  * Get the subscription record for a deviceId
  * @param {string} deviceId
- * @returns {{ tier: 'free'|'pro', stripeCustomerId?: string, stripeSubscriptionId?: string, expiresAt?: string } | null}
+ * @returns {Object|null} record. New fields used by Paystack flow:
+ *   - proUntil:           ISO timestamp the most recent purchase grants
+ *                         Pro through (inclusive).
+ *   - graceUntil:         derived = proUntil + 14 days. Tier stays 'pro'
+ *                         until graceUntil passes.
+ *   - paystackReference:  last successful transaction reference.
+ *   - paystackEmail:      what we sent to Paystack (could be a derived
+ *                         <ghost>@piqabu.live placeholder, see
+ *                         routes/paystack.js).
+ *
+ * The legacy Stripe fields (stripeCustomerId, stripeSubscriptionId,
+ * expiresAt) are kept untouched for any in-flight migration — they're
+ * just not consulted anymore by the resolution path below.
  */
 function getSubscription(deviceId) {
     const store = loadStore();
     const record = store[deviceId];
     if (!record) return null;
 
-    // Check expiration
-    if (record.expiresAt && new Date(record.expiresAt) < new Date()) {
+    // Resolution priority:
+    //   1. Paystack proUntil + 14-day grace (current)
+    //   2. legacy Stripe expiresAt (kept for older test records)
+    const now = Date.now();
+    let active = false;
+    if (record.proUntil) {
+        const graceUntil = new Date(record.proUntil).getTime() + GRACE_PERIOD_MS;
+        active = now < graceUntil;
+        record.graceUntil = new Date(graceUntil).toISOString();
+        record.inGracePeriod = active && now >= new Date(record.proUntil).getTime();
+    } else if (record.expiresAt) {
+        active = new Date(record.expiresAt).getTime() > now;
+    }
+
+    // Persist the demoted tier only if it actually changed — avoids a
+    // write storm when reads outnumber writes.
+    if (!active && record.tier === 'pro') {
         record.tier = 'free';
         store[deviceId] = record;
         saveStore(store);
@@ -84,6 +117,26 @@ function setSubscription(deviceId, data) {
         updatedAt: new Date().toISOString(),
     };
     saveStore(store);
+}
+
+/**
+ * Find deviceId by Paystack transaction reference. The webhook receives
+ * the reference and uses this to map back to whichever device kicked
+ * the transaction off.
+ *
+ * Returns null if no match — webhook handler must short-circuit on null
+ * rather than trust the reference's metadata payload alone, because
+ * metadata is client-supplied at /init time and webhook-supplied at
+ * delivery time; the persisted mapping is the only source-of-truth.
+ */
+function findByPaystackReference(reference) {
+    const store = loadStore();
+    for (const [deviceId, record] of Object.entries(store)) {
+        if (record.paystackPendingReference === reference || record.paystackReference === reference) {
+            return deviceId;
+        }
+    }
+    return null;
 }
 
 /**
@@ -119,5 +172,7 @@ module.exports = {
     getTier,
     setSubscription,
     findByStripeCustomer,
+    findByPaystackReference,
     countAll,
+    GRACE_PERIOD_MS,
 };

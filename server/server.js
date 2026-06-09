@@ -25,6 +25,7 @@ const { getTier } = require('./lib/subscriptionStore');
 const deviceRegistry = require('./lib/deviceRegistry');
 const adminStore = require('./lib/adminStore');
 const stripeRoutes = require('./routes/stripe');
+const { createPaystackRouter } = require('./routes/paystack');
 const { createAdminRouter } = require('./routes/admin');
 const path = require('path');
 
@@ -266,6 +267,11 @@ setInterval(() => {
 
 // Mount admin routes
 app.use('/admin', createAdminRouter({ io, rooms, participants }));
+
+// Mount Paystack routes. createPaystackRouter takes io so the webhook
+// can emit subscription_updated directly to the affected device's
+// live socket the moment Pro activates.
+app.use(createPaystackRouter({ io }));
 
 // Tier room limits
 const ROOM_LIMITS = { free: 1, pro: 5 };

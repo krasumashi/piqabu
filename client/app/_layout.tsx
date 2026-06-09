@@ -16,7 +16,7 @@ import SystemBanner from '../components/SystemBanner';
 import LockoutOverlay from '../components/LockoutOverlay';
 import UpdateBanner from '../components/UpdateBanner';
 import UpdateWall from '../components/UpdateWall';
-import { syncProStatusToBridge } from '../lib/pro';
+import { syncProStatusToBridge, syncProAccessFromServer } from '../lib/pro';
 
 // Web Tailwind CSS
 if (Platform.OS === 'web') {
@@ -78,9 +78,11 @@ export default function RootLayout() {
                         <Stack.Screen name="index" options={{ animation: 'fade' }} />
                         <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
                         <Stack.Screen name="room/index" options={{ animation: 'fade' }} />
+                        <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
                     </Stack>
                     <StatusBar style="light" />
                     <SecurityOverlays />
+                    <ProSyncMount />
                     <SystemBannerMount />
                     <UpdateBannerMount />
                     <OperatorBannerMount />
@@ -140,6 +142,22 @@ function LockoutOverlayMount() {
             blockReason={blockReason}
         />
     );
+}
+
+// Reconciles local Pro state with the server once the Ghost ID is
+// known. Two passes happen: an unconditional bridge-mirror at app
+// launch (above in the root effect, no deviceId needed) and then this
+// per-context sync against the server to catch entitlement changes the
+// device didn't already know about — webhook-driven Pro activation
+// while the app was closed, Mission Control tier overrides, expirations
+// crossing the grace boundary while the app was offline.
+function ProSyncMount() {
+    const { deviceId } = useRoomContext();
+    useEffect(() => {
+        if (!deviceId) return;
+        void syncProAccessFromServer(deviceId);
+    }, [deviceId]);
+    return null;
 }
 
 // SOFT update notice. Slides down from the top, dismissable (per

@@ -18,8 +18,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { NativeModules, Platform } from 'react-native';
 import { getSecureItem, setSecureItem } from './platform/storage';
+import { CONFIG } from '../constants/Config';
 
 const PRO_KEY = 'piqabu_pro_status';
+const PRO_UNTIL_KEY = 'piqabu_pro_until';     // ISO timestamp of expiry
+const GRACE_UNTIL_KEY = 'piqabu_grace_until';  // ISO timestamp of grace end
 
 /**
  * Mirror the Pro flag into the Piqabu Keyboard's cross-process
@@ -62,12 +65,62 @@ export async function syncProStatusToBridge(): Promise<void> {
     await mirrorProStatusToNative(isPro);
 }
 
-export async function setProAccess(isPro: boolean): Promise<void> {
+export async function setProAccess(isPro: boolean, opts?: { proUntil?: string | null; graceUntil?: string | null }): Promise<void> {
     try { await setSecureItem(PRO_KEY, isPro ? '1' : '0'); } catch { /* noop */ }
+    // Persist the dates locally so the renew-soon prompt can render
+    // without a network round-trip. Server is still the source of
+    // truth on the next /status poll.
+    if (opts?.proUntil) {
+        try { await setSecureItem(PRO_UNTIL_KEY, opts.proUntil); } catch { /* noop */ }
+    }
+    if (opts?.graceUntil) {
+        try { await setSecureItem(GRACE_UNTIL_KEY, opts.graceUntil); } catch { /* noop */ }
+    }
     // Fire-and-forget mirror to the IME bridge. Ordering doesn't matter —
     // the keyboard re-checks Pro on every onStartInputView so the next
     // activation picks up whichever value finished writing last.
     void mirrorProStatusToNative(isPro);
+}
+
+export interface ProTimeline {
+    proUntil: string | null;
+    graceUntil: string | null;
+}
+
+export async function getProTimeline(): Promise<ProTimeline> {
+    try {
+        const proUntil = await getSecureItem(PRO_UNTIL_KEY);
+        const graceUntil = await getSecureItem(GRACE_UNTIL_KEY);
+        return { proUntil, graceUntil };
+    } catch {
+        return { proUntil: null, graceUntil: null };
+    }
+}
+
+/**
+ * Pull the canonical subscription state from the server and reconcile
+ * local secure-store + IME bridge with it. Called on app launch
+ * (after the secure-store hydrate) and on demand from the upgrade
+ * screen. Belt-and-suspenders against:
+ *   - webhook losses (server's local record may be ahead of ours)
+ *   - subscriptions modified by Mission Control's tier override
+ *   - device clock skew
+ */
+export async function syncProAccessFromServer(deviceId: string): Promise<void> {
+    if (!deviceId) return;
+    try {
+        const res = await fetch(`${CONFIG.SIGNAL_TOWER_URL}/api/paystack/status/${encodeURIComponent(deviceId)}`);
+        if (!res.ok) return;
+        const data = await res.json() as {
+            tier: 'free' | 'pro';
+            proUntil: string | null;
+            graceUntil: string | null;
+        };
+        await setProAccess(data.tier === 'pro', {
+            proUntil: data.proUntil,
+            graceUntil: data.graceUntil,
+        });
+    } catch { /* offline / dev — silently skip */ }
 }
 
 /**

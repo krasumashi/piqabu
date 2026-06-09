@@ -55,13 +55,6 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="exp+client"/>
       </intent-filter>
-      <!-- Verified Android App Link. With autoVerify=true Android
-           consults https://piqabu.live/.well-known/assetlinks.json at
-           install (and periodically thereafter); if our package +
-           signing fingerprint match, links to piqabu.live/j/* open
-           Piqabu directly with no chooser dialog. If the assetlinks.json
-           ever fails to publish or mismatches, autoVerify silently
-           degrades to the chooser, so this is safe to leave on. -->
       <intent-filter android:autoVerify="true">
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
@@ -70,10 +63,6 @@
         <data android:host="piqabu.live"/>
         <data android:pathPrefix="/j/"/>
       </intent-filter>
-      <!-- /upgrade — same verified link mechanism for the keyboard
-           paywall deep-link (SecureStoreReader.kt's launchPaywall fires
-           https://piqabu.live/upgrade to bring a non-Pro user into the
-           main app's subscription flow). -->
       <intent-filter android:autoVerify="true">
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>

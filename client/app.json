@@ -71,7 +71,8 @@
           "microphonePermission": "Piqabu uses the microphone for Whisper and Live Glass"
         }
       ],
-      "./plugins/withMediaProjectionService.js"
+      "./plugins/withMediaProjectionService.js",
+      "expo-web-browser"
     ],
     "runtimeVersion": "1.0.0",
     "updates": {
