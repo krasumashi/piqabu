@@ -17,6 +17,7 @@ import LockoutOverlay from '../components/LockoutOverlay';
 import UpdateBanner from '../components/UpdateBanner';
 import UpdateWall from '../components/UpdateWall';
 import RenewBanner from '../components/RenewBanner';
+import ReceiverKeyboardPrompt from '../components/ReceiverKeyboardPrompt';
 import { syncProStatusToBridge, syncProAccessFromServer } from '../lib/pro';
 
 // Web Tailwind CSS
@@ -89,6 +90,7 @@ export default function RootLayout() {
                     <RenewBanner />
                     <OperatorBannerMount />
                     <UpdateWallMount />
+                    <ReceiverKeyboardPrompt />
                     <LockoutOverlayMount />
                 </RoomProvider>
             </SecurityProvider>

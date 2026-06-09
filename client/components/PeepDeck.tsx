@@ -7,6 +7,7 @@ import { THEME } from '../constants/Theme';
 import { CONFIG } from '../constants/Config';
 import DocumentViewer from './DocumentViewer';
 import SignatureModal from './SignatureModal';
+import SynthesisIndicator from './SynthesisIndicator';
 
 // Detect media type from URI (supports both data URIs and server URLs)
 function isVideoUri(uri: string): boolean {
@@ -294,6 +295,14 @@ export default function PeepDeck({
                             <View style={styles.gridItemLabel}>
                                 <Text style={styles.gridItemType}>IMAGE</Text>
                             </View>
+                            {/* Phase 1 of the deepfake-detection spec — runs the
+                                on-device synthesis classifier on every received
+                                still image. Indicator only renders if the
+                                computed score crosses SILENT (0.30). Currently
+                                running the stub engine — see
+                                lib/detection/synthesisDetector.ts for swap-in
+                                instructions when the real TFLite model lands. */}
+                            <SynthesisIndicator imageUri={remoteImage} placement="top-right" />
                         </TouchableOpacity>
                     )}
                 </ScrollView>

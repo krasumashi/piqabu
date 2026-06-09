@@ -3,7 +3,7 @@ import { Alert, Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { CONFIG } from '../constants/Config';
 import { getSecureItem, setSecureItem, deleteSecureItem } from '../lib/platform/storage';
-import { generateUUID } from '../lib/platform/crypto';
+import { generateUUID, deriveStableDeviceIdAndroid } from '../lib/platform/crypto';
 import { setProAccess } from '../lib/pro';
 import type { UpdateNotice } from '../lib/updateApplier';
 
@@ -41,7 +41,14 @@ export function useSocketManager() {
         const init = async () => {
             let id = await getSecureItem('piqabu_ghost_id');
             if (!id) {
-                id = generateUUID();
+                // Prefer the ANDROID_ID-derived Ghost ID so "Clear
+                // Storage" in App Info doesn't mint a new identity for
+                // what is, from the user's perspective, the same
+                // device + same install. See deriveStableDeviceIdAndroid
+                // in lib/platform/crypto.ts for the full rationale.
+                // Falls back to a random UUID on iOS, web, or any path
+                // where ANDROID_ID is unavailable.
+                id = (await deriveStableDeviceIdAndroid()) || generateUUID();
                 await setSecureItem('piqabu_ghost_id', id);
             }
             setDeviceId(id);

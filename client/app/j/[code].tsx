@@ -14,10 +14,11 @@
  * persisted state and `addRoom` would race the restoration.
  */
 import React, { useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRoomContext } from '../../contexts/RoomContext';
 import { THEME } from '../../constants/Theme';
+import { setSecureItem, getSecureItem } from '../../lib/platform/storage';
 
 export default function JoinByCode() {
     const { code } = useLocalSearchParams<{ code: string }>();
@@ -41,6 +42,22 @@ export default function JoinByCode() {
         // added from the landing screen's Generate flow stay 'manual'
         // and skip straight to the chat UI.
         addRoom(raw, 'deeplink');
+
+        // Mark "this install has joined at least one deep-link room"
+        // so the room screen knows to surface the receiver-side keyboard
+        // prompt (one-time, never nags). See ReceiverKeyboardPrompt.tsx.
+        // Android-only — iOS has no Piqabu Keyboard to enable.
+        if (Platform.OS === 'android') {
+            (async () => {
+                try {
+                    const already = await getSecureItem('piqabu_receiver_keyboard_seen');
+                    if (!already) {
+                        await setSecureItem('piqabu_receiver_keyboard_pending', '1');
+                    }
+                } catch { /* noop */ }
+            })();
+        }
+
         router.replace('/room');
     }, [hydrated, code]);
 
