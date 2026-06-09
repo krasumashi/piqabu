@@ -441,17 +441,21 @@ function DevicePanel() {
         action: string,
         method: 'POST',
         body?: Record<string, unknown>,
+        busyKey?: string,
     ) => {
         const id = deviceId.trim();
         if (!id) return;
-        setBusy(action);
+        // busyKey lets two buttons that hit the same endpoint (SET PRO
+        // and SET FREE both POST /tier) track their spinners independently.
+        setBusy(busyKey || action);
         setFeedback(null);
         try {
             const res = await apiFetch<{ message?: string; success?: boolean }>(
                 `/admin/devices/${id}/${action}`,
                 { method, body: body ? JSON.stringify(body) : undefined },
             );
-            setFeedback({ tone: 'ok', text: res.message || `${action.toUpperCase()} OK` });
+            const label = (busyKey || action).toUpperCase();
+            setFeedback({ tone: 'ok', text: res.message || `${label} OK` });
         } catch (e) {
             setFeedback({ tone: 'bad', text: e instanceof ApiError ? e.message : 'Failed' });
         } finally {
@@ -471,7 +475,7 @@ function DevicePanel() {
                 placeholder="Paste a full Ghost ID (UUID)"
                 className="w-full bg-paper2 border border-edge rounded-lg px-4 py-3 text-ink text-xs tracking-wider placeholder:text-faint focus:outline-none focus:border-ink"
             />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-4">
                 <ActionButton
                     onClick={() => act('block', 'POST', { reason: 'manual block from Mission Control' })}
                     label="BLOCK"
@@ -494,10 +498,17 @@ function DevicePanel() {
                     disabled={!deviceId.trim()}
                 />
                 <ActionButton
-                    onClick={() => act('tier', 'POST', { tier: 'pro' })}
+                    onClick={() => act('tier', 'POST', { tier: 'pro' }, 'tier-pro')}
                     label="SET PRO"
                     tone="ok"
-                    busy={busy === 'tier'}
+                    busy={busy === 'tier-pro'}
+                    disabled={!deviceId.trim()}
+                />
+                <ActionButton
+                    onClick={() => act('tier', 'POST', { tier: 'free' }, 'tier-free')}
+                    label="SET FREE"
+                    tone="neutral"
+                    busy={busy === 'tier-free'}
                     disabled={!deviceId.trim()}
                 />
             </div>
