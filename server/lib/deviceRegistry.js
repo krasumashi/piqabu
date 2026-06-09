@@ -84,4 +84,48 @@ function count() {
     return Object.keys(loadStore()).length;
 }
 
-module.exports = { touch, getAll, count };
+/**
+ * Active-device buckets derived from lastSeen — no per-event tracking,
+ * just timestamp comparisons on data we already collect at handshake
+ * time. Used by Mission Control's Insights pane.
+ *
+ *   dau — devices seen in the last 24h
+ *   wau — devices seen in the last 7d
+ *   mau — devices seen in the last 30d
+ */
+function activeCounts() {
+    const store = loadStore();
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    let dau = 0, wau = 0, mau = 0;
+    for (const meta of Object.values(store)) {
+        const last = meta?.lastSeen ? new Date(meta.lastSeen).getTime() : NaN;
+        if (!isFinite(last)) continue;
+        const ageMs = now - last;
+        if (ageMs <= 30 * DAY) mau += 1;
+        if (ageMs <= 7 * DAY) wau += 1;
+        if (ageMs <= 1 * DAY) dau += 1;
+    }
+    return { dau, wau, mau };
+}
+
+/**
+ * New-device counts bucketed by ISO date (UTC) of firstSeen. One bucket
+ * per day for the chart on the Insights pane.
+ *
+ * Returns: { '2026-06-09': 12, '2026-06-08': 7, ... }
+ */
+function newDeviceBuckets({ days = 30 } = {}) {
+    const store = loadStore();
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const buckets = Object.create(null);
+    for (const meta of Object.values(store)) {
+        const ts = meta?.firstSeen ? new Date(meta.firstSeen).getTime() : NaN;
+        if (!isFinite(ts) || ts < cutoff) continue;
+        const day = new Date(ts).toISOString().slice(0, 10);
+        buckets[day] = (buckets[day] || 0) + 1;
+    }
+    return buckets;
+}
+
+module.exports = { touch, getAll, count, activeCounts, newDeviceBuckets };

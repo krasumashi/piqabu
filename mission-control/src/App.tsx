@@ -7,6 +7,7 @@ import Devices from './routes/Devices';
 import Helpdesk from './routes/Helpdesk';
 import Levers from './routes/Levers';
 import Audit from './routes/Audit';
+import Insights from './routes/Insights';
 
 function RequireAuth({ children }: { children: JSX.Element }) {
     return getAdminKey() ? children : <Navigate to="/login" replace />;
@@ -24,6 +25,7 @@ export default function App() {
                 }
             >
                 <Route path="/pulse" element={<Pulse />} />
+                <Route path="/insights" element={<Insights />} />
                 <Route path="/devices" element={<Devices />} />
                 <Route path="/helpdesk" element={<Helpdesk />} />
                 <Route path="/levers" element={<Levers />} />

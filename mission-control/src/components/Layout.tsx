@@ -10,6 +10,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
     { to: '/pulse', label: 'PULSE', phase: 1 },
+    { to: '/insights', label: 'INSIGHTS', phase: 2 },
     { to: '/devices', label: 'DEVICES', phase: 1 },
     { to: '/helpdesk', label: 'HELPDESK', phase: 1 },
     { to: '/levers', label: 'LEVERS', phase: 2 },

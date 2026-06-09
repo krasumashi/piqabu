@@ -2,6 +2,7 @@ const express = require('express');
 const adminStore = require('../lib/adminStore');
 const subscriptionStore = require('../lib/subscriptionStore');
 const deviceRegistry = require('../lib/deviceRegistry');
+const githubReleases = require('../lib/githubReleases');
 
 function createAdminRouter({ io, rooms, participants }) {
     const router = express.Router();
@@ -44,6 +45,87 @@ function createAdminRouter({ io, rooms, participants }) {
             maintenanceMessage: state.maintenanceMessage,
             blockedDevices: state.blockedDevices.length,
         });
+    });
+
+    // GET /admin/stats — aggregated metrics for the Insights pane.
+    //
+    // Every number here is derived from data the operator already has
+    // legitimate visibility into (deviceRegistry, subscriptionStore,
+    // adminStore.logs) plus GitHub's publicly-aggregated download
+    // counts. No client telemetry, no third-party analytics SDK, no
+    // per-user attribution.
+    //
+    // 5s server-side response — most of the work is in-memory aggregations
+    // over JSON files. GitHub downloads call is cached for 5min inside
+    // githubReleases.js so polling at 15s from Mission Control doesn't
+    // re-hit the GitHub API on every tick.
+    router.get('/stats', async (req, res) => {
+        try {
+            const adminState = adminStore.getState();
+            const active = deviceRegistry.activeCounts();
+            const pro = subscriptionStore.aggregateProStats();
+            const revenueAll = subscriptionStore.revenueByCurrency();
+            const revenueLast30 = subscriptionStore.revenueByDay({ days: 30 });
+            const newDevicesByDay = deviceRegistry.newDeviceBuckets({ days: 30 });
+            const downloads = await githubReleases.fetchDownloadStats();
+
+            // Funnel: count Paystack init vs activation events in the log
+            // over the last 30 days. Bucketed by day for the Insights
+            // chart. We derive these from existing audit log entries
+            // rather than introducing a new event store.
+            const now = Date.now();
+            const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+            const initBucket = Object.create(null);
+            const activatedBucket = Object.create(null);
+            let initialized30d = 0;
+            let activated30d = 0;
+            for (const entry of (adminState.logs || [])) {
+                const ts = entry?.timestamp ? new Date(entry.timestamp).getTime() : NaN;
+                if (!isFinite(ts) || now - ts > THIRTY_DAYS) continue;
+                const day = new Date(ts).toISOString().slice(0, 10);
+                if (entry.message === 'Paystack transaction initialized') {
+                    initBucket[day] = (initBucket[day] || 0) + 1;
+                    initialized30d += 1;
+                } else if (entry.message === 'Paystack: Pro activated') {
+                    activatedBucket[day] = (activatedBucket[day] || 0) + 1;
+                    activated30d += 1;
+                }
+            }
+
+            res.json({
+                generatedAt: new Date().toISOString(),
+                devices: {
+                    lifetime: deviceRegistry.count(),
+                    onlineNow: io.sockets.sockets.size,
+                    dau: active.dau,
+                    wau: active.wau,
+                    mau: active.mau,
+                    newByDay: newDevicesByDay,
+                },
+                pro: {
+                    active: pro.active,
+                    inGrace: pro.inGrace,
+                    churned30d: pro.churned30d,
+                },
+                revenue: {
+                    byCurrency: revenueAll,
+                    last30dByDay: revenueLast30,
+                },
+                funnel: {
+                    initialized30d,
+                    activated30d,
+                    initByDay: initBucket,
+                    activatedByDay: activatedBucket,
+                    conversionRate: initialized30d > 0
+                        ? Math.round((activated30d / initialized30d) * 1000) / 10
+                        : null,
+                },
+                downloads,
+            });
+        } catch (e) {
+            console.error('[Admin] /stats failed:', e.message);
+            res.status(500).json({ error: 'stats unavailable' });
+        }
     });
 
     // GET /admin/rooms — list active rooms

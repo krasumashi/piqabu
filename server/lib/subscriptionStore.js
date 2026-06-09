@@ -155,6 +155,80 @@ function findByStripeCustomer(customerId) {
 }
 
 /**
+ * Aggregations used by Mission Control's Insights pane. All compute
+ * over the persisted store; nothing is collected specifically for
+ * analytics. If it can't be derived from data the operator already
+ * legitimately sees, it doesn't appear here.
+ */
+function aggregateProStats() {
+    const store = loadStore();
+    const now = Date.now();
+    let active = 0;       // tier='pro' AND now < proUntil
+    let inGrace = 0;      // tier='pro' AND proUntil <= now < proUntil + grace
+    let churned30d = 0;   // graceUntil passed within the last 30 days
+
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+    for (const record of Object.values(store)) {
+        if (!record) continue;
+        if (record.proUntil) {
+            const proUntilMs = new Date(record.proUntil).getTime();
+            const graceUntilMs = proUntilMs + GRACE_PERIOD_MS;
+            if (now < proUntilMs) {
+                active += 1;
+            } else if (now < graceUntilMs) {
+                inGrace += 1;
+            } else if (now - graceUntilMs < THIRTY_DAYS_MS) {
+                churned30d += 1;
+            }
+        }
+    }
+
+    return { active, inGrace, churned30d };
+}
+
+/**
+ * Sum of every successful Paystack transaction we recorded. Returns
+ * cents grouped by currency. Mission Control collapses these into a
+ * display string. Zero-history accounts return an empty object.
+ */
+function revenueByCurrency() {
+    const store = loadStore();
+    const totals = Object.create(null);
+    for (const record of Object.values(store)) {
+        const amt = Number(record?.paystackLastAmount);
+        const cur = record?.paystackLastCurrency;
+        if (!amt || !cur) continue;
+        if (!totals[cur]) totals[cur] = 0;
+        totals[cur] += amt;
+    }
+    return totals;
+}
+
+/**
+ * Revenue bucketed by ISO date (UTC). One bucket per day the device's
+ * updatedAt landed on, summed in the device's transaction currency.
+ * Used by the 30-day chart in Insights.
+ *
+ * Returns: { '2026-06-09': { USD: 2500, NGN: 40000 }, ... }
+ */
+function revenueByDay({ days = 30 } = {}) {
+    const store = loadStore();
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const buckets = Object.create(null);
+    for (const record of Object.values(store)) {
+        if (!record?.paystackLastAmount || !record?.paystackLastCurrency) continue;
+        const ts = record.updatedAt ? new Date(record.updatedAt).getTime() : NaN;
+        if (!isFinite(ts) || ts < cutoff) continue;
+        const day = new Date(ts).toISOString().slice(0, 10);
+        if (!buckets[day]) buckets[day] = Object.create(null);
+        const cur = record.paystackLastCurrency;
+        buckets[day][cur] = (buckets[day][cur] || 0) + record.paystackLastAmount;
+    }
+    return buckets;
+}
+
+/**
  * Total number of devices we've ever issued a subscription record for.
  * Used by Mission Control's Pulse pane as the "lifetime devices" metric.
  */
@@ -174,5 +248,8 @@ module.exports = {
     findByStripeCustomer,
     findByPaystackReference,
     countAll,
+    aggregateProStats,
+    revenueByCurrency,
+    revenueByDay,
     GRACE_PERIOD_MS,
 };
