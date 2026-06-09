@@ -137,20 +137,58 @@ function createAdminRouter({ io, rooms, participants }) {
     });
 
     // POST /admin/devices/:deviceId/block
+    //
+    // Blocks are TRANSIENT (cleared on server restart, by design). To
+    // make the effect immediate for currently-connected devices, we
+    // emit `force_block` to every live socket carrying this deviceId.
+    // The client renders a full-screen LockoutOverlay on receipt and
+    // persists the block locally so close-and-reopen still shows the
+    // lock until the server clears it.
     router.post('/devices/:deviceId/block', express.json(), (req, res) => {
         const { deviceId } = req.params;
         const { reason } = req.body || {};
         adminStore.blockDevice(deviceId, reason);
         adminStore.addLog('warn', `Device blocked`, { deviceId, reason: reason || '' });
-        res.json({ success: true, message: `Device ${deviceId.substring(0, 8)}... blocked` });
+
+        let notified = 0;
+        io.sockets.sockets.forEach(sock => {
+            if (sock.data?.deviceId === deviceId) {
+                sock.emit('force_block', {
+                    reason: reason || '',
+                    blockedAt: new Date().toISOString(),
+                });
+                notified += 1;
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Device ${deviceId.substring(0, 8)}... blocked`,
+            liveSocketsNotified: notified,
+        });
     });
 
     // POST /admin/devices/:deviceId/unblock
+    // Inverse of block — clears the in-memory entry and tells every live
+    // socket for this deviceId to dismiss its lockout overlay.
     router.post('/devices/:deviceId/unblock', (req, res) => {
         const { deviceId } = req.params;
         adminStore.unblockDevice(deviceId);
         adminStore.addLog('info', `Device unblocked`, { deviceId });
-        res.json({ success: true, message: `Device ${deviceId.substring(0, 8)}... unblocked` });
+
+        let notified = 0;
+        io.sockets.sockets.forEach(sock => {
+            if (sock.data?.deviceId === deviceId) {
+                sock.emit('block_lifted');
+                notified += 1;
+            }
+        });
+
+        res.json({
+            success: true,
+            message: `Device ${deviceId.substring(0, 8)}... unblocked`,
+            liveSocketsNotified: notified,
+        });
     });
 
     // POST /admin/devices/:deviceId/kick — force disconnect

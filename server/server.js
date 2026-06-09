@@ -336,6 +336,42 @@ io.on('connection', (socket) => {
         socket.emit('heartbeat_ack');
     });
 
+    // --- Push authoritative lockout state on connect ---
+    //
+    // Maintenance + per-device blocks are transient on the server (they
+    // reset on every process restart), but the CLIENT persists them
+    // locally so that closing + reopening the app still shows the lock
+    // screen until the server says otherwise. That means every reconnect
+    // is the authoritative moment: server tells the client what's true
+    // right now, and the client overlay reconciles.
+    //
+    // To make "reconcile" possible we ALWAYS emit both, even when the
+    // value is the "off" state. A client that was locked, restarted the
+    // app, and reconnects to a server that has cleared its memory will
+    // receive { enabled: false } / 'block_lifted' and dismiss the
+    // overlay. Without these explicit clears the overlay would orphan.
+    try {
+        const adminState = adminStore.getState();
+        socket.emit('maintenance_mode', {
+            enabled: !!adminState.maintenanceMode,
+            message: adminState.maintenanceMessage || '',
+        });
+        const deviceId = socket.data?.deviceId;
+        if (deviceId) {
+            const blocked = adminStore.getBlockedEntry(deviceId);
+            if (blocked) {
+                socket.emit('force_block', {
+                    reason: blocked.reason || '',
+                    blockedAt: blocked.blockedAt,
+                });
+            } else {
+                socket.emit('block_lifted');
+            }
+        }
+    } catch (e) {
+        console.warn('[Lockout] initial state push failed:', e?.message);
+    }
+
     // --- Operator messages (Mission Control replies) ---
     // On connect, deliver any pending operator replies queued for this
     // device while it was offline.

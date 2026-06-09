@@ -1,24 +1,18 @@
 /**
  * SystemBanner
  *
- * Renders the two operator-level system signals from Mission Control:
+ * Operator-broadcast banner only.
  *
- *   - MAINTENANCE MODE — persistent banner across the top while the
- *     server is in maintenance. Clears automatically when the operator
- *     turns it back off.
+ * Originally this also handled maintenance, but maintenance is now a
+ * hard, undismissable lockout (see LockoutOverlay) — a transient banner
+ * was the wrong affordance for "the app is paused, you can't use it
+ * right now." This component now ONLY renders the temporary admin
+ * broadcast (operator → all devices, POST /admin/broadcast), which
+ * auto-dismisses after ~10 seconds or on user tap.
  *
- *   - ADMIN BROADCAST — temporary banner pushed by the operator via
- *     POST /admin/broadcast. Auto-dismisses after ~10 seconds, or the
- *     user can tap CLOSE early.
- *
- * Maintenance always takes precedence — if both fire at once, the
- * maintenance banner shows. Distinct from OperatorBanner: that one is
- * a one-to-one operator reply to a feedback submission; this one is
- * a system-wide signal.
- *
- * Both states are collected by useSocketManager (already wired); this
- * component just renders them. Mounted globally in app/_layout.tsx so
- * the banners can land regardless of which screen the user is on.
+ * Mounted globally in app/_layout.tsx. Distinct from OperatorBanner:
+ * that one is a 1:1 reply to feedback; this one is a system-wide
+ * notice that doesn't gate interaction.
  */
 import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
@@ -27,15 +21,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
 
 interface Props {
-    maintenanceMode: boolean;
-    maintenanceMessage: string;
     broadcast: string | null;
     onDismissBroadcast: () => void;
 }
 
 export default function SystemBanner({
-    maintenanceMode,
-    maintenanceMessage,
     broadcast,
     onDismissBroadcast,
 }: Props) {
@@ -43,7 +33,7 @@ export default function SystemBanner({
     const translateY = useRef(new Animated.Value(-220)).current;
     const opacity = useRef(new Animated.Value(0)).current;
 
-    const visible = maintenanceMode || broadcast !== null;
+    const visible = broadcast !== null;
 
     useEffect(() => {
         if (visible) {
@@ -61,8 +51,6 @@ export default function SystemBanner({
 
     if (!visible) return null;
 
-    const showMaintenance = maintenanceMode;
-
     return (
         <Animated.View
             style={[
@@ -75,31 +63,17 @@ export default function SystemBanner({
             ]}
             pointerEvents="box-none"
         >
-            {showMaintenance ? (
-                <View style={[styles.card, styles.maintenanceCard]}>
-                    <View style={styles.header}>
-                        <Ionicons name="construct-outline" size={14} color={THEME.warn} />
-                        <Text style={[styles.label, { color: THEME.warn }]}>
-                            MAINTENANCE
-                        </Text>
-                    </View>
-                    <Text style={styles.message}>
-                        {maintenanceMessage?.trim() || 'Piqabu Tower is under scheduled maintenance. Sessions may be paused briefly.'}
-                    </Text>
+            <View style={styles.card}>
+                <View style={styles.header}>
+                    <Ionicons name="megaphone-outline" size={14} color={THEME.ink} />
+                    <Text style={styles.label}>PIQABU TOWER</Text>
+                    <View style={{ flex: 1 }} />
+                    <TouchableOpacity onPress={onDismissBroadcast} style={styles.closeBtn} activeOpacity={0.7}>
+                        <Ionicons name="close" size={14} color={THEME.muted} />
+                    </TouchableOpacity>
                 </View>
-            ) : broadcast !== null ? (
-                <View style={styles.card}>
-                    <View style={styles.header}>
-                        <Ionicons name="megaphone-outline" size={14} color={THEME.ink} />
-                        <Text style={styles.label}>PIQABU TOWER</Text>
-                        <View style={{ flex: 1 }} />
-                        <TouchableOpacity onPress={onDismissBroadcast} style={styles.closeBtn} activeOpacity={0.7}>
-                            <Ionicons name="close" size={14} color={THEME.muted} />
-                        </TouchableOpacity>
-                    </View>
-                    <Text style={styles.message}>{broadcast}</Text>
-                </View>
-            ) : null}
+                <Text style={styles.message}>{broadcast}</Text>
+            </View>
         </Animated.View>
     );
 }

@@ -32,12 +32,14 @@ interface RoomContextValue {
     maintenanceMessage: string;
     adminBroadcast: string | null;
     dismissAdminBroadcast: () => void;
+    blocked: boolean;
+    blockReason: string;
 }
 
 const RoomCtx = createContext<RoomContextValue | null>(null);
 
 export function RoomProvider({ children }: { children: React.ReactNode }) {
-    const { socket, deviceId, isConnected, requestRoomCode, maintenanceMode, maintenanceMessage, adminBroadcast, dismissAdminBroadcast } = useSocketManager();
+    const { socket, deviceId, isConnected, requestRoomCode, maintenanceMode, maintenanceMessage, adminBroadcast, dismissAdminBroadcast, blocked, blockReason } = useSocketManager();
     const { tier, isPro, limits, isLoading: isSubLoading, refresh: refreshSubscription } = useSubscription(deviceId);
     const { rooms, activeRoomId, hydrated, addRoom, removeRoom, switchRoom } = useRoomManager(limits.maxRooms);
 
@@ -63,6 +65,8 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
                 maintenanceMessage,
                 adminBroadcast,
                 dismissAdminBroadcast,
+                blocked,
+                blockReason,
             }}
         >
             {children}

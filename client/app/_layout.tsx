@@ -13,6 +13,7 @@ import PanicCalculator from '../components/PanicCalculator';
 import BiometricLockScreen from '../components/BiometricLockScreen';
 import OperatorBanner from '../components/OperatorBanner';
 import SystemBanner from '../components/SystemBanner';
+import LockoutOverlay from '../components/LockoutOverlay';
 
 // Web Tailwind CSS
 if (Platform.OS === 'web') {
@@ -67,6 +68,7 @@ export default function RootLayout() {
                     <SecurityOverlays />
                     <SystemBannerMount />
                     <OperatorBannerMount />
+                    <LockoutOverlayMount />
                 </RoomProvider>
             </SecurityProvider>
         </ThemeProvider>
@@ -91,17 +93,34 @@ function OperatorBannerMount() {
     return <OperatorBanner socket={socket} />;
 }
 
-// Renders the maintenance + admin_broadcast system banners, also global.
-// Lives at a slightly lower zIndex than OperatorBanner so a personal
-// reply still takes precedence visually.
+// Renders admin broadcasts (operator → all devices, auto-dismiss).
+// Maintenance is no longer surfaced here — it's a hard lockout now,
+// see LockoutOverlayMount below.
 function SystemBannerMount() {
-    const { maintenanceMode, maintenanceMessage, adminBroadcast, dismissAdminBroadcast } = useRoomContext();
+    const { adminBroadcast, dismissAdminBroadcast } = useRoomContext();
     return (
         <SystemBanner
-            maintenanceMode={maintenanceMode}
-            maintenanceMessage={maintenanceMessage}
             broadcast={adminBroadcast}
             onDismissBroadcast={dismissAdminBroadcast}
+        />
+    );
+}
+
+// Full-screen, undismissable overlay for maintenance mode and per-
+// device blocks. Sits above EVERY other surface (zIndex 10000) — if
+// either is active the user can't reach any app screen until the
+// server clears it. State is mirrored to secure-store inside
+// useSocketManager so the overlay also paints on a cold app start
+// when the server has previously locked us out, until the next
+// connect reconciles.
+function LockoutOverlayMount() {
+    const { maintenanceMode, maintenanceMessage, blocked, blockReason } = useRoomContext();
+    return (
+        <LockoutOverlay
+            maintenanceMode={maintenanceMode}
+            maintenanceMessage={maintenanceMessage}
+            blocked={blocked}
+            blockReason={blockReason}
         />
     );
 }
