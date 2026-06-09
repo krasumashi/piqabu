@@ -3,23 +3,17 @@ const path = require('path');
 
 const STORE_PATH = path.join(__dirname, '..', 'data', 'admin.json');
 
-// Only logs + feedback persist across server restart. Maintenance mode
-// and the blocked-devices list are deliberately TRANSIENT — both clear
-// on every server boot. Product call: operator-driven access controls
-// shouldn't outlive a deploy or a Render-induced restart. If maintenance
-// or a block needs to come back, the operator re-applies it.
+// All admin state persists across server restart. Maintenance mode and
+// the blocked-devices list survive Render redeploys — operator action
+// is sticky until the operator reverses it. The client-side mirror
+// (LockoutOverlay) still caches lockout state locally so cold app
+// starts paint the overlay before the socket reconnects.
 const DEFAULT_STATE = {
-    logs: [],
-    feedback: [],
-};
-
-// Transient (memory-only) admin state. NOT persisted, NOT in loadState().
-// Reset to defaults at every process start.
-const transient = {
     maintenanceMode: false,
     maintenanceMessage: '',
-    // Map<deviceId, { reason, blockedAt }>
-    blockedDevices: new Map(),
+    blockedDevices: [],
+    logs: [],
+    feedback: [],
 };
 
 function ensureDataDir() {
@@ -34,12 +28,7 @@ function loadState() {
     try {
         if (fs.existsSync(STORE_PATH)) {
             const raw = fs.readFileSync(STORE_PATH, 'utf-8');
-            const parsed = JSON.parse(raw);
-            // Strip any legacy maintenance/block fields that older versions
-            // of this file persisted. They are transient now.
-            const { maintenanceMode, maintenanceMessage, blockedDevices, ...rest } = parsed;
-            void maintenanceMode; void maintenanceMessage; void blockedDevices;
-            return { ...DEFAULT_STATE, ...rest };
+            return { ...DEFAULT_STATE, ...JSON.parse(raw) };
         }
     } catch (e) {
         console.error('[AdminStore] Failed to load:', e.message);
@@ -57,46 +46,48 @@ function saveState(state) {
 }
 
 function getState() {
-    // Compose persisted state with the transient maintenance + block
-    // surface so all existing readers (Mission Control /admin/status,
-    // /admin/devices, etc) keep working without each one having to
-    // learn about two storage tiers.
-    const persisted = loadState();
-    return {
-        ...persisted,
-        maintenanceMode: transient.maintenanceMode,
-        maintenanceMessage: transient.maintenanceMessage,
-        blockedDevices: Array.from(transient.blockedDevices.values()),
-    };
+    return loadState();
 }
 
 function setMaintenance(enabled, message) {
-    transient.maintenanceMode = !!enabled;
-    transient.maintenanceMessage = message || '';
-    return getState();
+    const state = loadState();
+    state.maintenanceMode = !!enabled;
+    state.maintenanceMessage = message || '';
+    saveState(state);
+    return state;
 }
 
 function blockDevice(deviceId, reason) {
-    const existing = transient.blockedDevices.get(deviceId);
-    transient.blockedDevices.set(deviceId, {
-        deviceId,
-        reason: reason || (existing?.reason ?? ''),
-        blockedAt: existing?.blockedAt || new Date().toISOString(),
-    });
-    return getState();
+    const state = loadState();
+    const existing = state.blockedDevices.find(d => d.deviceId === deviceId);
+    if (existing) {
+        existing.reason = reason || existing.reason || '';
+    } else {
+        state.blockedDevices.push({
+            deviceId,
+            reason: reason || '',
+            blockedAt: new Date().toISOString(),
+        });
+    }
+    saveState(state);
+    return state;
 }
 
 function unblockDevice(deviceId) {
-    transient.blockedDevices.delete(deviceId);
-    return getState();
+    const state = loadState();
+    state.blockedDevices = state.blockedDevices.filter(d => d.deviceId !== deviceId);
+    saveState(state);
+    return state;
 }
 
 function isBlocked(deviceId) {
-    return transient.blockedDevices.has(deviceId);
+    const state = loadState();
+    return state.blockedDevices.some(d => d.deviceId === deviceId);
 }
 
 function getBlockedEntry(deviceId) {
-    return transient.blockedDevices.get(deviceId) || null;
+    const state = loadState();
+    return state.blockedDevices.find(d => d.deviceId === deviceId) || null;
 }
 
 // --- Mission Control Logs & Feedback ---
