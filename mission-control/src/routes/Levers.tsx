@@ -207,7 +207,12 @@ function UpdateNoticePanel() {
     const [message, setMessage] = useState('');
     const [targetVersion, setTargetVersion] = useState('');
     const [action, setAction] = useState<'live' | 'apk' | 'both'>('both');
-    const [apkUrl, setApkUrl] = useState('https://piqabu.live/download');
+    // Stable URL — GitHub Releases redirects /latest/download/<filename>
+    // to whatever the most recent release's matching asset is, so this
+    // never goes stale even as you ship new versions. The release flow
+    // (scripts/release-apk.sh) always attaches the APK as piqabu.apk,
+    // keeping this URL pointed at the newest build.
+    const [apkUrl, setApkUrl] = useState('https://github.com/krasumashi/piqabu/releases/latest/download/piqabu.apk');
     const [busy, setBusy] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [feedback, setFeedback] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);

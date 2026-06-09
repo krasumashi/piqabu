@@ -10,3 +10,10 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 server/data/
+
+# Release artifacts — scripts/release-apk.sh downloads the EAS build
+# into this filename then attaches it to the GitHub release. If a
+# release fails partway, the file may be left behind — must not be
+# committed.
+piqabu.apk
+*.apk
