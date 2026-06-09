@@ -14,6 +14,8 @@ import BiometricLockScreen from '../components/BiometricLockScreen';
 import OperatorBanner from '../components/OperatorBanner';
 import SystemBanner from '../components/SystemBanner';
 import LockoutOverlay from '../components/LockoutOverlay';
+import UpdateBanner from '../components/UpdateBanner';
+import UpdateWall from '../components/UpdateWall';
 
 // Web Tailwind CSS
 if (Platform.OS === 'web') {
@@ -67,7 +69,9 @@ export default function RootLayout() {
                     <StatusBar style="light" />
                     <SecurityOverlays />
                     <SystemBannerMount />
+                    <UpdateBannerMount />
                     <OperatorBannerMount />
+                    <UpdateWallMount />
                     <LockoutOverlayMount />
                 </RoomProvider>
             </SecurityProvider>
@@ -123,4 +127,25 @@ function LockoutOverlayMount() {
             blockReason={blockReason}
         />
     );
+}
+
+// SOFT update notice. Slides down from the top, dismissable (per
+// notice id, persistent across restarts so re-opening doesn't
+// re-nag).
+function UpdateBannerMount() {
+    const { updateNotice, dismissedNoticeId, dismissUpdateNotice } = useRoomContext();
+    return (
+        <UpdateBanner
+            notice={updateNotice}
+            dismissedNoticeId={dismissedNoticeId}
+            onDismiss={dismissUpdateNotice}
+        />
+    );
+}
+
+// HARD update wall. Full-screen, no dismiss. Caller's only option is
+// to run the update or wait for the operator to clear the wall.
+function UpdateWallMount() {
+    const { updateNotice } = useRoomContext();
+    return <UpdateWall notice={updateNotice} />;
 }

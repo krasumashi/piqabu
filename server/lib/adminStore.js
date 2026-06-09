@@ -14,6 +14,20 @@ const DEFAULT_STATE = {
     blockedDevices: [],
     logs: [],
     feedback: [],
+    // Currently-active update notice (operator-pushed). null when no
+    // notice is live. Single-active-notice model — pushing a new one
+    // replaces the previous. Shape:
+    //   {
+    //     id: short id (so client can track dismissals per notice),
+    //     mode: 'soft' | 'hard',     // banner vs full-screen wall
+    //     title: string,
+    //     message: string,
+    //     targetVersion: string,     // optional, shown to user
+    //     action: 'live' | 'apk' | 'both',
+    //     apkUrl: string,            // used by 'apk' + 'both'
+    //     pushedAt: ISO string,
+    //   }
+    updateNotice: null,
 };
 
 function ensureDataDir() {
@@ -203,6 +217,38 @@ function markReplyRead(id) {
  * deliveredAt is kept as a diagnostic stamp ("first time the server
  * emitted this") but isn't a gate on re-delivery.
  */
+/**
+ * Update notices — operator-pushed update prompts. Persisted (sticky
+ * across server restart) like maintenance. Single-active model: pushing
+ * a new notice replaces the previous one. Clearing sets to null.
+ */
+function setUpdateNotice(input) {
+    const state = loadState();
+    state.updateNotice = {
+        id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+        mode: input.mode === 'hard' ? 'hard' : 'soft',
+        title: String(input.title || '').slice(0, 120),
+        message: String(input.message || '').slice(0, 1000),
+        targetVersion: String(input.targetVersion || '').slice(0, 40),
+        action: ['live', 'apk', 'both'].includes(input.action) ? input.action : 'both',
+        apkUrl: String(input.apkUrl || '').slice(0, 500),
+        pushedAt: new Date().toISOString(),
+    };
+    saveState(state);
+    return state.updateNotice;
+}
+
+function clearUpdateNotice() {
+    const state = loadState();
+    state.updateNotice = null;
+    saveState(state);
+}
+
+function getUpdateNotice() {
+    const state = loadState();
+    return state.updateNotice || null;
+}
+
 function pendingRepliesFor(deviceId) {
     const state = loadState();
     if (!state.feedback) return [];
@@ -229,4 +275,7 @@ module.exports = {
     markReplyDelivered,
     markReplyRead,
     pendingRepliesFor,
+    setUpdateNotice,
+    clearUpdateNotice,
+    getUpdateNotice,
 };

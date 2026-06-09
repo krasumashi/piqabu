@@ -368,6 +368,15 @@ io.on('connection', (socket) => {
                 socket.emit('block_lifted');
             }
         }
+        // Update notice — same reconcile pattern: always emit, with the
+        // current notice or null. A client whose cached HARD wall was
+        // resolved while they were offline gets cleared on connect.
+        const notice = adminStore.getUpdateNotice();
+        if (notice) {
+            socket.emit('update_notice', notice);
+        } else {
+            socket.emit('update_notice_cleared');
+        }
     } catch (e) {
         console.warn('[Lockout] initial state push failed:', e?.message);
     }

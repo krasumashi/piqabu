@@ -5,6 +5,7 @@ import { CONFIG } from '../constants/Config';
 import { getSecureItem, setSecureItem, deleteSecureItem } from '../lib/platform/storage';
 import { generateUUID } from '../lib/platform/crypto';
 import { setProAccess } from '../lib/pro';
+import type { UpdateNotice } from '../lib/updateApplier';
 
 // Local-cache keys for lockout state. The server's lockout state
 // (maintenance + per-device block) is transient and clears on restart,
@@ -14,6 +15,12 @@ import { setProAccess } from '../lib/pro';
 // to a clean session before the next socket connect re-sends the block.
 const LOCKOUT_MAINTENANCE_KEY = 'piqabu_lockout_maintenance'; // JSON: { message: string }
 const LOCKOUT_BLOCK_KEY = 'piqabu_lockout_block'; // JSON: { reason: string, blockedAt: string }
+// Active update notice — mirrored so HARD walls survive close+reopen.
+const UPDATE_NOTICE_KEY = 'piqabu_update_notice'; // JSON: UpdateNotice
+// Last notice id the user dismissed (SOFT only — HARD has no dismiss).
+// Lets the SOFT banner stay quiet for the same operator-pushed notice
+// across app restarts without silencing future notices.
+const UPDATE_NOTICE_DISMISSED_KEY = 'piqabu_update_notice_dismissed'; // string
 
 export function useSocketManager() {
     const [socket, setSocket] = useState<Socket | null>(null);
@@ -24,6 +31,8 @@ export function useSocketManager() {
     const [adminBroadcast, setAdminBroadcast] = useState<string | null>(null);
     const [blocked, setBlocked] = useState(false);
     const [blockReason, setBlockReason] = useState<string>('');
+    const [updateNotice, setUpdateNoticeState] = useState<UpdateNotice | null>(null);
+    const [dismissedNoticeId, setDismissedNoticeId] = useState<string | null>(null);
 
     const socketRef = useRef<Socket | null>(null);
     const heartbeatInterval = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -57,6 +66,14 @@ export function useSocketManager() {
                     setBlocked(true);
                     setBlockReason(parsed?.reason || '');
                 }
+            } catch { /* corrupt cache — ignore */ }
+            try {
+                const cachedNotice = await getSecureItem(UPDATE_NOTICE_KEY);
+                if (cachedNotice) {
+                    setUpdateNoticeState(JSON.parse(cachedNotice));
+                }
+                const cachedDismissed = await getSecureItem(UPDATE_NOTICE_DISMISSED_KEY);
+                if (cachedDismissed) setDismissedNoticeId(cachedDismissed);
             } catch { /* corrupt cache — ignore */ }
 
             const newSocket = io(CONFIG.SIGNAL_TOWER_URL, {
@@ -121,6 +138,27 @@ export function useSocketManager() {
                 setBlocked(false);
                 setBlockReason('');
                 try { await deleteSecureItem(LOCKOUT_BLOCK_KEY); } catch { /* noop */ }
+            });
+
+            // Operator-pushed update notice. The server emits this on
+            // connect (with the active notice, if any) and again on
+            // every operator change. Cached locally so HARD walls
+            // survive close+reopen.
+            newSocket.on('update_notice', async (notice: UpdateNotice) => {
+                if (!notice || typeof notice !== 'object') return;
+                setUpdateNoticeState(notice);
+                try {
+                    await setSecureItem(UPDATE_NOTICE_KEY, JSON.stringify(notice));
+                } catch { /* noop */ }
+            });
+            newSocket.on('update_notice_cleared', async () => {
+                setUpdateNoticeState(null);
+                try { await deleteSecureItem(UPDATE_NOTICE_KEY); } catch { /* noop */ }
+                // Clear the dismissed-id too so a future SOFT notice
+                // with a fresh id always re-appears, unrelated to
+                // whatever the user dismissed last time.
+                try { await deleteSecureItem(UPDATE_NOTICE_DISMISSED_KEY); } catch { /* noop */ }
+                setDismissedNoticeId(null);
             });
 
             newSocket.on('admin_broadcast', (data: { message: string }) => {
@@ -198,6 +236,16 @@ export function useSocketManager() {
         setAdminBroadcast(null);
     }, []);
 
+    /** Dismiss a SOFT update notice. Records the notice id in
+     *  secure-store so the same notice stays quiet across restarts;
+     *  the next operator push (which mints a fresh id) will surface
+     *  again. HARD walls ignore this entirely. */
+    const dismissUpdateNotice = useCallback(async (noticeId: string) => {
+        if (!noticeId) return;
+        setDismissedNoticeId(noticeId);
+        try { await setSecureItem(UPDATE_NOTICE_DISMISSED_KEY, noticeId); } catch { /* noop */ }
+    }, []);
+
     return {
         socket,
         deviceId,
@@ -209,5 +257,8 @@ export function useSocketManager() {
         dismissAdminBroadcast,
         blocked,
         blockReason,
+        updateNotice,
+        dismissedNoticeId,
+        dismissUpdateNotice,
     };
 }

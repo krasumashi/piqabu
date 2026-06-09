@@ -332,6 +332,49 @@ function createAdminRouter({ io, rooms, participants }) {
         res.json({ devices: deviceList, proCount, freeCount });
     });
 
+    // POST /admin/update-notice
+    //
+    // Push (or replace) the current operator update notice. Body:
+    //   { mode: 'soft'|'hard', title, message, targetVersion, action, apkUrl }
+    // The store sanitizes / clamps everything. Fans out the new notice
+    // to every live socket; new connections will pick it up via the
+    // on-connect push (see server.js).
+    router.post('/update-notice', express.json(), (req, res) => {
+        const body = req.body || {};
+        if (!body.message || typeof body.message !== 'string' || !body.message.trim()) {
+            return res.status(400).json({ error: 'message is required' });
+        }
+        const notice = adminStore.setUpdateNotice({
+            mode: body.mode,
+            title: body.title,
+            message: body.message,
+            targetVersion: body.targetVersion,
+            action: body.action,
+            apkUrl: body.apkUrl,
+        });
+        adminStore.addLog('warn', `Update notice pushed (${notice.mode})`, {
+            preview: notice.message.substring(0, 60),
+            targetVersion: notice.targetVersion || null,
+            action: notice.action,
+            recipients: io.sockets.sockets.size,
+        });
+        io.emit('update_notice', notice);
+        res.json({ success: true, notice, recipients: io.sockets.sockets.size });
+    });
+
+    // GET /admin/update-notice — current notice (for Levers to hydrate)
+    router.get('/update-notice', (req, res) => {
+        res.json({ notice: adminStore.getUpdateNotice() });
+    });
+
+    // DELETE /admin/update-notice — clear the current notice
+    router.delete('/update-notice', (req, res) => {
+        adminStore.clearUpdateNotice();
+        adminStore.addLog('info', 'Update notice cleared', {});
+        io.emit('update_notice_cleared');
+        res.json({ success: true });
+    });
+
     // POST /admin/devices/:deviceId/tier — manually set pro/free status
     router.post('/devices/:deviceId/tier', express.json(), (req, res) => {
         const { deviceId } = req.params;

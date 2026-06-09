@@ -4,6 +4,7 @@ import { useSocketManager } from '../hooks/useSocketManager';
 import { useRoomManager, RoomTab } from '../hooks/useRoomManager';
 import { useSubscription } from '../hooks/useSubscription';
 import { Tier, TierLimits } from '../lib/subscription/tiers';
+import type { UpdateNotice } from '../lib/updateApplier';
 
 interface RoomContextValue {
     // Socket
@@ -34,12 +35,21 @@ interface RoomContextValue {
     dismissAdminBroadcast: () => void;
     blocked: boolean;
     blockReason: string;
+    updateNotice: UpdateNotice | null;
+    dismissedNoticeId: string | null;
+    dismissUpdateNotice: (noticeId: string) => Promise<void>;
 }
 
 const RoomCtx = createContext<RoomContextValue | null>(null);
 
 export function RoomProvider({ children }: { children: React.ReactNode }) {
-    const { socket, deviceId, isConnected, requestRoomCode, maintenanceMode, maintenanceMessage, adminBroadcast, dismissAdminBroadcast, blocked, blockReason } = useSocketManager();
+    const {
+        socket, deviceId, isConnected, requestRoomCode,
+        maintenanceMode, maintenanceMessage,
+        adminBroadcast, dismissAdminBroadcast,
+        blocked, blockReason,
+        updateNotice, dismissedNoticeId, dismissUpdateNotice,
+    } = useSocketManager();
     const { tier, isPro, limits, isLoading: isSubLoading, refresh: refreshSubscription } = useSubscription(deviceId);
     const { rooms, activeRoomId, hydrated, addRoom, removeRoom, switchRoom } = useRoomManager(limits.maxRooms);
 
@@ -67,6 +77,9 @@ export function RoomProvider({ children }: { children: React.ReactNode }) {
                 dismissAdminBroadcast,
                 blocked,
                 blockReason,
+                updateNotice,
+                dismissedNoticeId,
+                dismissUpdateNotice,
             }}
         >
             {children}
