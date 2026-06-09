@@ -8,9 +8,22 @@ import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
 import { setSecureItem, getSecureItem } from '../lib/platform/storage';
 import { wipeAllPiqabuState } from '../lib/wipe';
-import { useProAccess } from '../lib/pro';
-import PiqabuProPaywall from './PiqabuProPaywall';
+import { useProAccess, useProTimeline } from '../lib/pro';
 import { CONFIG } from '../constants/Config';
+
+/**
+ * Format an ISO date as e.g. "23 SEP 2027". Locale-free and spare —
+ * matches the rest of the Piqabu monospace aesthetic.
+ */
+function formatDate(iso: string): string {
+    try {
+        const d = new Date(iso);
+        const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+        return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+        return '—';
+    }
+}
 
 /**
  * Open the Android system IME settings screen so the user can toggle
@@ -40,7 +53,17 @@ export default function SettingsPanel({
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { isPro, refresh: refreshPro } = useProAccess();
-    const [paywallVisible, setPaywallVisible] = useState(false);
+    const { timeline: proTimeline, refresh: refreshTimeline } = useProTimeline();
+
+    // Refresh tier + timeline state whenever the drawer becomes visible
+    // — Mission Control might have flipped tier, or a Paystack purchase
+    // may have completed since last open.
+    useEffect(() => {
+        if (visible) {
+            void refreshPro();
+            void refreshTimeline();
+        }
+    }, [visible, refreshPro, refreshTimeline]);
 
     /**
      * Clear the onboarded flag and jump straight back to the onboarding
@@ -250,6 +273,62 @@ export default function SettingsPanel({
                     <Ionicons name="refresh-outline" size={14} color={THEME.ink} />
                 </TouchableOpacity>
 
+                {/* ── Piqabu Pro (subscription management) ── */}
+                <Text style={styles.sectionLabel}>PIQABU PRO</Text>
+
+                <View style={styles.proSummary}>
+                    <View style={styles.proSummaryRow}>
+                        <Text style={styles.proSummaryLabel}>TIER</Text>
+                        <Text style={[styles.proSummaryValue, isPro && { color: THEME.live }]}>
+                            {isPro ? 'PRO' : 'FREE'}
+                        </Text>
+                    </View>
+                    {isPro && proTimeline.proUntil && (
+                        <View style={styles.proSummaryRow}>
+                            <Text style={styles.proSummaryLabel}>RENEWS</Text>
+                            <Text style={styles.proSummaryValue}>
+                                {formatDate(proTimeline.proUntil)}
+                            </Text>
+                        </View>
+                    )}
+                    {isPro && proTimeline.daysUntilExpiry !== null && proTimeline.daysUntilExpiry >= 0 && (
+                        <View style={styles.proSummaryRow}>
+                            <Text style={styles.proSummaryLabel}>DAYS LEFT</Text>
+                            <Text style={styles.proSummaryValue}>
+                                {proTimeline.daysUntilExpiry}
+                            </Text>
+                        </View>
+                    )}
+                    {proTimeline.inGracePeriod && (
+                        <View style={styles.proSummaryRow}>
+                            <Text style={[styles.proSummaryLabel, { color: THEME.warn }]}>STATUS</Text>
+                            <Text style={[styles.proSummaryValue, { color: THEME.warn }]}>
+                                GRACE · {proTimeline.daysUntilHardLockout ?? 0}d
+                            </Text>
+                        </View>
+                    )}
+                </View>
+
+                <TouchableOpacity
+                    onPress={() => { onClose(); setTimeout(() => router.push('/upgrade'), 200); }}
+                    style={styles.item}
+                    activeOpacity={0.7}
+                >
+                    <View style={styles.itemRow}>
+                        <Ionicons
+                            name={isPro ? 'refresh-circle-outline' : 'diamond-outline'}
+                            size={14}
+                            color={THEME.muted}
+                        />
+                        <Text style={styles.itemLabel}>
+                            {isPro
+                                ? (proTimeline.inGracePeriod ? 'RENEW NOW · $25' : 'EXTEND ANOTHER YEAR · $25')
+                                : 'UPGRADE TO PRO · $25 / YEAR'}
+                        </Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+
                 {/* ── Piqabu Keyboard ── */}
                 {Platform.OS === 'android' && (
                     <>
@@ -258,7 +337,7 @@ export default function SettingsPanel({
                         <TouchableOpacity
                             onPress={() => {
                                 if (isPro) openKeyboardSettings();
-                                else setPaywallVisible(true);
+                                else { onClose(); setTimeout(() => router.push('/upgrade'), 200); }
                             }}
                             style={styles.item}
                             activeOpacity={0.7}
@@ -333,13 +412,6 @@ export default function SettingsPanel({
                 </View>
             </RNAnimated.View>
 
-            {/* Pseudo paywall — unlocks keyboard activation (and other Pro
-                tiers in future). Tap Subscribe sets the local Pro flag. */}
-            <PiqabuProPaywall
-                visible={paywallVisible}
-                onDismiss={() => setPaywallVisible(false)}
-                onSubscribed={() => { refreshPro(); }}
-            />
         </View>
     );
 }
@@ -419,6 +491,33 @@ const styles = StyleSheet.create({
         color: THEME.faint,
         textTransform: 'uppercase',
         marginTop: 8,
+    },
+    proSummary: {
+        borderWidth: 1,
+        borderColor: THEME.edge2,
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 6,
+        gap: 6,
+    },
+    proSummaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    proSummaryLabel: {
+        fontFamily: THEME.mono,
+        fontSize: 9,
+        letterSpacing: 2,
+        fontWeight: '700',
+        color: THEME.faint,
+    },
+    proSummaryValue: {
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        letterSpacing: 1,
+        fontWeight: '800',
+        color: THEME.ink,
     },
     itemRow: {
         flexDirection: 'row',

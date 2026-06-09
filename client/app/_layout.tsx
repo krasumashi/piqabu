@@ -16,6 +16,7 @@ import SystemBanner from '../components/SystemBanner';
 import LockoutOverlay from '../components/LockoutOverlay';
 import UpdateBanner from '../components/UpdateBanner';
 import UpdateWall from '../components/UpdateWall';
+import RenewBanner from '../components/RenewBanner';
 import { syncProStatusToBridge, syncProAccessFromServer } from '../lib/pro';
 
 // Web Tailwind CSS
@@ -85,6 +86,7 @@ export default function RootLayout() {
                     <ProSyncMount />
                     <SystemBannerMount />
                     <UpdateBannerMount />
+                    <RenewBanner />
                     <OperatorBannerMount />
                     <UpdateWallMount />
                     <LockoutOverlayMount />

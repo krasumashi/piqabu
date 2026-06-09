@@ -85,16 +85,62 @@ export async function setProAccess(isPro: boolean, opts?: { proUntil?: string | 
 export interface ProTimeline {
     proUntil: string | null;
     graceUntil: string | null;
+    /** True when proUntil has passed but graceUntil hasn't — the
+     *  "renew now or you lose Pro" window. */
+    inGracePeriod: boolean;
+    /** Whole days until proUntil (renewal due). Negative once we're in
+     *  grace. Null when there's no expiry recorded (Mission Control
+     *  tier overrides, free tier). */
+    daysUntilExpiry: number | null;
+    /** Whole days until graceUntil (hard lockout). Null in normal
+     *  pre-expiry state. */
+    daysUntilHardLockout: number | null;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function computeTimeline(proUntilISO: string | null, graceUntilISO: string | null): ProTimeline {
+    const now = Date.now();
+    const proUntilMs = proUntilISO ? new Date(proUntilISO).getTime() : null;
+    const graceUntilMs = graceUntilISO ? new Date(graceUntilISO).getTime() : null;
+    const inGracePeriod = !!(proUntilMs && graceUntilMs && now >= proUntilMs && now < graceUntilMs);
+    return {
+        proUntil: proUntilISO,
+        graceUntil: graceUntilISO,
+        inGracePeriod,
+        daysUntilExpiry: proUntilMs != null
+            ? Math.ceil((proUntilMs - now) / DAY_MS)
+            : null,
+        daysUntilHardLockout: inGracePeriod && graceUntilMs != null
+            ? Math.ceil((graceUntilMs - now) / DAY_MS)
+            : null,
+    };
 }
 
 export async function getProTimeline(): Promise<ProTimeline> {
     try {
         const proUntil = await getSecureItem(PRO_UNTIL_KEY);
         const graceUntil = await getSecureItem(GRACE_UNTIL_KEY);
-        return { proUntil, graceUntil };
+        return computeTimeline(proUntil, graceUntil);
     } catch {
-        return { proUntil: null, graceUntil: null };
+        return computeTimeline(null, null);
     }
+}
+
+/**
+ * Reactive timeline hook for the renew-banner + settings panel. Re-reads
+ * the cached dates on demand via `refresh()` (call this after a
+ * successful upgrade flow or after syncProAccessFromServer).
+ */
+export function useProTimeline(): { timeline: ProTimeline; refresh: () => Promise<void> } {
+    const [timeline, setTimeline] = useState<ProTimeline>(() =>
+        computeTimeline(null, null));
+    const refresh = useCallback(async () => {
+        const t = await getProTimeline();
+        setTimeline(t);
+    }, []);
+    useEffect(() => { void refresh(); }, [refresh]);
+    return { timeline, refresh };
 }
 
 /**
