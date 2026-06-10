@@ -78,6 +78,12 @@ interface StatusResponse {
     proUntil: string | null;
     graceUntil?: string | null;
     inGracePeriod?: boolean;
+    source?: string | null;
+    isTrial?: boolean;
+    // Paystack reference of the most recent SUCCESSFUL purchase.
+    // Used to detect whether the specific transaction we just kicked off
+    // landed — distinguishing it from "device is already on a trial."
+    paystackReference?: string | null;
 }
 
 const POLL_INTERVAL_MS = 1500;
@@ -102,16 +108,25 @@ async function fetchStatus(deviceId: string): Promise<StatusResponse> {
     return res.json();
 }
 
-/** Poll /status until tier flips to 'pro' or the timeout elapses. The
- *  server-side handler will do an out-of-band verify if our local
- *  record is still stale, so polling actively pulls the entitlement
+/** Poll /status until the SPECIFIC paystack reference we just initialized
+ *  has been verified successful. This is the canonical way to detect
+ *  "this purchase landed" — using tier=='pro' alone is wrong because the
+ *  device may already be on a 7-day trial (which the server reports as
+ *  'pro' with source='trial'). We need to detect a state change tied to
+ *  THIS specific transaction.
+ *
+ *  The server-side handler does an out-of-band verify against Paystack
+ *  if the pending reference matches our expected reference and the
+ *  record is still trial/free. So polling actively pulls the entitlement
  *  forward even when the webhook is late. */
-async function pollUntilPro(deviceId: string): Promise<StatusResponse | null> {
+async function pollUntilReferenceActivated(deviceId: string, expectedReference: string): Promise<StatusResponse | null> {
     const start = Date.now();
     while (Date.now() - start < POLL_TIMEOUT_MS) {
         try {
             const status = await fetchStatus(deviceId);
-            if (status.tier === 'pro') return status;
+            if (status.tier === 'pro' && status.paystackReference === expectedReference) {
+                return status;
+            }
         } catch { /* ignore — retry */ }
         await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
     }
@@ -158,9 +173,13 @@ export async function startCheckout(
     // The WebView is now closed. Regardless of HOW it closed (success
     // redirect, user-dismissed, system-cancelled), we poll the server
     // for the canonical state of this device's subscription — that's
-    // the source-of-truth, not the WebView's exit code.
-    const status = await pollUntilPro(deviceId);
-    if (status && status.tier === 'pro') {
+    // the source-of-truth, not the WebView's exit code. CRITICALLY,
+    // we poll for THIS reference's activation, not just any 'pro'
+    // state — otherwise a trial user who closes the webview without
+    // paying would falsely see "PRO ACTIVATED" because their trial
+    // status reports tier='pro'.
+    const status = await pollUntilReferenceActivated(deviceId, init.reference);
+    if (status && status.tier === 'pro' && status.paystackReference === init.reference) {
         return { kind: 'success', proUntil: status.proUntil };
     }
 

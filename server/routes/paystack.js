@@ -195,6 +195,13 @@ function createPaystackRouter({ io }) {
             // 'trial' | 'paystack' | 'apple_iap' | 'admin' | null
             source: record.source || null,
             isTrial: record.source === 'trial',
+            // Paystack reference of the most recent SUCCESSFUL purchase.
+            // Used by the client's checkout poll to distinguish "this
+            // specific transaction completed" from "the device is already
+            // Pro from a trial." Without it, the client falsely reports
+            // success the moment it sees tier==='pro', even when the user
+            // dismissed the webview without paying.
+            paystackReference: record.paystackReference || null,
         });
     });
 
