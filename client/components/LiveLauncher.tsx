@@ -172,24 +172,26 @@ export default function LiveLauncher({
 
                         <TouchableOpacity
                             onPress={() => handleSelect('mirror')}
-                            style={[styles.optionCard, styles.optionCardDisabled]}
-                            activeOpacity={1}
-                            disabled
+                            style={styles.optionCard}
+                            activeOpacity={0.75}
                         >
-                            <View style={[styles.optionIconWrap, styles.optionIconWrapDisabled]}>
-                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.faint} />
+                            <View style={styles.optionIconWrap}>
+                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.ink} />
                             </View>
                             <View style={styles.optionTextWrap}>
                                 <View style={styles.optionLabelRow}>
-                                    <Text style={[styles.optionLabel, { color: THEME.muted }]}>LIVE MIRROR</Text>
+                                    <Text style={styles.optionLabel}>LIVE MIRROR</Text>
+                                    {!isPro && (
+                                        <View style={styles.proPill}>
+                                            <Text style={styles.proPillText}>PRO</Text>
+                                        </View>
+                                    )}
                                 </View>
                                 <Text style={styles.optionDesc}>
                                     Share your screen. View-only — no save, no screenshots.
                                 </Text>
                             </View>
-                            <View style={styles.comingSoonPill}>
-                                <Text style={styles.comingSoonText}>SOON</Text>
-                            </View>
+                            <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
                         </TouchableOpacity>
                     </View>
 
