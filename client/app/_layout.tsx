@@ -18,6 +18,7 @@ import UpdateBanner from '../components/UpdateBanner';
 import UpdateWall from '../components/UpdateWall';
 import RenewBanner from '../components/RenewBanner';
 import ReceiverKeyboardPrompt from '../components/ReceiverKeyboardPrompt';
+import ConsentGate from '../components/ConsentGate';
 import { syncProStatusToBridge, syncProAccessFromServer } from '../lib/pro';
 
 // Web Tailwind CSS
@@ -92,6 +93,7 @@ export default function RootLayout() {
                     <UpdateWallMount />
                     <ReceiverKeyboardPrompt />
                     <LockoutOverlayMount />
+                    <ConsentGate />
                 </RoomProvider>
             </SecurityProvider>
         </ThemeProvider>

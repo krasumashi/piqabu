@@ -10,6 +10,7 @@ import { setSecureItem, getSecureItem } from '../lib/platform/storage';
 import { wipeAllPiqabuState } from '../lib/wipe';
 import { useProAccess, useProTimeline } from '../lib/pro';
 import { usePricing } from '../lib/payment/usePricing';
+import { LEGAL_URLS } from '../lib/legal/consent';
 import { CONFIG } from '../constants/Config';
 
 /**
@@ -397,6 +398,34 @@ export default function SettingsPanel({
                         </TouchableOpacity>
                     </View>
                 )}
+
+                {/* ── Legal ── */}
+                <Text style={styles.sectionLabel}>LEGAL</Text>
+
+                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.terms).catch(() => {})} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>TERMS OF SERVICE</Text>
+                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.privacy).catch(() => {})} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>PRIVACY POLICY</Text>
+                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.refunds).catch(() => {})} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>REFUND POLICY</Text>
+                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.acceptableUse).catch(() => {})} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>ACCEPTABLE USE</Text>
+                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.lawEnforcement).catch(() => {})} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>LAW ENFORCEMENT POLICY</Text>
+                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.transparency).catch(() => {})} style={styles.item} activeOpacity={0.7}>
+                    <Text style={styles.itemLabel}>TRANSPARENCY REPORTS</Text>
+                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
+                </TouchableOpacity>
 
                 {/* Leave Channel */}
                 <TouchableOpacity onPress={onLeaveChannel} style={styles.dangerItem} activeOpacity={0.7}>
