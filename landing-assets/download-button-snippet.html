@@ -1,0 +1,137 @@
+<!--
+  Piqabu — smart download button.
+
+  Detects the user's platform via User-Agent and routes them to the
+  correct distribution channel. Drop this snippet anywhere on
+  piqabu.live where you want a "Download" button.
+
+  Platform routing:
+    Android         → GitHub Releases (stable URL, /latest/download/piqabu.apk)
+    iOS / iPadOS    → TestFlight (pre-launch) or App Store (post-launch)
+    Desktop / other → page with both buttons side-by-side
+
+  Update the IOS_URL constant below whenever you cut a new
+  distribution channel:
+    1. While in TestFlight External: https://testflight.apple.com/join/XXXXX
+    2. When live on App Store:       https://apps.apple.com/app/piqabu/id1234567890
+-->
+
+<style>
+.piqabu-dl {
+  display: inline-block;
+  background: #f5f3eb;
+  color: #060709;
+  font-family: 'SF Mono', 'Roboto Mono', monospace;
+  font-size: 13px;
+  letter-spacing: 2px;
+  font-weight: 800;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 14px 28px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.piqabu-dl:hover { opacity: 0.85; }
+.piqabu-dl-stack {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.piqabu-dl-secondary {
+  background: transparent;
+  border: 1px solid rgba(245, 243, 235, 0.4);
+  color: rgba(245, 243, 235, 0.85);
+}
+.piqabu-dl-footnote {
+  display: block;
+  font-family: 'SF Mono', 'Roboto Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: rgba(245, 243, 235, 0.45);
+  margin-top: 12px;
+  text-align: center;
+  text-transform: uppercase;
+}
+</style>
+
+<div id="piqabu-download-root"></div>
+
+<script>
+(function () {
+  const ANDROID_URL = "https://github.com/krasumashi/piqabu/releases/latest/download/piqabu.apk";
+
+  // CHANGE THIS LINE WHEN YOU HAVE A REAL TESTFLIGHT / APP STORE LINK.
+  // Until then it links back to piqabu.live so iPhone users hit a
+  // friendly "coming soon" rather than a broken page.
+  const IOS_URL = "https://piqabu.live/ios-coming-soon";
+
+  // ────────────────────────────────────────────────────────────────
+  function detectPlatform() {
+    const ua = (navigator.userAgent || "").toLowerCase();
+    if (/iphone|ipad|ipod/.test(ua)) return "ios";
+    if (/android/.test(ua)) return "android";
+    return "other";
+  }
+
+  function renderAndroidButton() {
+    return `
+      <a class="piqabu-dl" href="${ANDROID_URL}" download>
+        DOWNLOAD FOR ANDROID
+      </a>
+      <span class="piqabu-dl-footnote">
+        Direct .apk · Allow installs from unknown sources when prompted
+      </span>
+    `;
+  }
+
+  function renderIosButton() {
+    return `
+      <a class="piqabu-dl" href="${IOS_URL}">
+        DOWNLOAD FOR IPHONE
+      </a>
+      <span class="piqabu-dl-footnote">
+        Via TestFlight while we're in beta
+      </span>
+    `;
+  }
+
+  function renderBoth() {
+    return `
+      <div class="piqabu-dl-stack">
+        <a class="piqabu-dl" href="${ANDROID_URL}" download>FOR ANDROID</a>
+        <a class="piqabu-dl piqabu-dl-secondary" href="${IOS_URL}">FOR IPHONE</a>
+      </div>
+      <span class="piqabu-dl-footnote">
+        Both versions · Same privacy posture
+      </span>
+    `;
+  }
+
+  const root = document.getElementById("piqabu-download-root");
+  if (!root) return;
+  const platform = detectPlatform();
+  if (platform === "android")      root.innerHTML = renderAndroidButton();
+  else if (platform === "ios")     root.innerHTML = renderIosButton();
+  else                             root.innerHTML = renderBoth();
+})();
+</script>
+
+<!--
+  Suggested companion page at piqabu.live/ios-coming-soon
+  (replace with the actual TestFlight link as soon as it goes live):
+
+    <h1>iPhone version — coming soon</h1>
+    <p>
+      Piqabu is currently in beta on Android.
+      The iPhone version is in Apple's beta review pipeline.
+    </p>
+    <p>
+      Enter your email to be notified when TestFlight opens:
+      [email signup form, e.g. Mailchimp or Netlify Forms]
+    </p>
+    <p>
+      <a href="/">← Back to piqabu.live</a>
+    </p>
+-->
