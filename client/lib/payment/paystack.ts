@@ -73,7 +73,7 @@ interface InitResponse {
     currency: string;
 }
 
-interface StatusResponse {
+export interface StatusResponse {
     tier: 'free' | 'pro';
     proUntil: string | null;
     graceUntil?: string | null;
@@ -81,9 +81,37 @@ interface StatusResponse {
     source?: string | null;
     isTrial?: boolean;
     // Paystack reference of the most recent SUCCESSFUL purchase.
-    // Used to detect whether the specific transaction we just kicked off
-    // landed — distinguishing it from "device is already on a trial."
     paystackReference?: string | null;
+    // Paystack reference of an in-flight purchase that the server is
+    // waiting on. Set the moment client calls /init, cleared when
+    // activation lands. The upgrade screen reads this to render the
+    // "PAYMENT PENDING" state instead of the CONTINUE CTA.
+    paystackPendingReference?: string | null;
+    paystackPendingSince?: string | null;
+}
+
+// Pending payments older than this are treated as stale (likely
+// abandoned MoMo charge or failed transaction Paystack never told us
+// about). The upgrade screen lets the user start a new payment after
+// this window.
+export const PENDING_STALE_AFTER_MS = 10 * 60 * 1000; // 10 minutes
+
+export async function fetchSubscriptionStatus(deviceId: string): Promise<StatusResponse | null> {
+    if (!deviceId) return null;
+    try {
+        const res = await fetch(`${CONFIG.SIGNAL_TOWER_URL}/api/paystack/status/${encodeURIComponent(deviceId)}`);
+        if (!res.ok) return null;
+        return res.json();
+    } catch {
+        return null;
+    }
+}
+
+export function isPendingFresh(status: StatusResponse | null): boolean {
+    if (!status?.paystackPendingReference) return false;
+    if (!status.paystackPendingSince) return true; // unknown → safer to treat as fresh
+    const ageMs = Date.now() - new Date(status.paystackPendingSince).getTime();
+    return ageMs < PENDING_STALE_AFTER_MS;
 }
 
 const POLL_INTERVAL_MS = 1500;

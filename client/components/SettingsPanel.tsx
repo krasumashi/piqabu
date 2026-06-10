@@ -355,11 +355,13 @@ export default function SettingsPanel({
                             color={THEME.muted}
                         />
                         <Text style={styles.itemLabel}>
-                            {isPro
-                                ? (proTimeline.inGracePeriod
+                            {!isPro
+                                ? `UPGRADE TO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`
+                                : proTimeline.inGracePeriod
                                     ? `RENEW NOW · ${pricing.displayPrice}`
-                                    : `EXTEND ANOTHER YEAR · ${pricing.displayPrice}`)
-                                : `UPGRADE TO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`}
+                                    : proTimeline.isTrial
+                                        ? `GO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`
+                                        : `EXTEND ANOTHER YEAR · ${pricing.displayPrice}`}
                         </Text>
                     </View>
                     <Ionicons name="arrow-forward" size={14} color={THEME.ink} />

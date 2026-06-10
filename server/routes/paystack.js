@@ -130,8 +130,13 @@ function createPaystackRouter({ io }) {
             // status polling endpoint) can map back to this device even
             // if metadata gets lost. We don't grant Pro yet — that
             // happens after webhook + verify.
+            // paystackPendingSince lets the client + admin reason about
+            // how long the payment has been in flight (e.g. for MoMo,
+            // which can sit pending for several minutes between the
+            // user submitting on Paystack and approving via USSD).
             setSubscription(deviceId, {
                 paystackPendingReference: data.reference,
+                paystackPendingSince: new Date().toISOString(),
                 paystackEmail: cleanEmail,
             });
 
@@ -198,10 +203,18 @@ function createPaystackRouter({ io }) {
             // Paystack reference of the most recent SUCCESSFUL purchase.
             // Used by the client's checkout poll to distinguish "this
             // specific transaction completed" from "the device is already
-            // Pro from a trial." Without it, the client falsely reports
-            // success the moment it sees tier==='pro', even when the user
-            // dismissed the webview without paying.
+            // Pro from a trial."
             paystackReference: record.paystackReference || null,
+            // Reference of an IN-FLIGHT purchase — set by /init when the
+            // client kicks off checkout, cleared by activatePro once the
+            // payment lands or by the next /init call. While set, the
+            // upgrade screen shows "PAYMENT PENDING" instead of the
+            // CONTINUE CTA so the user doesn't accidentally double-pay
+            // — especially important on MTN MoMo, where the charge can
+            // sit pending for minutes between Paystack closing the
+            // webview and the user approving on their phone.
+            paystackPendingReference: record.paystackPendingReference || null,
+            paystackPendingSince: record.paystackPendingSince || null,
         });
     });
 
@@ -282,8 +295,10 @@ function activatePro(deviceId, tx) {
     setSubscription(deviceId, {
         tier: 'pro',
         proUntil,
+        source: 'paystack',
         paystackReference: tx.reference,
         paystackPendingReference: null, // clear pending marker
+        paystackPendingSince: null,
         paystackLastAmount: tx.amount,
         paystackLastCurrency: tx.currency,
     });
