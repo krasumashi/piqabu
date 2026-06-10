@@ -23,7 +23,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
 import { useRoomContext } from '../contexts/RoomContext';
-import { startCheckout } from '../lib/payment/paystack';
+import { startCheckout as startPaystackCheckout } from '../lib/payment/paystack';
+import { startAppleCheckout } from '../lib/payment/appleIap';
 import { usePricing } from '../lib/payment/usePricing';
 import { setProAccess, syncProAccessFromServer } from '../lib/pro';
 
@@ -56,10 +57,16 @@ export default function UpgradeScreen() {
         setBusy(true);
         setErrorMsg(null);
 
-        const result = await startCheckout({
-            deviceId,
-            email: email.trim() || undefined,
-        });
+        // Branch by platform: iOS goes through Apple IAP (regulatory
+        // requirement), Android through Paystack (our merchant of
+        // record). The two flows return the same CheckoutResult shape
+        // so this caller doesn't care which fired.
+        const result = Platform.OS === 'ios'
+            ? await startAppleCheckout({ deviceId })
+            : await startPaystackCheckout({
+                deviceId,
+                email: email.trim() || undefined,
+            });
 
         if (result.kind === 'success') {
             await setProAccess(true, { proUntil: result.proUntil ?? null, graceUntil: null });
@@ -120,22 +127,24 @@ export default function UpgradeScreen() {
                     <Benefit label="Direct line to the helpdesk in-app." />
                 </View>
 
-                <View style={styles.emailGroup}>
-                    <Text style={styles.emailLabel}>EMAIL (OPTIONAL — FOR PAYSTACK RECEIPT)</Text>
-                    <TextInput
-                        value={email}
-                        onChangeText={setEmail}
-                        placeholder="Leave blank for anonymous"
-                        placeholderTextColor={THEME.faint}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                        editable={!busy}
-                        style={styles.emailInput}
-                    />
-                    <Text style={styles.emailFootnote}>
-                        Piqabu doesn't store this. Paystack uses it for the receipt only.
-                    </Text>
-                </View>
+                {Platform.OS !== 'ios' && (
+                    <View style={styles.emailGroup}>
+                        <Text style={styles.emailLabel}>EMAIL (OPTIONAL — FOR PAYSTACK RECEIPT)</Text>
+                        <TextInput
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="Leave blank for anonymous"
+                            placeholderTextColor={THEME.faint}
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            editable={!busy}
+                            style={styles.emailInput}
+                        />
+                        <Text style={styles.emailFootnote}>
+                            Piqabu doesn't store this. Paystack uses it for the receipt only.
+                        </Text>
+                    </View>
+                )}
 
                 {errorMsg && (
                     <Text style={styles.errorText}>{errorMsg}</Text>
@@ -150,7 +159,11 @@ export default function UpgradeScreen() {
                     {busy ? (
                         <ActivityIndicator color={THEME.bg} size="small" />
                     ) : (
-                        <Text style={styles.ctaText}>CONTINUE TO PAYSTACK · {pricing.displayPrice}</Text>
+                        <Text style={styles.ctaText}>
+                            {Platform.OS === 'ios'
+                                ? `CONTINUE WITH APP STORE`
+                                : `CONTINUE TO PAYSTACK · ${pricing.displayPrice}`}
+                        </Text>
                     )}
                 </TouchableOpacity>
 

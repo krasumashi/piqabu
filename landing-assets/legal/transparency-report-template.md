@@ -2,7 +2,7 @@
 
 **Period covered:** [DATE] to [DATE]
 **Published:** [DATE]
-**Authored by:** Piqabu Ltd
+**Authored by:** Wyetey LTD
 
 This is Piqabu's [Nth] Transparency Report. We publish one every six months — once in January (covering the previous July to December) and once in July (covering January to June).
 
@@ -25,7 +25,7 @@ A complete breakdown is in Section 3 below.
 
 ## 2. Warrant canary
 
-> As of [DATE], Piqabu Ltd has not received any national security letter, court order, or other instrument requiring us to take action that we have been forbidden from disclosing in this report.
+> As of [DATE], Wyetey LTD has not received any national security letter, court order, or other instrument requiring us to take action that we have been forbidden from disclosing in this report.
 
 If a future Transparency Report omits this statement, that omission is meaningful.
 

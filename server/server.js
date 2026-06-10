@@ -26,6 +26,7 @@ const deviceRegistry = require('./lib/deviceRegistry');
 const adminStore = require('./lib/adminStore');
 const stripeRoutes = require('./routes/stripe');
 const { createPaystackRouter } = require('./routes/paystack');
+const { createAppleIapRouter } = require('./routes/appleIap');
 const { createAdminRouter } = require('./routes/admin');
 const path = require('path');
 
@@ -273,6 +274,11 @@ app.use('/admin', createAdminRouter({ io, rooms, participants }));
 // live socket the moment Pro activates.
 app.use(createPaystackRouter({ io }));
 
+// Apple In-App Purchase — iOS-only payments path. Receipt validation
+// + S2S server-notification webhook. Server-side validation is
+// mandatory; never trust the client's IAP claim alone.
+app.use(createAppleIapRouter({ io }));
+
 // Tier room limits
 const ROOM_LIMITS = { free: 1, pro: 5 };
 
@@ -322,12 +328,37 @@ io.use((socket, next) => {
             return next(new Error('invalid_device_id'));
         }
         socket.data.deviceId = result.sanitized;
-        // Look up tier from subscription store
-        socket.data.tier = getTier(result.sanitized);
         // Record the device in the lifetime registry — sets firstSeen
         // on first encounter, refreshes lastSeen on every reconnect.
+        // Returns true if this was the device's first-ever connection,
+        // which gates one-time 7-day trial provisioning below.
         // Best-effort; failures here mustn't break the handshake.
-        try { deviceRegistry.touch(result.sanitized); } catch { /* noop */ }
+        let isFirstEncounter = false;
+        try { isFirstEncounter = deviceRegistry.touch(result.sanitized); }
+        catch { /* noop */ }
+
+        // First-time-only 7-day trial grant. Idempotent inside
+        // subscriptionStore — calling twice is a noop. We use the
+        // deviceRegistry's first-encounter flag rather than checking
+        // the subscription store directly, so the grant fires for
+        // a clean Ghost ID and never for a returning install.
+        if (isFirstEncounter) {
+            try {
+                const adminStore = require('./lib/adminStore');
+                const granted = require('./lib/subscriptionStore').startTrialIfEligible(result.sanitized);
+                if (granted) {
+                    adminStore.addLog('info', '7-day trial granted', {
+                        deviceId: result.sanitized,
+                    });
+                }
+            } catch (e) {
+                console.warn('[Trial] grant failed:', e?.message);
+            }
+        }
+
+        // Look up tier from subscription store (after possible trial grant
+        // above so the freshly-trialing device shows up as 'pro').
+        socket.data.tier = getTier(result.sanitized);
     } else {
         socket.data.tier = 'free';
     }

@@ -97,13 +97,13 @@ export default function LiveLauncher({
     }, [visible]);
 
     const handleSelect = (mode: 'glass' | 'mirror') => {
-        // Live Mirror is gated as "COMING SOON" — the react-native-webrtc
-        // screen-capture path produces frames the receiver can't render
-        // reliably across Android devices. Defer until we have a proper
-        // server-relayed pipeline (LiveKit / Mediasoup) or definitive
-        // logcat diagnosis. The card is rendered as disabled below;
-        // this guard is belt-and-braces in case the touchable still fires.
-        if (mode === 'mirror') return;
+        // Live Mirror re-enabled for real-device testing per the user's
+        // ask. Previously gated as COMING SOON while we ran the emulator-
+        // to-emulator debug loop (frames rendered green on the sender but
+        // black on the receiver — suspected H.264 decoding issue in the
+        // emulator). The diagnostic strip is still in place; if real-
+        // device testing reveals the same symptoms we'll know it's a real
+        // pipeline issue rather than emulator-specific.
         onDismiss();
         requestAnimationFrame(() => {
             if (mode === 'glass') onSelectGlass();

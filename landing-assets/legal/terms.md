@@ -3,7 +3,7 @@
 **Effective: [TO BE FILLED ON PUBLISH]**
 **Last updated: [TO BE FILLED ON PUBLISH]**
 
-These Terms govern your use of Piqabu, the mobile application and related services operated by **Piqabu Ltd, a company registered under the laws of the Republic of Ghana** ("Piqabu", "we", "us", "our"). By using Piqabu, you agree to these Terms.
+These Terms govern your use of Piqabu, the mobile application and related services operated by **Wyetey LTD, a company registered under the laws of the Republic of Ghana**, under the **Ahtohmoh** brand, of which Piqabu is a product ("Piqabu", "we", "us", "our"). By using Piqabu, you agree to these Terms.
 
 If you do not agree, do not use Piqabu.
 
@@ -150,7 +150,7 @@ Some jurisdictions do not allow the exclusion of certain warranties or limitatio
 
 ## 11. Indemnification
 
-You agree to defend, indemnify, and hold harmless Piqabu Ltd, its officers, directors, employees, and agents from and against any claims, liabilities, damages, losses, and expenses (including reasonable legal fees) arising out of or in any way connected with:
+You agree to defend, indemnify, and hold harmless Wyetey LTD, its officers, directors, employees, and agents from and against any claims, liabilities, damages, losses, and expenses (including reasonable legal fees) arising out of or in any way connected with:
 
 - Your use of Piqabu.
 - Your violation of these Terms or any law.
@@ -187,7 +187,7 @@ Nothing in this section limits any right you may have under Ghanaian consumer la
 
 ## Contact
 
-Piqabu Ltd
+Wyetey LTD
 [Registered office address — TO BE FILLED]
 Republic of Ghana
 **legal@piqabu.live**

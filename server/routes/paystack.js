@@ -192,6 +192,9 @@ function createPaystackRouter({ io }) {
             proUntil: record.proUntil || null,
             graceUntil: record.graceUntil || null,
             inGracePeriod: !!record.inGracePeriod,
+            // 'trial' | 'paystack' | 'apple_iap' | 'admin' | null
+            source: record.source || null,
+            isTrial: record.source === 'trial',
         });
     });
 

@@ -15,12 +15,23 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.krasumashi.piqabu",
+      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "Piqabu uses the camera for the Live Glass feature",
-        "NSMicrophoneUsageDescription": "Piqabu uses the microphone for the Whisper feature"
+        "NSCameraUsageDescription": "Piqabu uses the camera only when you start a Live Glass session, so you and your conversation partner can see each other privately.",
+        "NSMicrophoneUsageDescription": "Piqabu uses the microphone only when you start a Whisper or Live Glass session.",
+        "NSPhotoLibraryUsageDescription": "Piqabu can read images from your photo library when you choose to reveal them to a conversation partner. Images stay private and ephemeral.",
+        "NSFaceIDUsageDescription": "Piqabu uses Face ID for biometric lock if you enable it in Settings.",
+        "LSApplicationQueriesSchemes": [
+          "whatsapp",
+          "mailto"
+        ]
       },
-      "bitcode": false
+      "associatedDomains": [
+        "applinks:piqabu.live"
+      ],
+      "bitcode": false,
+      "appleTeamId": "C78383ZQUS"
     },
     "android": {
       "adaptiveIcon": {
@@ -72,7 +83,8 @@
         }
       ],
       "./plugins/withMediaProjectionService.js",
-      "expo-web-browser"
+      "expo-web-browser",
+      "react-native-iap"
     ],
     "runtimeVersion": "1.0.0",
     "updates": {

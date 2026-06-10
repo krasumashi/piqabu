@@ -2,7 +2,7 @@
 
 **Effective: [TO BE FILLED ON PUBLISH]**
 
-This policy describes how **Piqabu Ltd** responds to requests for user data from government and law enforcement agencies.
+This policy describes how **Wyetey LTD** responds to requests for user data from government and law enforcement agencies.
 
 We have written it for two audiences: (1) law enforcement officials who need to know how to validly request data from us, and (2) Piqabu users who want to know what we will and won't do under legal pressure.
 
@@ -137,7 +137,7 @@ The most recent report is at [piqabu.live/transparency](https://piqabu.live/tran
 
 Each Transparency Report will include a statement of the form:
 
-> "As of [date], Piqabu Ltd has not received any national security letter, court order, or other instrument requiring us to take action that we have been forbidden from disclosing in this report."
+> "As of [date], Wyetey LTD has not received any national security letter, court order, or other instrument requiring us to take action that we have been forbidden from disclosing in this report."
 
 If a future report omits this statement, that omission is meaningful.
 
@@ -147,7 +147,7 @@ If a future report omits this statement, that omission is meaningful.
 
 For legal process and law-enforcement correspondence:
 
-Piqabu Ltd
+Wyetey LTD
 Attention: Legal Department
 [Registered office address — TO BE FILLED]
 Republic of Ghana

@@ -110,7 +110,7 @@ We will respond through the in-app helpdesk thread.
 
 ## Contact
 
-Piqabu Ltd
+Wyetey LTD
 **support@piqabu.live** — general / abuse reports
 **security@piqabu.live** — vulnerability reports
 **legal@piqabu.live** — formal legal correspondence

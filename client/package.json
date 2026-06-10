@@ -50,6 +50,7 @@
     "react-native": "0.81.5",
     "react-native-blob-util": "^0.24.7",
     "react-native-color-matrix-image-filters": "^8.0.2",
+    "react-native-iap": "^15.3.1",
     "react-native-pdf": "^7.0.4",
     "react-native-purchases": "^9.9.0",
     "react-native-reanimated": "~4.1.1",

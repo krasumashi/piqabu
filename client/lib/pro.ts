@@ -23,6 +23,7 @@ import { CONFIG } from '../constants/Config';
 const PRO_KEY = 'piqabu_pro_status';
 const PRO_UNTIL_KEY = 'piqabu_pro_until';     // ISO timestamp of expiry
 const GRACE_UNTIL_KEY = 'piqabu_grace_until';  // ISO timestamp of grace end
+const PRO_SOURCE_KEY = 'piqabu_pro_source';    // 'trial' | 'paystack' | 'apple_iap' | 'admin'
 
 /**
  * Mirror the Pro flag into the Piqabu Keyboard's cross-process
@@ -65,7 +66,7 @@ export async function syncProStatusToBridge(): Promise<void> {
     await mirrorProStatusToNative(isPro);
 }
 
-export async function setProAccess(isPro: boolean, opts?: { proUntil?: string | null; graceUntil?: string | null }): Promise<void> {
+export async function setProAccess(isPro: boolean, opts?: { proUntil?: string | null; graceUntil?: string | null; source?: string | null }): Promise<void> {
     try { await setSecureItem(PRO_KEY, isPro ? '1' : '0'); } catch { /* noop */ }
     // Persist the dates locally so the renew-soon prompt can render
     // without a network round-trip. Server is still the source of
@@ -75,6 +76,9 @@ export async function setProAccess(isPro: boolean, opts?: { proUntil?: string | 
     }
     if (opts?.graceUntil) {
         try { await setSecureItem(GRACE_UNTIL_KEY, opts.graceUntil); } catch { /* noop */ }
+    }
+    if (opts?.source) {
+        try { await setSecureItem(PRO_SOURCE_KEY, opts.source); } catch { /* noop */ }
     }
     // Fire-and-forget mirror to the IME bridge. Ordering doesn't matter —
     // the keyboard re-checks Pro on every onStartInputView so the next
@@ -95,15 +99,22 @@ export interface ProTimeline {
     /** Whole days until graceUntil (hard lockout). Null in normal
      *  pre-expiry state. */
     daysUntilHardLockout: number | null;
+    /** 'trial' | 'paystack' | 'apple_iap' | 'admin' | null */
+    source: string | null;
+    /** True when source==='trial' AND we're inside proUntil — i.e. the
+     *  free 7-day trial is currently active. UI labels Pro as "TRIAL"
+     *  rather than "PRO" in this state. */
+    isTrial: boolean;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function computeTimeline(proUntilISO: string | null, graceUntilISO: string | null): ProTimeline {
+function computeTimeline(proUntilISO: string | null, graceUntilISO: string | null, source: string | null): ProTimeline {
     const now = Date.now();
     const proUntilMs = proUntilISO ? new Date(proUntilISO).getTime() : null;
     const graceUntilMs = graceUntilISO ? new Date(graceUntilISO).getTime() : null;
     const inGracePeriod = !!(proUntilMs && graceUntilMs && now >= proUntilMs && now < graceUntilMs);
+    const isTrial = source === 'trial' && !!proUntilMs && now < proUntilMs;
     return {
         proUntil: proUntilISO,
         graceUntil: graceUntilISO,
@@ -114,6 +125,8 @@ function computeTimeline(proUntilISO: string | null, graceUntilISO: string | nul
         daysUntilHardLockout: inGracePeriod && graceUntilMs != null
             ? Math.ceil((graceUntilMs - now) / DAY_MS)
             : null,
+        source,
+        isTrial,
     };
 }
 
@@ -121,9 +134,10 @@ export async function getProTimeline(): Promise<ProTimeline> {
     try {
         const proUntil = await getSecureItem(PRO_UNTIL_KEY);
         const graceUntil = await getSecureItem(GRACE_UNTIL_KEY);
-        return computeTimeline(proUntil, graceUntil);
+        const source = await getSecureItem(PRO_SOURCE_KEY);
+        return computeTimeline(proUntil, graceUntil, source);
     } catch {
-        return computeTimeline(null, null);
+        return computeTimeline(null, null, null);
     }
 }
 
@@ -134,7 +148,7 @@ export async function getProTimeline(): Promise<ProTimeline> {
  */
 export function useProTimeline(): { timeline: ProTimeline; refresh: () => Promise<void> } {
     const [timeline, setTimeline] = useState<ProTimeline>(() =>
-        computeTimeline(null, null));
+        computeTimeline(null, null, null));
     const refresh = useCallback(async () => {
         const t = await getProTimeline();
         setTimeline(t);
@@ -161,10 +175,12 @@ export async function syncProAccessFromServer(deviceId: string): Promise<void> {
             tier: 'free' | 'pro';
             proUntil: string | null;
             graceUntil: string | null;
+            source?: string | null;
         };
         await setProAccess(data.tier === 'pro', {
             proUntil: data.proUntil,
             graceUntil: data.graceUntil,
+            source: data.source ?? null,
         });
     } catch { /* offline / dev — silently skip */ }
 }

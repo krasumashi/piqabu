@@ -100,6 +100,6 @@ We may revise this policy. Changes apply prospectively to new purchases — your
 
 ## Contact
 
-Piqabu Ltd
+Wyetey LTD
 **support@piqabu.live**
 Republic of Ghana

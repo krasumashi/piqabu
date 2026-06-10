@@ -3,7 +3,7 @@
 **Effective: [TO BE FILLED ON PUBLISH]**
 **Last updated: [TO BE FILLED ON PUBLISH]**
 
-This Privacy Policy explains what data **Piqabu Ltd** ("Piqabu", "we") processes when you use the Piqabu mobile app and related services, why we process it, and your rights over it.
+This Privacy Policy explains what data **Wyetey LTD**, operating under the **Ahtohmoh** brand ("Piqabu", "we"), processes when you use the Piqabu mobile app and related services, why we process it, and your rights over it.
 
 This policy is written to comply with **Ghana's Data Protection Act, 2012 (Act 843)**, and the principles of the EU General Data Protection Regulation (GDPR). Where local law gives you stronger rights, those stronger rights apply.
 
@@ -222,7 +222,7 @@ We may revise this policy. When we do, we will update the "Last updated" date at
 
 For questions about this policy or to exercise any of the rights described in Section 5:
 
-Piqabu Ltd
+Wyetey LTD
 **privacy@piqabu.live**
 [Registered office address — TO BE FILLED]
 Republic of Ghana

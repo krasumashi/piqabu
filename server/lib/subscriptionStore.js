@@ -160,6 +160,43 @@ function findByStripeCustomer(customerId) {
  * analytics. If it can't be derived from data the operator already
  * legitimately sees, it doesn't appear here.
  */
+/**
+ * 7-day free trial — granted automatically the FIRST time we see a
+ * Ghost ID. Idempotent: re-calling with the same deviceId after the
+ * trial has been granted does nothing. After the trial expires the
+ * device drops back to free naturally via the proUntil resolution
+ * in getSubscription().
+ *
+ * If the device has ever had `source` set (i.e. they've subscribed
+ * via Paystack / Apple IAP / admin override) we do not grant a trial —
+ * that would be a regression. If they're churning post-trial and
+ * want another shot, they convert through the normal paywall.
+ *
+ * Returns true if a trial was granted in this call, false otherwise.
+ */
+const TRIAL_DAYS = 7;
+
+function startTrialIfEligible(deviceId) {
+    if (!deviceId) return false;
+    const store = loadStore();
+    const existing = store[deviceId];
+    // Already had ANY proUntil set? Don't reset — that includes a
+    // trial we previously granted, plus all real subscriptions.
+    if (existing && existing.proUntil) return false;
+    if (existing && existing.source && existing.source !== 'trial') return false;
+    const proUntil = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    store[deviceId] = {
+        ...(existing || {}),
+        tier: 'pro',
+        proUntil,
+        source: 'trial',
+        trialGrantedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+    };
+    saveStore(store);
+    return true;
+}
+
 function aggregateProStats() {
     const store = loadStore();
     const now = Date.now();
@@ -251,5 +288,7 @@ module.exports = {
     aggregateProStats,
     revenueByCurrency,
     revenueByDay,
+    startTrialIfEligible,
+    TRIAL_DAYS,
     GRACE_PERIOD_MS,
 };

@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "C78383ZQUS.com.krasumashi.piqabu",
+        "paths": [
+          "/j/*",
+          "/upgrade"
+        ]
+      }
+    ]
+  }
+}

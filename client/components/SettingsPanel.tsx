@@ -283,7 +283,9 @@ export default function SettingsPanel({
                     <View style={styles.proSummaryRow}>
                         <Text style={styles.proSummaryLabel}>TIER</Text>
                         <Text style={[styles.proSummaryValue, isPro && { color: THEME.live }]}>
-                            {isPro ? 'PRO' : 'FREE'}
+                            {isPro
+                                ? (proTimeline.isTrial ? 'PRO · TRIAL' : 'PRO')
+                                : 'FREE'}
                         </Text>
                     </View>
                     {isPro && proTimeline.proUntil && (

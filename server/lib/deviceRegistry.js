@@ -52,17 +52,25 @@ function saveStore(store) {
  * Touch the registry — call this every time a device connects.
  * Updates lastSeen; sets firstSeen if this is the first encounter.
  * Synchronous write so a crash mid-handshake doesn't lose the record.
+ *
+ * Returns true on the FIRST encounter ever for a given deviceId, false
+ * otherwise. Callers use this to gate one-time provisioning logic —
+ * notably the 7-day trial grant in server.js — without needing to read
+ * the store twice.
  */
 function touch(deviceId) {
-    if (!deviceId || typeof deviceId !== 'string') return;
+    if (!deviceId || typeof deviceId !== 'string') return false;
     const store = loadStore();
     const now = new Date().toISOString();
+    let isFirst = false;
     if (!store[deviceId]) {
         store[deviceId] = { firstSeen: now, lastSeen: now };
+        isFirst = true;
     } else {
         store[deviceId].lastSeen = now;
     }
     saveStore(store);
+    return isFirst;
 }
 
 /**
