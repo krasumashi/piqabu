@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated, TextInput, Alert, KeyboardAvoidingView, Linking } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Share, Platform, Animated as RNAnimated, TextInput, Alert, KeyboardAvoidingView, Linking, ScrollView, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -104,7 +104,11 @@ export default function SettingsPanel({
             ],
         );
     };
-    const slideAnim = useRef(new RNAnimated.Value(300)).current;
+    // Bottom-sheet animation. translateY starts off-screen below
+    // (sheetHeight + insets.bottom) and springs up to 0.
+    const SCREEN_H = Dimensions.get('window').height;
+    const SHEET_HEIGHT = Math.min(SCREEN_H * 0.85, 720);
+    const slideAnim = useRef(new RNAnimated.Value(SCREEN_H)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
 
     const [feedbackVisible, setFeedbackVisible] = useState(false);
@@ -149,13 +153,13 @@ export default function SettingsPanel({
     useEffect(() => {
         if (visible) {
             RNAnimated.parallel([
-                RNAnimated.spring(slideAnim, { toValue: 0, damping: 25, stiffness: 200, useNativeDriver: true }),
-                RNAnimated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+                RNAnimated.spring(slideAnim, { toValue: 0, damping: 22, stiffness: 180, mass: 1, useNativeDriver: true }),
+                RNAnimated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
             ]).start();
         } else {
             RNAnimated.parallel([
-                RNAnimated.timing(slideAnim, { toValue: 300, duration: 200, useNativeDriver: true }),
-                RNAnimated.timing(fadeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+                RNAnimated.timing(slideAnim, { toValue: SCREEN_H, duration: 220, useNativeDriver: true }),
+                RNAnimated.timing(fadeAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
             ]).start();
         }
     }, [visible]);
@@ -183,15 +187,40 @@ export default function SettingsPanel({
                 <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
             </RNAnimated.View>
 
-            {/* Drawer */}
-            <RNAnimated.View style={[styles.drawer, { transform: [{ translateX: slideAnim }], paddingTop: Math.max(insets.top + 10, 20) }]}>
+            {/* Bottom sheet */}
+            <RNAnimated.View
+                style={[
+                    styles.sheet,
+                    {
+                        height: SHEET_HEIGHT,
+                        paddingBottom: insets.bottom + 18,
+                        transform: [{ translateY: slideAnim }],
+                    },
+                ]}
+            >
+                {/* Drag handle — visual cue only; tap the X to close. */}
+                <View style={styles.handleWrap}>
+                    <View style={styles.handle} />
+                </View>
+
                 {/* Header */}
                 <View style={styles.drawerHeader}>
                     <Text style={styles.drawerTitle}>SETTINGS</Text>
-                    <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-                        <Text style={styles.closeBtnText}>CLOSE</Text>
+                    <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7} hitSlop={8}>
+                        <Ionicons name="close" size={18} color={THEME.muted} />
                     </TouchableOpacity>
                 </View>
+
+                {/* Scrollable content — anything past this point is
+                    inside the scroll surface. The sheet's footer (NO
+                    ACCOUNTS · NO HISTORY) sits below the scroll, not
+                    inside it. */}
+                <ScrollView
+                    style={styles.scrollSurface}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    bounces
+                >
 
                 {/* Channel Key */}
                 <View style={styles.item}>
@@ -441,9 +470,14 @@ export default function SettingsPanel({
                     <Ionicons name="trash-outline" size={14} color={THEME.bad} />
                 </TouchableOpacity>
 
-                {/* Footer */}
+                {/* Spacer at end of scroll so the last item never feels
+                    hugged by the sticky footer below. */}
+                <View style={{ height: 18 }} />
+                </ScrollView>
+
+                {/* Sticky footer — outside the scroll surface. */}
                 <View style={styles.drawerFooter}>
-                    <Text style={styles.footerText}>NO ACCOUNTS. NO HISTORY.</Text>
+                    <Text style={styles.footerText}>NO ACCOUNTS · NO HISTORY</Text>
                 </View>
             </RNAnimated.View>
 
@@ -457,31 +491,55 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.5)',
         zIndex: 90,
     },
-    drawer: {
+    sheet: {
         position: 'absolute',
-        top: 0,
-        bottom: 0,
+        left: 0,
         right: 0,
-        width: 300,
-        maxWidth: '85%',
-        backgroundColor: 'rgba(15,17,20,0.96)',
+        bottom: 0,
+        backgroundColor: THEME.paper,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        borderTopWidth: 1,
+        borderTopColor: THEME.edge,
         borderLeftWidth: 1,
-        borderLeftColor: THEME.edge,
+        borderLeftColor: THEME.edge2,
+        borderRightWidth: 1,
+        borderRightColor: THEME.edge2,
         zIndex: 100,
-        padding: 18,
-        // paddingTop is now dynamic via useSafeAreaInsets in the component
-        gap: 12,
+        paddingHorizontal: 18,
+        paddingTop: 8,
         shadowColor: '#000',
-        shadowOffset: { width: -10, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 40,
-        elevation: 20,
+        shadowOffset: { width: 0, height: -14 },
+        shadowOpacity: 0.55,
+        shadowRadius: 30,
+        elevation: 30,
+    },
+    handleWrap: {
+        alignItems: 'center',
+        paddingTop: 6,
+        paddingBottom: 8,
+    },
+    handle: {
+        width: 38,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: 'rgba(245,243,235,0.18)',
+    },
+    scrollSurface: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingTop: 4,
+        gap: 12,
     },
     drawerHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 12,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: THEME.edge2,
     },
     drawerTitle: {
         fontFamily: THEME.mono,
@@ -492,20 +550,12 @@ const styles = StyleSheet.create({
         fontWeight: '900',
     },
     closeBtn: {
-        borderWidth: 1,
-        borderColor: 'rgba(245,243,235,0.20)',
-        backgroundColor: 'transparent',
-        paddingVertical: 6,
-        paddingHorizontal: 10,
-        borderRadius: 12,
-    },
-    closeBtnText: {
-        fontFamily: THEME.mono,
-        fontSize: 10,
-        letterSpacing: 10 * 0.22,
-        fontWeight: '900',
-        color: THEME.muted,
-        textTransform: 'uppercase',
+        width: 32,
+        height: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 16,
+        backgroundColor: 'rgba(245,243,235,0.06)',
     },
     item: {
         flexDirection: 'row',
@@ -593,16 +643,20 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     drawerFooter: {
-        marginTop: 'auto',
-        paddingVertical: 6,
+        paddingTop: 14,
+        paddingBottom: 6,
+        borderTopWidth: 1,
+        borderTopColor: THEME.edge2,
+        alignItems: 'center',
     },
     footerText: {
         fontFamily: THEME.mono,
-        fontSize: 10,
-        letterSpacing: 10 * 0.12,
+        fontSize: 9,
+        letterSpacing: 2.2,
         color: THEME.faint,
-        lineHeight: 16,
+        lineHeight: 14,
         textTransform: 'uppercase',
+        fontWeight: '700',
     },
     feedbackContainer: {
         padding: 12,

@@ -47,7 +47,7 @@ In this case we will refund and ban the receiving Ghost ID. You should also cont
 
 ### 3.4 Required by mandatory consumer law
 
-If Ghanaian consumer law mandates a refund in a circumstance not listed above, we will comply with that requirement to the extent required.
+If Ghana consumer law mandates a refund in a circumstance not listed above, we will comply with that requirement to the extent required.
 
 ---
 
@@ -102,4 +102,4 @@ We may revise this policy. Changes apply prospectively to new purchases — your
 
 Wyetey LTD
 **support@piqabu.live**
-Republic of Ghana
+Ghana

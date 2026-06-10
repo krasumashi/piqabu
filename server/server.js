@@ -337,23 +337,26 @@ io.use((socket, next) => {
         try { isFirstEncounter = deviceRegistry.touch(result.sanitized); }
         catch { /* noop */ }
 
-        // First-time-only 7-day trial grant. Idempotent inside
-        // subscriptionStore — calling twice is a noop. We use the
-        // deviceRegistry's first-encounter flag rather than checking
-        // the subscription store directly, so the grant fires for
-        // a clean Ghost ID and never for a returning install.
-        if (isFirstEncounter) {
-            try {
-                const adminStore = require('./lib/adminStore');
-                const granted = require('./lib/subscriptionStore').startTrialIfEligible(result.sanitized);
-                if (granted) {
-                    adminStore.addLog('info', '7-day trial granted', {
-                        deviceId: result.sanitized,
-                    });
-                }
-            } catch (e) {
-                console.warn('[Trial] grant failed:', e?.message);
+        // 7-day trial grant on every connect — idempotent inside
+        // subscriptionStore (skips if proUntil already set, skips if
+        // source is set to anything other than 'trial'). Calling
+        // unconditionally rather than gating on first-encounter means
+        // existing users — Android folks already in the device
+        // registry from before this rollout — also pick up the trial
+        // on their next connection. New users get it on first connect.
+        // Suppress the log spam by only logging when a grant actually
+        // happened.
+        try {
+            const adminStore = require('./lib/adminStore');
+            const granted = require('./lib/subscriptionStore').startTrialIfEligible(result.sanitized);
+            if (granted) {
+                adminStore.addLog('info', '7-day trial granted', {
+                    deviceId: result.sanitized,
+                    wasFirstEncounter: isFirstEncounter,
+                });
             }
+        } catch (e) {
+            console.warn('[Trial] grant failed:', e?.message);
         }
 
         // Look up tier from subscription store (after possible trial grant

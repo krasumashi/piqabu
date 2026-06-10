@@ -34,7 +34,7 @@ The following will result in **device banning without prior notice**, at our dis
 - **Non-consensual intimate imagery** — sharing sexually explicit images of any person without their consent.
 - **Hate speech** — content attacking people based on race, ethnicity, religion, nationality, disability, sexual orientation, or gender identity.
 - **Fraud and impersonation** — pretending to be someone you are not with intent to deceive.
-- **Illegal commerce** — sale or purchase of illegal drugs, weapons, stolen goods, counterfeit currency, or services illegal under Ghanaian law.
+- **Illegal commerce** — sale or purchase of illegal drugs, weapons, stolen goods, counterfeit currency, or services illegal under Ghana law.
 - **Human trafficking and labour exploitation** — any role in recruiting, transporting, harbouring, or exploiting people.
 - **Malware** — distributing, hosting, or linking to malicious software.
 - **Spam** — unsolicited bulk communications.
@@ -114,4 +114,4 @@ Wyetey LTD
 **support@piqabu.live** — general / abuse reports
 **security@piqabu.live** — vulnerability reports
 **legal@piqabu.live** — formal legal correspondence
-Republic of Ghana
+Ghana

@@ -12,7 +12,7 @@ We are committed to lawful cooperation. We are equally committed to honest discl
 
 ## 1. The short version
 
-- We require **valid legal process** issued by a Ghanaian court or competent authority, properly served on us at the address below.
+- We require **valid legal process** issued by a court in Ghana or competent authority, properly served on us at the address below.
 - We produce **only data we actually hold**. By design, that is very little: a Ghost ID, connection timestamps, payment records.
 - We **do not have message contents**. The product is built so message contents are ephemeral and not persisted past delivery. We cannot produce what we don't have.
 - We **notify affected users** of the request when not prohibited by law from doing so.
@@ -55,7 +55,7 @@ We will respond to requests that meet **all** of the following criteria:
 2. **Identification of the requester.** A clearly identified law enforcement officer, prosecutor, or court — with badge / role / credential information sufficient for us to verify.
 3. **Specificity.** A specific Ghost ID, transaction reference, or other unambiguous identifier. We will not respond to "fishing" requests that ask for all users meeting vague criteria.
 4. **Service.** Properly served on us at **legal@piqabu.live** or at our registered office.
-5. **Compliance with applicable law.** The request must comply with the relevant Ghanaian law and, if applicable, with international comity (for foreign requests, typically via MLAT).
+5. **Compliance with applicable law.** The request must comply with the relevant Ghana law and, if applicable, with international comity (for foreign requests, typically via MLAT).
 
 We will challenge requests that do not meet these requirements.
 
@@ -94,13 +94,13 @@ Piqabu is operated by a Ghana-registered company. We do not respond to direct re
 - A **mutual legal assistance treaty (MLAT)** request between the requesting country's authorities and Ghana's Ministry of Justice.
 - An **emergency request** from a recognised foreign agency under Section 4, which we may consider at our discretion.
 
-We will provide data in response to foreign requests only after Ghanaian legal review.
+We will provide data in response to foreign requests only after legal review in Ghana.
 
 ---
 
 ## 7. Civil legal process
 
-For civil cases (defamation, divorce, breach of contract, etc.), we respond only to subpoenas served on us in accordance with Ghanaian civil procedure rules. We will not produce user data on the strength of informal requests.
+For civil cases (defamation, divorce, breach of contract, etc.), we respond only to subpoenas served on us in accordance with civil procedure rules in Ghana. We will not produce user data on the strength of informal requests.
 
 We may charge a reasonable administrative fee for processing civil subpoenas.
 
@@ -150,7 +150,7 @@ For legal process and law-enforcement correspondence:
 Wyetey LTD
 Attention: Legal Department
 [Registered office address — TO BE FILLED]
-Republic of Ghana
+Ghana
 
 **legal@piqabu.live**
 

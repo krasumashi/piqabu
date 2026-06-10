@@ -3,7 +3,7 @@
 **Effective: [TO BE FILLED ON PUBLISH]**
 **Last updated: [TO BE FILLED ON PUBLISH]**
 
-These Terms govern your use of Piqabu, the mobile application and related services operated by **Wyetey LTD, a company registered under the laws of the Republic of Ghana**, under the **Ahtohmoh** brand, of which Piqabu is a product ("Piqabu", "we", "us", "our"). By using Piqabu, you agree to these Terms.
+These Terms govern your use of Piqabu, the mobile application and related services operated by **Wyetey LTD, a company registered under the laws of Ghana**, under the **Ahtohmoh** brand, of which Piqabu is a product ("Piqabu", "we", "us", "our"). By using Piqabu, you agree to these Terms.
 
 If you do not agree, do not use Piqabu.
 
@@ -58,7 +58,7 @@ We grant you a limited, personal, non-exclusive, non-transferable, revocable lic
 
 You may not:
 
-- Reverse-engineer, decompile, disassemble, or attempt to extract source code from the app, except to the extent permitted by mandatory Ghanaian law.
+- Reverse-engineer, decompile, disassemble, or attempt to extract source code from the app, except to the extent permitted by mandatory Ghana law.
 - Modify, distribute, sublicense, sell, rent, lease, or otherwise commercially exploit Piqabu.
 - Use Piqabu to operate a service for the benefit of third parties without our prior written agreement.
 - Use the Piqabu name, marks, or branding for any purpose without our written permission.
@@ -67,7 +67,7 @@ You may not:
 
 ## 5. Acceptable use
 
-Your use of Piqabu is subject to our [Acceptable Use Policy](./acceptable-use.md), which is incorporated into these Terms by reference. Violating that policy may result in immediate termination of your access without notice, without refund, and may be reported to law enforcement where required by Ghanaian law.
+Your use of Piqabu is subject to our [Acceptable Use Policy](./acceptable-use.md), which is incorporated into these Terms by reference. Violating that policy may result in immediate termination of your access without notice, without refund, and may be reported to law enforcement where required by Ghana law.
 
 In particular, you must not use Piqabu to:
 
@@ -126,7 +126,7 @@ On termination:
 
 **Piqabu is provided "as is" and "as available", without warranties of any kind**, express, implied, or statutory, including without limitation any warranties of merchantability, fitness for a particular purpose, non-infringement, or that the service will be uninterrupted, secure, error-free, or free of harmful components.
 
-To the maximum extent permitted by Ghanaian law, we disclaim any implied warranty.
+To the maximum extent permitted by Ghana law, we disclaim any implied warranty.
 
 We do not warrant that:
 
@@ -139,7 +139,7 @@ We do not warrant that:
 
 ## 10. Limitation of liability
 
-To the maximum extent permitted by Ghanaian law:
+To the maximum extent permitted by Ghana law:
 
 - **Our total aggregate liability** to you arising out of or relating to these Terms or your use of Piqabu **will not exceed the amount you actually paid to us in the 12 months preceding the event giving rise to liability** (which for a Free user is GH₵0, and for a Pro user is at most ₵300).
 - We will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, including but not limited to loss of profits, loss of business, loss of data, loss of goodwill, or any damages arising from third-party conduct on or through Piqabu.
@@ -167,11 +167,11 @@ We may revise these Terms. When we do, we will update the "Last updated" date at
 
 ## 13. Governing law and dispute resolution
 
-These Terms are governed by the **laws of the Republic of Ghana**, without regard to its conflict-of-laws principles.
+These Terms are governed by the **laws of Ghana**, without regard to its conflict-of-laws principles.
 
 Any dispute arising out of or relating to these Terms or your use of Piqabu shall be brought exclusively in the **courts sitting in Accra, Ghana**, and you consent to the personal jurisdiction of those courts. Before initiating formal proceedings, you agree to attempt to resolve the dispute informally by contacting us at **legal@piqabu.live** and allowing us 30 days to respond.
 
-Nothing in this section limits any right you may have under Ghanaian consumer law to seek redress through small claims or consumer protection bodies.
+Nothing in this section limits any right you may have under Ghana consumer law to seek redress through small claims or consumer protection bodies.
 
 ---
 
@@ -189,5 +189,5 @@ Nothing in this section limits any right you may have under Ghanaian consumer la
 
 Wyetey LTD
 [Registered office address — TO BE FILLED]
-Republic of Ghana
+Ghana
 **legal@piqabu.live**

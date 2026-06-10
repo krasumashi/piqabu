@@ -62,7 +62,7 @@ We do **not** collect:
 
 **Where.** Stored in our subscription database (Render).
 
-**How long.** 7 years from the date of payment, as required by Ghanaian tax law.
+**How long.** 7 years from the date of payment, as required by Ghana tax law.
 
 ### 1.4 Email address (optional)
 
@@ -127,7 +127,7 @@ We use the data described above for these purposes only:
 
 1. **Operational** — routing messages, verifying payment, applying subscriptions, blocking abuse.
 2. **Support** — responding to feedback you submit through the in-app helpdesk.
-3. **Legal compliance** — retaining payment records for tax purposes, responding to lawful requests from Ghanaian authorities (see Section 7).
+3. **Legal compliance** — retaining payment records for tax purposes, responding to lawful requests from authorities in Ghana (see Section 7).
 4. **Service improvement** — limited to aggregate counts (lifetime devices, active users by day) computed from data we already collect for operational reasons. No per-user behavioural tracking.
 
 We do not use your data for:
@@ -183,7 +183,7 @@ Piqabu is not directed at children under 18. We do not knowingly collect data fr
 
 We may receive requests from government and law enforcement agencies for user data. Our [Law Enforcement Response Policy](./law-enforcement.md) describes how we respond. In short:
 
-- We require valid legal process (warrant, subpoena, or equivalent) issued under Ghanaian law.
+- We require valid legal process (warrant, subpoena, or equivalent) issued under Ghana law.
 - We produce only what we have. By design, that is very little (Ghost ID, connection timestamps, payment records).
 - We do not have message contents to produce.
 - Where lawful, we notify the affected user.
@@ -225,7 +225,7 @@ For questions about this policy or to exercise any of the rights described in Se
 Wyetey LTD
 **privacy@piqabu.live**
 [Registered office address — TO BE FILLED]
-Republic of Ghana
+Ghana
 
 For a complaint:
 **Ghana Data Protection Commission**
