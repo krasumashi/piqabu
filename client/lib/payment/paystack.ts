@@ -36,8 +36,29 @@
  *     the subscription record itself.
  */
 
-import * as WebBrowser from 'expo-web-browser';
 import { CONFIG } from '../../constants/Config';
+
+// Defensive import: expo-web-browser is a native module added in
+// commit dd563ec ("Paystack integration"). Users still on a build
+// that predates that commit (v0.1.0) won't have the native side
+// installed, and a static `import * as WebBrowser from ...` would
+// throw on module load — locking the whole app out, not just
+// the checkout. Lazy-require here so we can detect the absence
+// and surface a friendly error.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let WebBrowser: any = null;
+function getWebBrowser(): {
+    openAuthSessionAsync?: (url: string, redirectUrl?: string) => Promise<{ type: string; url?: string }>;
+} | null {
+    if (WebBrowser) return WebBrowser;
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        WebBrowser = require('expo-web-browser');
+    } catch {
+        WebBrowser = null;
+    }
+    return WebBrowser;
+}
 
 export interface CheckoutResult {
     kind: 'success' | 'cancelled' | 'pending' | 'error';
@@ -100,6 +121,18 @@ async function pollUntilPro(deviceId: string): Promise<StatusResponse | null> {
 export async function startCheckout(
     { deviceId, email }: { deviceId: string; email?: string },
 ): Promise<CheckoutResult> {
+    // Guard against the v0.1.0 APK that doesn't have expo-web-browser
+    // in its native build. Without this check the upgrade screen
+    // bridges into a missing native module, hangs, and the user is
+    // stuck on a dark screen with no way back.
+    const wb = getWebBrowser();
+    if (!wb || typeof wb.openAuthSessionAsync !== 'function') {
+        return {
+            kind: 'error',
+            reason: 'Payments aren\'t available in this build of Piqabu. Please update to the latest version (a new install required, not just relaunch) and try again.',
+        };
+    }
+
     let init: InitResponse;
     try {
         init = await postInit(deviceId, email);
@@ -107,14 +140,14 @@ export async function startCheckout(
         return { kind: 'error', reason: e instanceof Error ? e.message : 'Could not start payment.' };
     }
 
-    let browserResult: WebBrowser.WebBrowserAuthSessionResult;
+    let browserResult: { type: string; url?: string };
     try {
         // The "return URL" tells openAuthSessionAsync which URL to
         // match on to close the session and hand control back to us.
         // We match exactly the same URL the server sent Paystack as
         // callback_url so the WebView closes the moment Paystack
         // redirects.
-        browserResult = await WebBrowser.openAuthSessionAsync(
+        browserResult = await wb.openAuthSessionAsync(
             init.authorization_url,
             'https://piqabu.live/upgrade',
         );
