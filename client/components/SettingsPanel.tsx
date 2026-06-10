@@ -9,6 +9,7 @@ import { useSecurity } from '../contexts/SecurityContext';
 import { setSecureItem, getSecureItem } from '../lib/platform/storage';
 import { wipeAllPiqabuState } from '../lib/wipe';
 import { useProAccess, useProTimeline } from '../lib/pro';
+import { usePricing } from '../lib/payment/usePricing';
 import { CONFIG } from '../constants/Config';
 
 /**
@@ -54,6 +55,7 @@ export default function SettingsPanel({
     const router = useRouter();
     const { isPro, refresh: refreshPro } = useProAccess();
     const { timeline: proTimeline, refresh: refreshTimeline } = useProTimeline();
+    const { pricing } = usePricing();
 
     // Refresh tier + timeline state whenever the drawer becomes visible
     // — Mission Control might have flipped tier, or a Paystack purchase
@@ -322,8 +324,10 @@ export default function SettingsPanel({
                         />
                         <Text style={styles.itemLabel}>
                             {isPro
-                                ? (proTimeline.inGracePeriod ? 'RENEW NOW · $25' : 'EXTEND ANOTHER YEAR · $25')
-                                : 'UPGRADE TO PRO · $25 / YEAR'}
+                                ? (proTimeline.inGracePeriod
+                                    ? `RENEW NOW · ${pricing.displayPrice}`
+                                    : `EXTEND ANOTHER YEAR · ${pricing.displayPrice}`)
+                                : `UPGRADE TO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`}
                         </Text>
                     </View>
                     <Ionicons name="arrow-forward" size={14} color={THEME.ink} />

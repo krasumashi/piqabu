@@ -25,11 +25,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { THEME } from '../constants/Theme';
 import { useProTimeline } from '../lib/pro';
+import { usePricing } from '../lib/payment/usePricing';
 
 export default function RenewBanner() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { timeline } = useProTimeline();
+    const { pricing } = usePricing();
     const translateY = useRef(new Animated.Value(-260)).current;
     const opacity = useRef(new Animated.Value(0)).current;
 
@@ -81,7 +83,7 @@ export default function RenewBanner() {
                     activeOpacity={0.85}
                     style={styles.renewBtn}
                 >
-                    <Text style={styles.renewBtnText}>RENEW · $25</Text>
+                    <Text style={styles.renewBtnText}>RENEW · {pricing.displayPrice}</Text>
                 </TouchableOpacity>
             </View>
         </Animated.View>

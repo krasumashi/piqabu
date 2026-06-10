@@ -24,11 +24,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
 import { useRoomContext } from '../contexts/RoomContext';
 import { startCheckout } from '../lib/payment/paystack';
+import { usePricing } from '../lib/payment/usePricing';
 import { setProAccess, syncProAccessFromServer } from '../lib/pro';
 
 export default function UpgradeScreen() {
     const router = useRouter();
     const { deviceId } = useRoomContext();
+    const { pricing } = usePricing();
     const [email, setEmail] = useState('');
     const [busy, setBusy] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -101,9 +103,14 @@ export default function UpgradeScreen() {
                 <Text style={styles.tagline}>One year of the private keyboard, multi-room, and everything to come.</Text>
 
                 <View style={styles.priceRow}>
-                    <Text style={styles.priceSymbol}>$</Text>
-                    <Text style={styles.priceNumber}>25</Text>
-                    <Text style={styles.pricePeriod}>/year</Text>
+                    <Text style={styles.priceSymbol}>{pricing.displaySymbol}</Text>
+                    <Text style={styles.priceNumber}>
+                        {(pricing.amount / 100).toLocaleString(undefined, {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 2,
+                        })}
+                    </Text>
+                    <Text style={styles.pricePeriod}>/{pricing.periodLabel}</Text>
                 </View>
 
                 <View style={styles.benefitsList}>
@@ -143,12 +150,12 @@ export default function UpgradeScreen() {
                     {busy ? (
                         <ActivityIndicator color={THEME.bg} size="small" />
                     ) : (
-                        <Text style={styles.ctaText}>CONTINUE TO PAYSTACK · $25</Text>
+                        <Text style={styles.ctaText}>CONTINUE TO PAYSTACK · {pricing.displayPrice}</Text>
                     )}
                 </TouchableOpacity>
 
                 <Text style={styles.legalText}>
-                    Secure payment by Paystack. One-time charge of $25 grants 1 year of Piqabu Pro.
+                    Secure payment by Paystack. One-time charge of {pricing.displayPrice} grants 1 year of Piqabu Pro.
                     {Platform.OS === 'android' ? '\nA 14-day grace period applies before access locks at renewal.' : ''}
                 </Text>
             </View>

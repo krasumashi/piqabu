@@ -21,7 +21,7 @@
  *      to the device's live socket.
  *
  * Currency: USD. The merchant's Paystack account must have USD enabled
- * (Settings → Preferences). Amount is in USD cents (PRO_PRICE_USD_CENTS,
+ * (Settings → Preferences). Amount is in USD cents (PRO_PRICE_MINOR_UNITS,
  * default 2500). Easy to swap to GHS/NGN later by env override.
  *
  * Email handling: Paystack requires an email. If the client doesn't
@@ -41,9 +41,34 @@ const {
 } = require('../lib/subscriptionStore');
 const adminStore = require('../lib/adminStore');
 
-const PRO_PRICE_USD_CENTS = Number(process.env.PRO_PRICE_USD_CENTS) || 2500; // $25
-const PRO_CURRENCY = process.env.PRO_CURRENCY || 'USD';
+// Price in the lowest currency unit (pesewas for GHS, cents for USD,
+// kobo for NGN). Backward-compat: if PRO_PRICE_USD_CENTS is still set
+// from an older Render config it wins; otherwise we use the new
+// currency-agnostic PRO_PRICE_MINOR_UNITS. Default: 30000 pesewas
+// = ₵300 in Ghana cedis, matching the product decision in the session.
+const PRO_PRICE_MINOR_UNITS = Number(process.env.PRO_PRICE_MINOR_UNITS)
+    || Number(process.env.PRO_PRICE_USD_CENTS)
+    || 30000;
+const PRO_CURRENCY = process.env.PRO_CURRENCY || 'GHS';
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+// Display formatting — kept on the server so the client doesn't have
+// to know each currency's lowest-unit divisor or symbol. Major-unit
+// divisor is 100 for all the currencies Paystack handles in our region.
+const CURRENCY_SYMBOLS = { GHS: '₵', NGN: '₦', USD: '$', EUR: '€', GBP: '£' };
+const CURRENCY_DIVISORS = { GHS: 100, NGN: 100, USD: 100, EUR: 100, GBP: 100 };
+
+function formatDisplayPrice(minorUnits, currency) {
+    const div = CURRENCY_DIVISORS[currency] || 100;
+    const sym = CURRENCY_SYMBOLS[currency] || `${currency} `;
+    const major = minorUnits / div;
+    // No decimals when the price is whole — ₵300 not ₵300.00 — but
+    // include them when a custom env var lands on a fractional cedi.
+    const formatted = Number.isInteger(major)
+        ? major.toLocaleString()
+        : major.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${sym}${formatted}`;
+}
 
 // Where Paystack sends the user's WebView after payment. The client side
 // matches on this URL to close the in-app browser session. Path is
@@ -62,6 +87,23 @@ function syntheticEmail(deviceId) {
 // existing decoupled-router pattern.
 function createPaystackRouter({ io }) {
     /**
+     * GET /api/paystack/pricing
+     * Single source of truth for the displayed price across all client
+     * surfaces (upgrade screen, settings card, renew banner). Always
+     * the same value the server uses when initializing transactions,
+     * so display and charge can never drift.
+     */
+    router.get('/api/paystack/pricing', (req, res) => {
+        res.json({
+            amount: PRO_PRICE_MINOR_UNITS,
+            currency: PRO_CURRENCY,
+            displayPrice: formatDisplayPrice(PRO_PRICE_MINOR_UNITS, PRO_CURRENCY),
+            displaySymbol: CURRENCY_SYMBOLS[PRO_CURRENCY] || PRO_CURRENCY,
+            periodLabel: 'year',
+        });
+    });
+
+    /**
      * POST /api/paystack/init
      * Body: { deviceId, email? }
      * Returns: { authorization_url, reference, amount, currency }
@@ -78,7 +120,7 @@ function createPaystackRouter({ io }) {
 
             const data = await paystack.initializeTransaction({
                 email: cleanEmail,
-                amount: PRO_PRICE_USD_CENTS,
+                amount: PRO_PRICE_MINOR_UNITS,
                 currency: PRO_CURRENCY,
                 callbackUrl: PAYSTACK_CALLBACK_URL,
                 metadata: { deviceId, product: 'piqabu_pro_yearly' },
@@ -96,14 +138,14 @@ function createPaystackRouter({ io }) {
             adminStore.addLog('info', 'Paystack transaction initialized', {
                 deviceId,
                 reference: data.reference,
-                amount: PRO_PRICE_USD_CENTS,
+                amount: PRO_PRICE_MINOR_UNITS,
                 currency: PRO_CURRENCY,
             });
 
             res.json({
                 authorization_url: data.authorization_url,
                 reference: data.reference,
-                amount: PRO_PRICE_USD_CENTS,
+                amount: PRO_PRICE_MINOR_UNITS,
                 currency: PRO_CURRENCY,
             });
         } catch (e) {
