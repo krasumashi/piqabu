@@ -1,12 +1,7 @@
-import React, { useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
-
-// Animated Pressable so the press spring transforms the Pressable
-// itself — no nested wrapper that breaks the flex: 1 row distribution
-// the dock relies on for its three equal-width cards.
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type DockOverlay = 'peep' | 'whisper' | 'reveal' | null;
 
@@ -26,97 +21,48 @@ const DOCK_ITEMS: { id: 'peep' | 'whisper' | 'reveal'; label: string; icon: stri
 export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisperActive }: DockProps) {
     return (
         <View style={styles.container}>
-            {DOCK_ITEMS.map((item) => (
-                <DockButton
-                    key={item.id}
-                    item={item}
-                    isActive={activeOverlay === item.id}
-                    isWhisperActive={item.id === 'whisper' && !!whisperActive}
-                    showNotifyDot={item.id === 'whisper' && !!incomingWhisper}
-                    onPress={() => onToggle(item.id)}
-                />
-            ))}
+            {DOCK_ITEMS.map((item) => {
+                const isActive = activeOverlay === item.id;
+                const isWhisperActive = item.id === 'whisper' && whisperActive;
+
+                return (
+                    <TouchableOpacity
+                        key={item.id}
+                        onPress={() => onToggle(item.id)}
+                        activeOpacity={0.7}
+                        style={[
+                            styles.dockItem,
+                            isActive && styles.dockItemActive,
+                        ]}
+                    >
+                        {/* Circle */}
+                        <View style={[
+                            styles.circle,
+                            isWhisperActive && styles.circleWhisperActive,
+                        ]}>
+                            <Ionicons
+                                name={item.icon as any}
+                                size={20}
+                                color={isWhisperActive ? THEME.accEmerald : THEME.muted}
+                                style={{ opacity: 1 }}
+                            />
+                            {/* Notify badge */}
+                            {item.id === 'whisper' && incomingWhisper && (
+                                <View style={styles.notifyDot} />
+                            )}
+                        </View>
+
+                        {/* Label */}
+                        <Text style={[
+                            styles.label,
+                            (isActive || isWhisperActive) && styles.labelActive,
+                        ]}>
+                            {item.label}
+                        </Text>
+                    </TouchableOpacity>
+                );
+            })}
         </View>
-    );
-}
-
-/**
- * One dock button with its own press-feedback spring animation. Tap
- * scales the whole card down to 0.92, releasing springs back to 1.0
- * — a small tactile cue that makes the dock feel responsive instead
- * of inert. Adopted across PEEP/WHISPER/REVEAL because the dashed
- * cards previously gave no physical feedback on press.
- *
- * Layer A of the dock-polish proposal. Layers B (idle micro-animations
- * per feature) and C (active-state trails) are deferred.
- */
-function DockButton({
-    item,
-    isActive,
-    isWhisperActive,
-    showNotifyDot,
-    onPress,
-}: {
-    item: typeof DOCK_ITEMS[number];
-    isActive: boolean;
-    isWhisperActive: boolean;
-    showNotifyDot: boolean;
-    onPress: () => void;
-}) {
-    const scale = useRef(new Animated.Value(1)).current;
-
-    const onPressIn = () => {
-        Animated.spring(scale, {
-            toValue: 0.92,
-            useNativeDriver: true,
-            speed: 30,
-            bounciness: 0,
-        }).start();
-    };
-    const onPressOut = () => {
-        Animated.spring(scale, {
-            toValue: 1,
-            useNativeDriver: true,
-            speed: 18,
-            bounciness: 10,
-        }).start();
-    };
-
-    return (
-        <AnimatedPressable
-            onPress={onPress}
-            onPressIn={onPressIn}
-            onPressOut={onPressOut}
-            style={[
-                styles.dockItem,
-                isActive && styles.dockItemActive,
-                { transform: [{ scale }] },
-            ]}
-        >
-            {/* Circle */}
-            <View style={[
-                styles.circle,
-                isWhisperActive && styles.circleWhisperActive,
-            ]}>
-                <Ionicons
-                    name={item.icon as any}
-                    size={20}
-                    color={isWhisperActive ? THEME.accEmerald : THEME.muted}
-                />
-                {/* Notify badge */}
-                {showNotifyDot && (
-                    <View style={styles.notifyDot} />
-                )}
-            </View>
-
-            {/* Label */}
-            <Text style={[
-                styles.label,
-                (isActive || isWhisperActive) && styles.labelActive,
-            ]}>
-                {item.label}
-            </Text>
-        </AnimatedPressable>
     );
 }
 
@@ -164,6 +110,7 @@ const styles = StyleSheet.create({
         borderStyle: 'solid' as any,
         borderColor: THEME.accEmerald,
         backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        // Shadow for glow effect
         shadowColor: 'rgba(255, 255, 255, 0.8)',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.3,
