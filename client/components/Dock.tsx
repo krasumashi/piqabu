@@ -3,6 +3,11 @@ import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 
+// Animated Pressable so the press spring transforms the Pressable
+// itself — no nested wrapper that breaks the flex: 1 row distribution
+// the dock relies on for its three equal-width cards.
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 type DockOverlay = 'peep' | 'whisper' | 'reveal' | null;
 
 interface DockProps {
@@ -78,44 +83,40 @@ function DockButton({
     };
 
     return (
-        <Pressable
+        <AnimatedPressable
             onPress={onPress}
             onPressIn={onPressIn}
             onPressOut={onPressOut}
-            style={{ flex: 1 }}
+            style={[
+                styles.dockItem,
+                isActive && styles.dockItemActive,
+                { transform: [{ scale }] },
+            ]}
         >
-            <Animated.View
-                style={[
-                    styles.dockItem,
-                    isActive && styles.dockItemActive,
-                    { transform: [{ scale }] },
-                ]}
-            >
-                {/* Circle */}
-                <View style={[
-                    styles.circle,
-                    isWhisperActive && styles.circleWhisperActive,
-                ]}>
-                    <Ionicons
-                        name={item.icon as any}
-                        size={20}
-                        color={isWhisperActive ? THEME.accEmerald : THEME.muted}
-                    />
-                    {/* Notify badge */}
-                    {showNotifyDot && (
-                        <View style={styles.notifyDot} />
-                    )}
-                </View>
+            {/* Circle */}
+            <View style={[
+                styles.circle,
+                isWhisperActive && styles.circleWhisperActive,
+            ]}>
+                <Ionicons
+                    name={item.icon as any}
+                    size={20}
+                    color={isWhisperActive ? THEME.accEmerald : THEME.muted}
+                />
+                {/* Notify badge */}
+                {showNotifyDot && (
+                    <View style={styles.notifyDot} />
+                )}
+            </View>
 
-                {/* Label */}
-                <Text style={[
-                    styles.label,
-                    (isActive || isWhisperActive) && styles.labelActive,
-                ]}>
-                    {item.label}
-                </Text>
-            </Animated.View>
-        </Pressable>
+            {/* Label */}
+            <Text style={[
+                styles.label,
+                (isActive || isWhisperActive) && styles.labelActive,
+            ]}>
+                {item.label}
+            </Text>
+        </AnimatedPressable>
     );
 }
 
