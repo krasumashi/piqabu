@@ -167,11 +167,11 @@ We may revise these Terms. When we do, we will update the "Last updated" date at
 
 ## 13. Governing law and dispute resolution
 
-These Terms are governed by the **laws of Ghana**, without regard to its conflict-of-laws principles.
+**Ghana law applies** to these Terms. Any dispute about them or your use of Piqabu goes to the courts in Accra.
 
-Any dispute arising out of or relating to these Terms or your use of Piqabu shall be brought exclusively in the **courts sitting in Accra, Ghana**, and you consent to the personal jurisdiction of those courts. Before initiating formal proceedings, you agree to attempt to resolve the dispute informally by contacting us at **legal@piqabu.live** and allowing us 30 days to respond.
+Before going to court, contact us at **legal@piqabu.live** — we'll try to resolve it informally within 30 days.
 
-Nothing in this section limits any right you may have under Ghana consumer law to seek redress through small claims or consumer protection bodies.
+Nothing here limits any right you may have under Ghana consumer law to seek redress through small claims or consumer protection bodies.
 
 ---
 

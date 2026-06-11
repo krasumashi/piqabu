@@ -457,14 +457,49 @@ function createAdminRouter({ io, rooms, participants }) {
         res.json({ success: true });
     });
 
-    // POST /admin/devices/:deviceId/tier — manually set pro/free status
+    // POST /admin/devices/:deviceId/tier — manually set pro/free status.
+    //
+    // When admin promotes to PRO:
+    //   - tier  = 'pro'
+    //   - source = 'admin'  (so the client's deriveState treats this as
+    //                        a real paid subscription, not a trial — same
+    //                        UX as a Paystack purchase: "EXTEND ANOTHER
+    //                        YEAR" in Settings, "RENEWS DD MMM YYYY" on
+    //                        the upgrade screen)
+    //   - proUntil = now + durationDays (defaults to 365)
+    //   - any in-flight paystackPendingReference is cleared (operator
+    //     override takes precedence over any pending checkout)
+    //
+    // When admin demotes to FREE:
+    //   - tier  = 'free'
+    //   - source = 'admin' (so the device is NOT eligible for a fresh
+    //                       7-day trial — operator demote sticks)
+    //   - proUntil cleared
     router.post('/devices/:deviceId/tier', express.json(), (req, res) => {
         const { deviceId } = req.params;
-        const { tier } = req.body || {};
+        const { tier, durationDays } = req.body || {};
         if (tier !== 'free' && tier !== 'pro') return res.status(400).json({ error: 'invalid tier' });
-        
-        subscriptionStore.setSubscription(deviceId, { tier });
-        
+
+        if (tier === 'pro') {
+            const days = Number(durationDays) > 0 ? Number(durationDays) : 365;
+            const proUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+            subscriptionStore.setSubscription(deviceId, {
+                tier: 'pro',
+                source: 'admin',
+                proUntil,
+                paystackPendingReference: null,
+                paystackPendingSince: null,
+            });
+        } else {
+            subscriptionStore.setSubscription(deviceId, {
+                tier: 'free',
+                source: 'admin',
+                proUntil: null,
+                paystackPendingReference: null,
+                paystackPendingSince: null,
+            });
+        }
+
         participants.forEach((p, socketId) => {
             if (p.deviceId === deviceId) {
                 const sock = io.sockets.sockets.get(socketId);
@@ -474,7 +509,7 @@ function createAdminRouter({ io, rooms, participants }) {
                 }
             }
         });
-        adminStore.addLog('info', `Admin forcibly changed tier to ${tier}`, { deviceId });
+        adminStore.addLog('info', `Admin forcibly changed tier to ${tier}`, { deviceId, durationDays: durationDays || (tier === 'pro' ? 365 : null) });
         res.json({ success: true, tier });
     });
 

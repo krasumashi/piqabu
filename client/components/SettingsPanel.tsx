@@ -57,6 +57,22 @@ export default function SettingsPanel({
     const { isPro, refresh: refreshPro } = useProAccess();
     const { timeline: proTimeline, refresh: refreshTimeline } = useProTimeline();
     const { pricing } = usePricing();
+    // We can't reliably detect from JS whether the user has Piqabu
+    // Keyboard turned on in Android IME settings without a native
+    // bridge call (planned for v0.3.0). For now, track whether they've
+    // tapped the "Enable Keyboard" row at least once — a proxy for
+    // "user knows where IME settings are." Label flips from ENABLE to
+    // MANAGE on subsequent visits.
+    const [keyboardConfigured, setKeyboardConfigured] = useState(false);
+    useEffect(() => {
+        if (!visible) return;
+        (async () => {
+            try {
+                const v = await getSecureItem('piqabu_keyboard_configured');
+                if (v === '1') setKeyboardConfigured(true);
+            } catch { /* noop */ }
+        })();
+    }, [visible]);
 
     // Refresh tier + timeline state whenever the drawer becomes visible
     // — Mission Control might have flipped tier, or a Paystack purchase
@@ -313,7 +329,7 @@ export default function SettingsPanel({
                         <Text style={styles.proSummaryLabel}>TIER</Text>
                         <Text style={[styles.proSummaryValue, isPro && { color: THEME.live }]}>
                             {isPro
-                                ? (proTimeline.isTrial ? 'PRO · TRIAL' : 'PRO')
+                                ? (proTimeline.isTrial ? 'PRO · TRIAL' : 'PRO · PAID')
                                 : 'FREE'}
                         </Text>
                     </View>
@@ -374,20 +390,38 @@ export default function SettingsPanel({
 
                         <TouchableOpacity
                             onPress={() => {
-                                if (isPro) openKeyboardSettings();
-                                else { onClose(); setTimeout(() => router.push('/upgrade'), 200); }
+                                if (isPro) {
+                                    openKeyboardSettings();
+                                    // Stamp "user has been to IME settings" so the
+                                    // label flips to MANAGE next time — a proxy for
+                                    // "you've enabled it" that doesn't require a
+                                    // native module to verify.
+                                    setKeyboardConfigured(true);
+                                    void setSecureItem('piqabu_keyboard_configured', '1');
+                                } else {
+                                    onClose();
+                                    setTimeout(() => router.push('/upgrade'), 200);
+                                }
                             }}
                             style={styles.item}
                             activeOpacity={0.7}
                         >
                             <View style={styles.itemRow}>
                                 <Ionicons
-                                    name={isPro ? 'keypad-outline' : 'lock-closed-outline'}
+                                    name={!isPro
+                                        ? 'lock-closed-outline'
+                                        : keyboardConfigured
+                                            ? 'checkmark-circle-outline'
+                                            : 'keypad-outline'}
                                     size={14}
-                                    color={THEME.muted}
+                                    color={keyboardConfigured && isPro ? THEME.live : THEME.muted}
                                 />
                                 <Text style={styles.itemLabel}>
-                                    {isPro ? 'ENABLE KEYBOARD' : 'UNLOCK WITH PIQABU PRO'}
+                                    {!isPro
+                                        ? 'UNLOCK WITH PIQABU PRO'
+                                        : keyboardConfigured
+                                            ? 'MANAGE KEYBOARD'
+                                            : 'ENABLE KEYBOARD'}
                                 </Text>
                             </View>
                             <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
