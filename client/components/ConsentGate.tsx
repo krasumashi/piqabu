@@ -24,7 +24,7 @@
  * blocked until you've agreed to the framework.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Linking, ScrollView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { THEME } from '../constants/Theme';
@@ -126,7 +126,7 @@ export default function ConsentGate() {
                 </View>
 
                 <Text style={styles.legalFooter}>
-                    Piqabu Ltd · Republic of Ghana{Platform.OS === 'android' ? '\nGoverned by Ghanaian law' : ''}
+                    A Wyetey LTD product · Ghana
                 </Text>
             </ScrollView>
         </SafeAreaView>
