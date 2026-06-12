@@ -40,28 +40,42 @@ const nativeMediaDevices: typeof navigator.mediaDevices | undefined =
     RNWebRTC?.mediaDevices;
 const RTCViewNative: React.ComponentType<any> | undefined = RNWebRTC?.RTCView;
 
-/* ──────────────────────────── B&W + blur stack ─────────────────────────── */
+/* ──────────────────────────── video filter stack ──────────────────────────── */
 
 /**
  * Overlay stack applied above the RTCView (local preview AND remote
- * stream). Two layers, both pointer-transparent:
+ * stream). Currently a single layer:
  *
- *   1. B&W layer — a fully white View with mixBlendMode='saturation'.
- *      Saturation blend transfers the overlay's saturation (white = 0)
- *      onto the underlying view while preserving hue + luminance, so
- *      the underlying RTCView frames render as true greyscale. RN
- *      0.74+ supports the prop; 0.81 (this build) handles it cleanly.
- *      No native dep, OTA-safe.
+ *   Glass blur — expo-blur BlurView at slider-controlled intensity.
+ *     0 = invisible, 100 = full frosted. dimezisBlurView method on
+ *     Android does the actual frame-aware blur and renders correctly
+ *     over SurfaceView-rendered RTCView frames.
  *
- *   2. Glass blur — expo-blur BlurView at slider-controlled intensity.
- *      0 = invisible, 100 = full frosted. dimezisBlurView method on
- *      Android does the actual frame-aware blur — works correctly
- *      over SurfaceView-rendered RTCView frames.
+ * B&W RENDERING IS PARKED. Previous attempts:
  *
- * Used to replace the previous react-native-color-matrix-image-filters
- * Grayscale wrapper, which did not reliably affect RTCView frames on
- * Android (its render-to-bitmap approach targets Image components,
- * not SurfaceView).
+ *   a) react-native-color-matrix-image-filters Grayscale wrapper —
+ *      its render-to-bitmap approach targets Image components, not
+ *      SurfaceView. On Android the wrap was inert.
+ *
+ *   b) mixBlendMode='saturation' on a white overlay — RN 0.81 + new
+ *      arch accepts the prop, but Android's SurfaceView lives in a
+ *      separate compositor layer. The blend never reaches RTCView's
+ *      frames; the overlay just sat as solid white, occluding the
+ *      video entirely.
+ *
+ * Real B&W needs one of:
+ *   - A native module that wraps RTCView with a TextureView + a
+ *     ColorMatrix shader (proper engineering, ships in v0.3.0 EAS
+ *     build).
+ *   - react-native-skia rendering the video track through a Skia
+ *     canvas with a colorMatrix filter (heavy dep, also EAS build).
+ *   - Switching react-native-webrtc to TextureView mode and then
+ *     mixBlendMode may start working (untested, also requires
+ *     native rebuild to verify).
+ *
+ * Until one of those ships, the video renders in colour. The `bnw`
+ * prop is left in the signature so the call sites don't need to
+ * change when the native B&W implementation arrives.
  */
 function VideoFilterStack({
     bnw,
@@ -70,29 +84,10 @@ function VideoFilterStack({
     bnw: boolean;
     blurIntensity: number;
 }) {
+    // bnw flag intentionally unused for now — see header doc.
+    void bnw;
     return (
         <>
-            {bnw && Platform.OS === 'web' && (
-                <View
-                    pointerEvents="none"
-                    style={[
-                        StyleSheet.absoluteFill,
-                        { backdropFilter: 'grayscale(100%)' } as any,
-                    ]}
-                />
-            )}
-            {bnw && Platform.OS !== 'web' && (
-                <View
-                    pointerEvents="none"
-                    style={[
-                        StyleSheet.absoluteFill,
-                        {
-                            backgroundColor: 'white',
-                            mixBlendMode: 'saturation' as any,
-                        },
-                    ]}
-                />
-            )}
             {blurIntensity > 0 && (
                 <BlurView
                     intensity={Math.min(100, blurIntensity)}
