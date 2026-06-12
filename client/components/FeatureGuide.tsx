@@ -46,6 +46,14 @@ const CATEGORIES: FeatureCategory[] = [
         label: 'IN A CHANNEL',
         items: [
             {
+                id: 'autovanish',
+                icon: 'flash',
+                iconLib: 'ion',
+                name: 'AUTO VANISH',
+                what: 'Delete your own messages automatically after a set time.',
+                how: 'Tap the lightning bolt in the room header to cycle: 5s, 10s, 15s, 20s, 25s, 30s, OFF. While it\'s on, every message you send disappears from both your screen and your correspondent\'s after the chosen window.',
+            },
+            {
                 id: 'peep',
                 icon: 'eye-outline',
                 iconLib: 'ion',

@@ -126,7 +126,7 @@ export default function ConsentGate() {
                 </View>
 
                 <Text style={styles.legalFooter}>
-                    A Wyetey LTD product · Ghana
+                    AhTohMoh
                 </Text>
             </ScrollView>
         </SafeAreaView>

@@ -40,24 +40,70 @@ const nativeMediaDevices: typeof navigator.mediaDevices | undefined =
     RNWebRTC?.mediaDevices;
 const RTCViewNative: React.ComponentType<any> | undefined = RNWebRTC?.RTCView;
 
-/* ──────────────────────────── grayscale wrapper ──────────────────────────── */
+/* ──────────────────────────── B&W + blur stack ─────────────────────────── */
 
-let NativeGrayscale: any = null;
-if (Platform.OS !== 'web') {
-    try {
-        NativeGrayscale =
-            require('react-native-color-matrix-image-filters').Grayscale;
-    } catch {}
-}
-
-function GrayscaleWrap({ children }: { children: React.ReactNode }) {
-    if (Platform.OS === 'web') {
-        return (
-            <View style={{ filter: 'grayscale(100%)' } as any}>{children}</View>
-        );
-    }
-    if (NativeGrayscale) return <NativeGrayscale>{children}</NativeGrayscale>;
-    return <>{children}</>;
+/**
+ * Overlay stack applied above the RTCView (local preview AND remote
+ * stream). Two layers, both pointer-transparent:
+ *
+ *   1. B&W layer — a fully white View with mixBlendMode='saturation'.
+ *      Saturation blend transfers the overlay's saturation (white = 0)
+ *      onto the underlying view while preserving hue + luminance, so
+ *      the underlying RTCView frames render as true greyscale. RN
+ *      0.74+ supports the prop; 0.81 (this build) handles it cleanly.
+ *      No native dep, OTA-safe.
+ *
+ *   2. Glass blur — expo-blur BlurView at slider-controlled intensity.
+ *      0 = invisible, 100 = full frosted. dimezisBlurView method on
+ *      Android does the actual frame-aware blur — works correctly
+ *      over SurfaceView-rendered RTCView frames.
+ *
+ * Used to replace the previous react-native-color-matrix-image-filters
+ * Grayscale wrapper, which did not reliably affect RTCView frames on
+ * Android (its render-to-bitmap approach targets Image components,
+ * not SurfaceView).
+ */
+function VideoFilterStack({
+    bnw,
+    blurIntensity,
+}: {
+    bnw: boolean;
+    blurIntensity: number;
+}) {
+    return (
+        <>
+            {bnw && Platform.OS === 'web' && (
+                <View
+                    pointerEvents="none"
+                    style={[
+                        StyleSheet.absoluteFill,
+                        { backdropFilter: 'grayscale(100%)' } as any,
+                    ]}
+                />
+            )}
+            {bnw && Platform.OS !== 'web' && (
+                <View
+                    pointerEvents="none"
+                    style={[
+                        StyleSheet.absoluteFill,
+                        {
+                            backgroundColor: 'white',
+                            mixBlendMode: 'saturation' as any,
+                        },
+                    ]}
+                />
+            )}
+            {blurIntensity > 0 && (
+                <BlurView
+                    intensity={Math.min(100, blurIntensity)}
+                    tint="dark"
+                    style={StyleSheet.absoluteFill}
+                    experimentalBlurMethod="dimezisBlurView"
+                    pointerEvents="none"
+                />
+            )}
+        </>
+    );
 }
 
 /* ─────────── noir film overlay (native desaturation workaround) ────────── */
@@ -787,23 +833,15 @@ export default function LiveGlassPanel({
                 activeOpacity={0.9}
             >
                 {remoteStream && Platform.OS !== 'web' && nativeStreamURL && RTCViewNative ? (
-                    NativeGrayscale && remoteIsBnW ? (
-                        <NativeGrayscale style={StyleSheet.absoluteFill}>
-                            <RTCViewNative
-                                streamURL={nativeStreamURL}
-                                style={styles.pipVideo}
-                                objectFit="cover"
-                                zOrder={1}
-                            />
-                        </NativeGrayscale>
-                    ) : (
+                    <View style={StyleSheet.absoluteFill}>
                         <RTCViewNative
                             streamURL={nativeStreamURL}
                             style={styles.pipVideo}
                             objectFit="cover"
                             zOrder={1}
                         />
-                    )
+                        <VideoFilterStack bnw={remoteIsBnW} blurIntensity={0} />
+                    </View>
                 ) : remoteStream && Platform.OS === 'web' ? (
                     <View style={[StyleSheet.absoluteFill, remoteIsBnW && { filter: 'grayscale(100%)' }] as any}>
                         <WebVideo stream={remoteStream} muted={false} />
@@ -927,39 +965,21 @@ export default function LiveGlassPanel({
                                         />
                                     </View>
                                 ) : RTCViewNative && nativeStreamURL ? (
-                                    NativeGrayscale && remoteIsBnW ? (
-                                        <NativeGrayscale style={StyleSheet.absoluteFill}>
-                                            <RTCViewNative
-                                                streamURL={nativeStreamURL}
-                                                style={{ width: '100%', height: '100%' }}
-                                                objectFit="cover"
-                                                zOrder={0}
-                                            />
-                                        </NativeGrayscale>
-                                    ) : (
+                                    <>
                                         <RTCViewNative
                                             streamURL={nativeStreamURL}
                                             style={{ width: '100%', height: '100%' }}
                                             objectFit="cover"
                                             zOrder={0}
                                         />
-                                    )
+                                        <VideoFilterStack bnw={remoteIsBnW} blurIntensity={remoteBlur} />
+                                    </>
                                 ) : (
                                     <View style={styles.noSignal}>
                                         <Text style={styles.noSignalText}>
                                             RTCView unavailable
                                         </Text>
                                     </View>
-                                )}
-
-                                {remoteBlur > 0 && (
-                                    <BlurView
-                                        intensity={remoteBlur}
-                                        tint="dark"
-                                        style={StyleSheet.absoluteFill}
-                                        experimentalBlurMethod="dimezisBlurView"
-                                        pointerEvents="none"
-                                    />
                                 )}
                             </View>
                         ) : (
@@ -999,35 +1019,14 @@ export default function LiveGlassPanel({
                                 </View>
                             ) : RTCViewNative ? (
                                 <View style={{ flex: 1 }}>
-                                    {NativeGrayscale && isBnW ? (
-                                        <NativeGrayscale style={StyleSheet.absoluteFill}>
-                                            <RTCViewNative
-                                                streamURL={localStream.toURL()}
-                                                style={{ width: '100%', height: '100%' }}
-                                                objectFit="cover"
-                                                mirror
-                                                zOrder={1}
-                                            />
-                                        </NativeGrayscale>
-                                    ) : (
-                                        <RTCViewNative
-                                            streamURL={localStream.toURL()}
-                                            style={{ width: '100%', height: '100%' }}
-                                            objectFit="cover"
-                                            mirror
-                                            zOrder={1}
-                                        />
-                                    )}
-                                    {/* Frosted glass preview — dark overlay simulating blur */}
-                                    {blurIntensity > 0 && (
-                                        <BlurView
-                                            intensity={blurIntensity}
-                                            tint="dark"
-                                            style={StyleSheet.absoluteFill}
-                                            experimentalBlurMethod="dimezisBlurView"
-                                            pointerEvents="none"
-                                        />
-                                    )}
+                                    <RTCViewNative
+                                        streamURL={localStream.toURL()}
+                                        style={{ width: '100%', height: '100%' }}
+                                        objectFit="cover"
+                                        mirror
+                                        zOrder={1}
+                                    />
+                                    <VideoFilterStack bnw={isBnW} blurIntensity={blurIntensity} />
                                 </View>
                             ) : (
                                 <View style={styles.noSignal}>
