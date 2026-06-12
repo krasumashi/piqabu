@@ -19,6 +19,8 @@ import UpdateWall from '../components/UpdateWall';
 import RenewBanner from '../components/RenewBanner';
 import ReceiverKeyboardPrompt from '../components/ReceiverKeyboardPrompt';
 import ConsentGate from '../components/ConsentGate';
+import WalkthroughOverlay from '../components/WalkthroughOverlay';
+import { WalkthroughProvider } from '../lib/walkthrough/WalkthroughContext';
 import { syncProStatusToBridge, syncProAccessFromServer } from '../lib/pro';
 
 // Web Tailwind CSS
@@ -77,23 +79,26 @@ export default function RootLayout() {
         <ThemeProvider value={PiqabuTheme}>
             <SecurityProvider>
                 <RoomProvider>
-                    <Stack screenOptions={{ headerShown: false }}>
-                        <Stack.Screen name="index" options={{ animation: 'fade' }} />
-                        <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
-                        <Stack.Screen name="room/index" options={{ animation: 'fade' }} />
-                        <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
-                    </Stack>
-                    <StatusBar style="light" />
-                    <SecurityOverlays />
-                    <ProSyncMount />
-                    <SystemBannerMount />
-                    <UpdateBannerMount />
-                    <RenewBanner />
-                    <OperatorBannerMount />
-                    <UpdateWallMount />
-                    <ReceiverKeyboardPrompt />
-                    <LockoutOverlayMount />
-                    <ConsentGate />
+                    <WalkthroughProvider>
+                        <Stack screenOptions={{ headerShown: false }}>
+                            <Stack.Screen name="index" options={{ animation: 'fade' }} />
+                            <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: 'fade' }} />
+                            <Stack.Screen name="room/index" options={{ animation: 'fade' }} />
+                            <Stack.Screen name="upgrade" options={{ animation: 'slide_from_bottom', presentation: 'modal' }} />
+                        </Stack>
+                        <StatusBar style="light" />
+                        <SecurityOverlays />
+                        <ProSyncMount />
+                        <SystemBannerMount />
+                        <UpdateBannerMount />
+                        <RenewBanner />
+                        <OperatorBannerMount />
+                        <UpdateWallMount />
+                        <ReceiverKeyboardPrompt />
+                        <WalkthroughOverlay />
+                        <LockoutOverlayMount />
+                        <ConsentGate />
+                    </WalkthroughProvider>
                 </RoomProvider>
             </SecurityProvider>
         </ThemeProvider>

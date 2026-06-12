@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
+import { useWalkthroughTarget } from '../lib/walkthrough/WalkthroughContext';
 
 type DockOverlay = 'peep' | 'whisper' | 'reveal' | null;
 
@@ -19,6 +20,18 @@ const DOCK_ITEMS: { id: 'peep' | 'whisper' | 'reveal'; label: string; icon: stri
 ];
 
 export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisperActive }: DockProps) {
+    // Walkthrough targets — one ref per dock item, registered by
+    // name so WalkthroughOverlay can measure each. Hooks can't be
+    // called inside the map below, so we pre-bind them in the parent.
+    const peepRef = useWalkthroughTarget('peep');
+    const whisperRef = useWalkthroughTarget('whisper');
+    const revealRef = useWalkthroughTarget('reveal');
+    const refByName: Record<typeof DOCK_ITEMS[number]['id'], React.RefObject<View | null>> = {
+        peep: peepRef as React.RefObject<View | null>,
+        whisper: whisperRef as React.RefObject<View | null>,
+        reveal: revealRef as React.RefObject<View | null>,
+    };
+
     return (
         <View style={styles.container}>
             {DOCK_ITEMS.map((item) => {
@@ -28,6 +41,7 @@ export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisper
                 return (
                     <TouchableOpacity
                         key={item.id}
+                        ref={refByName[item.id]}
                         onPress={() => onToggle(item.id)}
                         activeOpacity={0.7}
                         style={[

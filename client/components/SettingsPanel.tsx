@@ -11,6 +11,7 @@ import { wipeAllPiqabuState } from '../lib/wipe';
 import { useProAccess, useProTimeline } from '../lib/pro';
 import { usePricing } from '../lib/payment/usePricing';
 import { LEGAL_URLS } from '../lib/legal/consent';
+import { resetWalkthrough } from '../lib/walkthrough/WalkthroughContext';
 import { CONFIG } from '../constants/Config';
 
 /**
@@ -434,7 +435,29 @@ export default function SettingsPanel({
                         >
                             <View style={styles.itemRow}>
                                 <Ionicons name="play-back-outline" size={14} color={THEME.muted} />
-                                <Text style={styles.itemLabel}>SHOW WALKTHROUGH AGAIN</Text>
+                                <Text style={styles.itemLabel}>REPLAY ONBOARDING</Text>
+                            </View>
+                            <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={async () => {
+                                await resetWalkthrough();
+                                onClose();
+                                // The next time the user lands in a room
+                                // RoomContent's useEffect picks up the
+                                // cleared flag and starts the tour.
+                                Alert.alert(
+                                    'Tour reset',
+                                    'Open a channel to see the walkthrough again.',
+                                );
+                            }}
+                            style={styles.item}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.itemRow}>
+                                <Ionicons name="map-outline" size={14} color={THEME.muted} />
+                                <Text style={styles.itemLabel}>REPLAY ROOM TOUR</Text>
                             </View>
                             <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
                         </TouchableOpacity>
