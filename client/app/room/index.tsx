@@ -37,7 +37,7 @@ import Paywall from '../../components/Paywall';
 import * as ScreenCapture from 'expo-screen-capture';
 import { THEME } from '../../constants/Theme';
 import { useFreemiumTimer } from '../../hooks/useFreemiumTimer';
-import { useWalkthroughTarget, useWalkthrough, isWalkthroughCompleted } from '../../lib/walkthrough/WalkthroughContext';
+import { useWalkthroughTarget } from '../../lib/walkthrough/WalkthroughContext';
 // ─── Typing Indicator ───
 function TypingIndicator({ isTyping }: { isTyping: boolean }) {
     const dotAnim = useRef(new RNAnimated.Value(0)).current;
@@ -106,26 +106,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 
     const { addPartner } = useLinkedPartners();
 
-    // Walkthrough — register the status pill as a measurable target.
-    // The dock items register themselves inside Dock.tsx. On first
-    // entry into a room we auto-fire the walkthrough; Settings can
-    // re-trigger via resetWalkthrough() + start().
+    // statusPill ref kept for compat with the WalkthroughContext
+    // registration (other components — Dock — still use the same
+    // pattern). We DO NOT auto-fire the walkthrough on room entry
+    // anymore; the FeatureGuide card in Settings replaces that
+    // pattern (less intrusive, always available, self-paced).
     const statusPillRef = useWalkthroughTarget<View>('statusPill');
-    const { active: walkthroughActive, start: startWalkthrough } = useWalkthrough();
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            const done = await isWalkthroughCompleted();
-            if (!cancelled && !done && !walkthroughActive) {
-                // Slight delay so the room layout settles before we try
-                // to measure targets.
-                setTimeout(() => { if (!cancelled) startWalkthrough(); }, 600);
-            }
-        })();
-        return () => { cancelled = true; };
-        // Intentionally only on mount of this RoomContent — one shot.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     const [localText, setLocalText] = useState('');
     const [activeOverlay, setActiveOverlay] = useState<'peep' | 'whisper' | 'reveal' | null>(null);

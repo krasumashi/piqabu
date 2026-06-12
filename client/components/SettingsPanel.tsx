@@ -11,7 +11,7 @@ import { wipeAllPiqabuState } from '../lib/wipe';
 import { useProAccess, useProTimeline } from '../lib/pro';
 import { usePricing } from '../lib/payment/usePricing';
 import { LEGAL_URLS } from '../lib/legal/consent';
-import { resetWalkthrough } from '../lib/walkthrough/WalkthroughContext';
+import FeatureGuide from './FeatureGuide';
 import { CONFIG } from '../constants/Config';
 
 /**
@@ -131,6 +131,7 @@ export default function SettingsPanel({
     const [feedbackVisible, setFeedbackVisible] = useState(false);
     const [feedbackText, setFeedbackText] = useState('');
     const [submittingParams, setSubmittingParams] = useState(false);
+    const [featureGuideVisible, setFeatureGuideVisible] = useState(false);
 
     const handleSendFeedback = async () => {
         if (!feedbackText.trim()) return;
@@ -429,6 +430,18 @@ export default function SettingsPanel({
                         </TouchableOpacity>
 
                         <TouchableOpacity
+                            onPress={() => setFeatureGuideVisible(true)}
+                            style={styles.item}
+                            activeOpacity={0.7}
+                        >
+                            <View style={styles.itemRow}>
+                                <Ionicons name="book-outline" size={14} color={THEME.muted} />
+                                <Text style={styles.itemLabel}>FEATURE GUIDE</Text>
+                            </View>
+                            <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                             onPress={replayOnboarding}
                             style={styles.item}
                             activeOpacity={0.7}
@@ -436,28 +449,6 @@ export default function SettingsPanel({
                             <View style={styles.itemRow}>
                                 <Ionicons name="play-back-outline" size={14} color={THEME.muted} />
                                 <Text style={styles.itemLabel}>REPLAY ONBOARDING</Text>
-                            </View>
-                            <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={async () => {
-                                await resetWalkthrough();
-                                onClose();
-                                // The next time the user lands in a room
-                                // RoomContent's useEffect picks up the
-                                // cleared flag and starts the tour.
-                                Alert.alert(
-                                    'Tour reset',
-                                    'Open a channel to see the walkthrough again.',
-                                );
-                            }}
-                            style={styles.item}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.itemRow}>
-                                <Ionicons name="map-outline" size={14} color={THEME.muted} />
-                                <Text style={styles.itemLabel}>REPLAY ROOM TOUR</Text>
                             </View>
                             <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
                         </TouchableOpacity>
@@ -540,6 +531,14 @@ export default function SettingsPanel({
                 </View>
             </RNAnimated.View>
 
+            {/* Feature Guide — separate bottom sheet stacked above
+                this one. zIndex on FeatureGuide's sheet is 100, same
+                as Settings; rendering order here puts it on top so it
+                covers Settings while open. */}
+            <FeatureGuide
+                visible={featureGuideVisible}
+                onClose={() => setFeatureGuideVisible(false)}
+            />
         </View>
     );
 }
