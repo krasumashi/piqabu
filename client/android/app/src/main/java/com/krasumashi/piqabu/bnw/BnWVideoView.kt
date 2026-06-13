@@ -10,8 +10,8 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.FrameLayout
 import com.facebook.react.bridge.ReactContext
+import com.oney.WebRTCModule.EglUtils
 import com.oney.WebRTCModule.WebRTCModule
-import org.webrtc.EglBase
 import org.webrtc.MediaStream
 import org.webrtc.VideoTrack
 
@@ -57,7 +57,6 @@ class BnWVideoView(context: Context) : FrameLayout(context) {
     private var streamURL: String? = null
     private var videoTrack: VideoTrack? = null
     private var initialized = false
-    private var eglBase: EglBase? = null
     private var pendingRetry: Runnable? = null
 
     init {
@@ -74,9 +73,16 @@ class BnWVideoView(context: Context) : FrameLayout(context) {
     private fun ensureInit(): Boolean {
         if (initialized) return true
         try {
-            val egl = EglBase.create()
-            eglBase = egl
-            renderer.init(egl.eglBaseContext)
+            // Use react-native-webrtc's SHARED root EGL context — the same
+            // one the PeerConnectionFactory, camera capturer, and RTCView
+            // use. WebRTC delivers camera/remote frames as GPU texture
+            // frames bound to this context; a renderer on a separate
+            // context (e.g. a fresh EglBase.create()) cannot sample those
+            // textures and renders nothing — a pure black feed. Sharing the
+            // root context is what makes the frames actually draw.
+            val sharedContext = EglUtils.getRootEglBaseContext()
+                ?: return false
+            renderer.init(sharedContext)
             initialized = true
         } catch (_: Throwable) {
             initialized = false
@@ -171,8 +177,9 @@ class BnWVideoView(context: Context) : FrameLayout(context) {
                 renderer.release()
                 initialized = false
             }
-            eglBase?.release()
-            eglBase = null
+            // NOTE: do NOT release the EGL context — it's the shared root
+            // owned by react-native-webrtc (EglUtils). Releasing it would
+            // break every other renderer/capturer in the app.
         } catch (_: Throwable) { /* noop */ }
     }
 }
