@@ -119,6 +119,14 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
+            // react-native-worklets 0.7.3's build.gradle declares only the
+            // debug buildType, which on AGP 8.11 (EAS's current build
+            // image) is reported as "no variants exist" instead of being
+            // auto-created. matchingFallbacks tells the app's release
+            // variant to fall back to the library's debug variant when
+            // no release variant is published. Cheap, contained workaround
+            // until worklets ships a fix.
+            matchingFallbacks = ['release', 'debug']
         }
     }
     packagingOptions {
