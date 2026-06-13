@@ -102,7 +102,7 @@ export interface ProTimeline {
     /** 'trial' | 'paystack' | 'apple_iap' | 'admin' | null */
     source: string | null;
     /** True when source==='trial' AND we're inside proUntil — i.e. the
-     *  free 7-day trial is currently active. UI labels Pro as "TRIAL"
+     *  free 3-day trial is currently active. UI labels Pro as "TRIAL"
      *  rather than "PRO" in this state. */
     isTrial: boolean;
 }

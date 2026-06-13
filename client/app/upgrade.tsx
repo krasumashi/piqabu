@@ -5,7 +5,7 @@
  * user states, each with its own copy and CTA:
  *
  *   FREE     — never been Pro. Standard upgrade pitch.
- *   TRIAL    — currently on the 7-day free trial. "Convert before the
+ *   TRIAL    — currently on the 3-day free trial. "Convert before the
  *              trial ends" framing. CTA: GO PRO.
  *   PRO      — paid Pro, healthy. Renew framing showing current
  *              expiry + what renewal extends to. CTA: EXTEND.
@@ -194,7 +194,7 @@ export default function UpgradeScreen() {
                 )}
                 {userState === 'trial' && (
                     <Text style={styles.tagline}>
-                        You're on the 7-day free trial — {daysUntil(status?.proUntil) ?? 0} day{daysUntil(status?.proUntil) === 1 ? '' : 's'} left.
+                        You're on the 3-day free trial — {daysUntil(status?.proUntil) ?? 0} day{daysUntil(status?.proUntil) === 1 ? '' : 's'} left.
                         {'\n'}Upgrade now to keep Pro running when the trial ends.
                     </Text>
                 )}

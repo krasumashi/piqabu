@@ -9,7 +9,13 @@ const path = require('path');
  * or Redis. This file-based store is suitable for MVP / dev only.
  */
 
-const STORE_PATH = path.join(__dirname, '..', 'data', 'subscriptions.json');
+// Data directory. On Render, DATA_DIR points at the PERSISTENT disk
+// (mounted at /tmp via render.yaml) so subscription records survive
+// redeploys. Without this, every deploy rebuilds the container and
+// wipes server/data/ — silently resetting all trials AND dropping paid
+// users back to free. Falls back to the local repo dir for dev.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const STORE_PATH = path.join(DATA_DIR, 'subscriptions.json');
 
 // Ensure data directory exists
 function ensureDataDir() {
@@ -161,7 +167,7 @@ function findByStripeCustomer(customerId) {
  * legitimately sees, it doesn't appear here.
  */
 /**
- * 7-day free trial — granted automatically the FIRST time we see a
+ * 3-day free trial — granted automatically the FIRST time we see a
  * Ghost ID. Idempotent: re-calling with the same deviceId after the
  * trial has been granted does nothing. After the trial expires the
  * device drops back to free naturally via the proUntil resolution
@@ -174,7 +180,7 @@ function findByStripeCustomer(customerId) {
  *
  * Returns true if a trial was granted in this call, false otherwise.
  */
-const TRIAL_DAYS = 7;
+const TRIAL_DAYS = 3;
 
 function startTrialIfEligible(deviceId) {
     if (!deviceId) return false;

@@ -11,13 +11,17 @@
  * devices" counter. By design, contains NO content, NO IP, NO PII —
  * a Ghost ID and two timestamps. Privacy posture preserved.
  *
- * Backed by a flat JSON file under server/data/ so it survives Render
- * restarts (the /tmp disk mounted via render.yaml).
+ * Backed by a flat JSON file under DATA_DIR so it survives Render
+ * redeploys. DATA_DIR points at the persistent disk (mounted at /tmp
+ * via render.yaml); previously this wrote to server/data/, which is
+ * ephemeral and got wiped on every deploy. Falls back to the local
+ * repo dir for dev.
  */
 const fs = require('fs');
 const path = require('path');
 
-const STORE_PATH = path.join(__dirname, '..', 'data', 'devices.json');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const STORE_PATH = path.join(DATA_DIR, 'devices.json');
 
 function ensureDataDir() {
     const dir = path.dirname(STORE_PATH);

@@ -1,7 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const STORE_PATH = path.join(__dirname, '..', 'data', 'admin.json');
+// DATA_DIR points at the persistent disk on Render (mounted at /tmp via
+// render.yaml). Previously this wrote to server/data/, which is
+// ephemeral and wiped on every redeploy — meaning maintenance mode,
+// blocked devices, and admin tier grants did NOT actually survive a
+// deploy despite the comment below claiming they did. Falls back to the
+// local repo dir for dev.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const STORE_PATH = path.join(DATA_DIR, 'admin.json');
 
 // All admin state persists across server restart. Maintenance mode and
 // the blocked-devices list survive Render redeploys — operator action

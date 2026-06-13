@@ -22,6 +22,14 @@ services:
         value: production
       - key: PORT
         value: 10000
+      # Persistent data directory on the mounted disk (see `disk:` below,
+      # mounted at /tmp). The subscription, device, and admin JSON stores
+      # write here so they SURVIVE redeploys. Without this they default
+      # to the ephemeral server/data/ dir, and every deploy wipes all
+      # paid + trial records — resetting trials and silently dropping
+      # paid users to free.
+      - key: DATA_DIR
+        value: /tmp/piqabu-data
       - key: ALLOWED_ORIGINS
         sync: false
       - key: STRIPE_SECRET_KEY
