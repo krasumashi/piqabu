@@ -17,6 +17,7 @@ import { THEME } from '../constants/Theme';
 import { fetchIceServers } from '../lib/iceServers';
 import { useSecurity } from '../contexts/SecurityContext';
 import type { Socket } from 'socket.io-client';
+import BnWVideoView, { isBnWVideoSupported } from './BnWVideoView';
 
 /* ────────────────────────── platform-specific WebRTC imports ─────────────── */
 
@@ -43,61 +44,65 @@ const RTCViewNative: React.ComponentType<any> | undefined = RNWebRTC?.RTCView;
 /* ──────────────────────────── video filter stack ──────────────────────────── */
 
 /**
- * Overlay stack applied above the RTCView (local preview AND remote
- * stream). Currently a single layer:
+ * Glass blur overlay — expo-blur BlurView at slider-controlled
+ * intensity. 0 = invisible, 100 = full frosted. dimezisBlurView on
+ * Android does frame-aware blur and renders correctly over both the
+ * SurfaceView frames of RTCView AND the TextureView frames of
+ * BnWVideoView.
  *
- *   Glass blur — expo-blur BlurView at slider-controlled intensity.
- *     0 = invisible, 100 = full frosted. dimezisBlurView method on
- *     Android does the actual frame-aware blur and renders correctly
- *     over SurfaceView-rendered RTCView frames.
- *
- * B&W RENDERING IS PARKED. Previous attempts:
- *
- *   a) react-native-color-matrix-image-filters Grayscale wrapper —
- *      its render-to-bitmap approach targets Image components, not
- *      SurfaceView. On Android the wrap was inert.
- *
- *   b) mixBlendMode='saturation' on a white overlay — RN 0.81 + new
- *      arch accepts the prop, but Android's SurfaceView lives in a
- *      separate compositor layer. The blend never reaches RTCView's
- *      frames; the overlay just sat as solid white, occluding the
- *      video entirely.
- *
- * Real B&W needs one of:
- *   - A native module that wraps RTCView with a TextureView + a
- *     ColorMatrix shader (proper engineering, ships in v0.3.0 EAS
- *     build).
- *   - react-native-skia rendering the video track through a Skia
- *     canvas with a colorMatrix filter (heavy dep, also EAS build).
- *   - Switching react-native-webrtc to TextureView mode and then
- *     mixBlendMode may start working (untested, also requires
- *     native rebuild to verify).
- *
- * Until one of those ships, the video renders in colour. The `bnw`
- * prop is left in the signature so the call sites don't need to
- * change when the native B&W implementation arrives.
+ * B&W is handled separately: when isBnW=true on Android we render
+ * <BnWVideoView> instead of <RTCViewNative>. That native view uses
+ * a TextureView + RenderEffect(ColorMatrix saturation=0) to produce
+ * true greyscale at the renderer level. See ./BnWVideoView.tsx and
+ * android/.../bnw/BnWVideoView.kt for the full picture.
  */
-function VideoFilterStack({
-    bnw,
-    blurIntensity,
-}: {
-    bnw: boolean;
-    blurIntensity: number;
-}) {
-    // bnw flag intentionally unused for now — see header doc.
-    void bnw;
+function BlurOverlay({ blurIntensity }: { blurIntensity: number }) {
+    if (blurIntensity <= 0) return null;
     return (
-        <>
-            {blurIntensity > 0 && (
-                <BlurView
-                    intensity={Math.min(100, blurIntensity)}
-                    tint="dark"
-                    style={StyleSheet.absoluteFill}
-                    experimentalBlurMethod="dimezisBlurView"
-                    pointerEvents="none"
-                />
-            )}
-        </>
+        <BlurView
+            intensity={Math.min(100, blurIntensity)}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+            experimentalBlurMethod="dimezisBlurView"
+            pointerEvents="none"
+        />
+    );
+}
+
+/**
+ * Picks the right native video renderer based on isBnW + platform.
+ *
+ *   isBnW + Android + native module loaded → BnWVideoView (true greyscale)
+ *   else → RTCViewNative (colour)
+ *
+ * mirror is supported in both paths. objectFit/zOrder are RTCView-only
+ * concerns; BnWVideoView uses SCALE_ASPECT_FILL natively.
+ */
+function NativeVideoRenderer({
+    streamURL,
+    isBnW,
+    mirror,
+    zOrder,
+    style,
+}: {
+    streamURL: string;
+    isBnW: boolean;
+    mirror?: boolean;
+    zOrder?: number;
+    style?: any;
+}) {
+    if (isBnW && isBnWVideoSupported) {
+        return <BnWVideoView streamURL={streamURL} mirror={!!mirror} style={style} />;
+    }
+    if (!RTCViewNative) return null;
+    return (
+        <RTCViewNative
+            streamURL={streamURL}
+            style={style}
+            objectFit="cover"
+            mirror={mirror}
+            zOrder={zOrder ?? 0}
+        />
     );
 }
 
@@ -829,13 +834,12 @@ export default function LiveGlassPanel({
             >
                 {remoteStream && Platform.OS !== 'web' && nativeStreamURL && RTCViewNative ? (
                     <View style={StyleSheet.absoluteFill}>
-                        <RTCViewNative
+                        <NativeVideoRenderer
                             streamURL={nativeStreamURL}
-                            style={styles.pipVideo}
-                            objectFit="cover"
+                            isBnW={remoteIsBnW}
                             zOrder={1}
+                            style={styles.pipVideo}
                         />
-                        <VideoFilterStack bnw={remoteIsBnW} blurIntensity={0} />
                     </View>
                 ) : remoteStream && Platform.OS === 'web' ? (
                     <View style={[StyleSheet.absoluteFill, remoteIsBnW && { filter: 'grayscale(100%)' }] as any}>
@@ -961,13 +965,13 @@ export default function LiveGlassPanel({
                                     </View>
                                 ) : RTCViewNative && nativeStreamURL ? (
                                     <>
-                                        <RTCViewNative
+                                        <NativeVideoRenderer
                                             streamURL={nativeStreamURL}
-                                            style={{ width: '100%', height: '100%' }}
-                                            objectFit="cover"
+                                            isBnW={remoteIsBnW}
                                             zOrder={0}
+                                            style={{ width: '100%', height: '100%' }}
                                         />
-                                        <VideoFilterStack bnw={remoteIsBnW} blurIntensity={remoteBlur} />
+                                        <BlurOverlay blurIntensity={remoteBlur} />
                                     </>
                                 ) : (
                                     <View style={styles.noSignal}>
@@ -1014,14 +1018,14 @@ export default function LiveGlassPanel({
                                 </View>
                             ) : RTCViewNative ? (
                                 <View style={{ flex: 1 }}>
-                                    <RTCViewNative
+                                    <NativeVideoRenderer
                                         streamURL={localStream.toURL()}
-                                        style={{ width: '100%', height: '100%' }}
-                                        objectFit="cover"
+                                        isBnW={isBnW}
                                         mirror
                                         zOrder={1}
+                                        style={{ width: '100%', height: '100%' }}
                                     />
-                                    <VideoFilterStack bnw={isBnW} blurIntensity={blurIntensity} />
+                                    <BlurOverlay blurIntensity={blurIntensity} />
                                 </View>
                             ) : (
                                 <View style={styles.noSignal}>
