@@ -9,15 +9,11 @@ import {
     ActivityIndicator,
     PermissionsAndroid,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 import { fetchIceServers } from '../lib/iceServers';
 import { useSecurity } from '../contexts/SecurityContext';
 import type { Socket } from 'socket.io-client';
-import BnWVideoView, { isBnWVideoSupported } from './BnWVideoView';
 
 /* ────────────────────────── platform-specific WebRTC imports ─────────────── */
 
@@ -41,108 +37,7 @@ const nativeMediaDevices: typeof navigator.mediaDevices | undefined =
     RNWebRTC?.mediaDevices;
 const RTCViewNative: React.ComponentType<any> | undefined = RNWebRTC?.RTCView;
 
-/* ──────────────────────────── video filter stack ──────────────────────────── */
-
-/**
- * Glass blur overlay — expo-blur BlurView at slider-controlled
- * intensity. 0 = invisible, 100 = full frosted. dimezisBlurView on
- * Android does frame-aware blur and renders correctly over both the
- * SurfaceView frames of RTCView AND the TextureView frames of
- * BnWVideoView.
- *
- * B&W is handled separately: when isBnW=true on Android we render
- * <BnWVideoView> instead of <RTCViewNative>. That native view uses
- * a TextureView + RenderEffect(ColorMatrix saturation=0) to produce
- * true greyscale at the renderer level. See ./BnWVideoView.tsx and
- * android/.../bnw/BnWVideoView.kt for the full picture.
- */
-function BlurOverlay({ blurIntensity }: { blurIntensity: number }) {
-    if (blurIntensity <= 0) return null;
-    return (
-        <BlurView
-            intensity={Math.min(100, blurIntensity)}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
-            experimentalBlurMethod="dimezisBlurView"
-            pointerEvents="none"
-        />
-    );
-}
-
-/**
- * Picks the right native video renderer based on isBnW + platform.
- *
- *   isBnW + Android + native module loaded → BnWVideoView (true greyscale)
- *   else → RTCViewNative (colour)
- *
- * mirror is supported in both paths. objectFit/zOrder are RTCView-only
- * concerns; BnWVideoView uses SCALE_ASPECT_FILL natively.
- */
-function NativeVideoRenderer({
-    streamURL,
-    isBnW,
-    mirror,
-    zOrder,
-    style,
-}: {
-    streamURL: string;
-    isBnW: boolean;
-    mirror?: boolean;
-    zOrder?: number;
-    style?: any;
-}) {
-    if (isBnW && isBnWVideoSupported) {
-        return <BnWVideoView streamURL={streamURL} mirror={!!mirror} style={style} />;
-    }
-    if (!RTCViewNative) return null;
-    return (
-        <RTCViewNative
-            streamURL={streamURL}
-            style={style}
-            objectFit="cover"
-            mirror={mirror}
-            zOrder={zOrder ?? 0}
-        />
-    );
-}
-
-/* ─────────── noir film overlay (native desaturation workaround) ────────── */
-
-function NoirOverlay() {
-    if (Platform.OS === 'web') return null; // Web uses CSS grayscale
-    return (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            {/* Dark tint — reduces color vibrancy */}
-            <View style={[StyleSheet.absoluteFill, {
-                backgroundColor: 'rgba(0, 0, 0, 0.35)',
-            }]} />
-            {/* Vertical vignette — dark top/bottom edges */}
-            <LinearGradient
-                colors={[
-                    'rgba(0, 0, 0, 0.7)',
-                    'rgba(0, 0, 0, 0.0)',
-                    'rgba(0, 0, 0, 0.0)',
-                    'rgba(0, 0, 0, 0.7)',
-                ]}
-                locations={[0, 0.3, 0.7, 1]}
-                style={StyleSheet.absoluteFill}
-            />
-            {/* Horizontal vignette — dark left/right edges */}
-            <LinearGradient
-                colors={[
-                    'rgba(0, 0, 0, 0.5)',
-                    'rgba(0, 0, 0, 0.0)',
-                    'rgba(0, 0, 0, 0.0)',
-                    'rgba(0, 0, 0, 0.5)',
-                ]}
-                locations={[0, 0.25, 0.75, 1]}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={StyleSheet.absoluteFill}
-            />
-        </View>
-    );
-}
+/* Live Glass renders plain colour video via RTCView. No B&W / blur. */
 
 /* ─────────────────────────────── constants ───────────────────────────────── */
 
@@ -222,8 +117,6 @@ export default function LiveGlassPanel({
     const [localStream, setLocalStream] = useState<any>(null);
     const [remoteStream, setRemoteStream] = useState<any>(null);
     const [nativeStreamURL, setNativeStreamURL] = useState<string | null>(null);
-    const [blurIntensity, setBlurIntensity] = useState(0);
-    const [isBnW, setIsBnW] = useState(true);
     const [audioEnabled, setAudioEnabled] = useState(true);
     const [facingFront, setFacingFront] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -402,7 +295,6 @@ export default function LiveGlassPanel({
         setRemoteStream(null);
         setNativeStreamURL(null);
         setMode('lobby');
-        setBlurIntensity(0);
         setAudioEnabled(true);
         setFacingFront(true);
         setError(null);
@@ -698,30 +590,6 @@ export default function LiveGlassPanel({
         }
     }, [visible, initialMode]);
 
-    /* ──────────────────── blur sync over socket ─────────────────────── */
-
-    const [remoteBlur, setRemoteBlur] = useState(0);
-    const [remoteIsBnW, setRemoteIsBnW] = useState(true);
-
-    // Emit local controls to partner
-    useEffect(() => {
-        if (!socket || !roomId || !visible || (mode !== 'calling' && mode !== 'connected')) return;
-        socket.emit('transmit_live_glass_controls', { roomId, controls: { blur: blurIntensity, isBnW } });
-    }, [blurIntensity, isBnW, socket, roomId, visible, mode]);
-
-    // Listen for partner's control settings
-    useEffect(() => {
-        if (!socket || !roomId || !visible) return;
-        const handler = (data: any) => {
-            if (data.roomId === roomId) {
-                setRemoteBlur(data.controls?.blur ?? 0);
-                setRemoteIsBnW(data.controls?.isBnW ?? true);
-            }
-        };
-        socket.on('remote_live_glass_controls', handler);
-        return () => { socket.off('remote_live_glass_controls', handler); };
-    }, [socket, roomId, visible]);
-
     /* ──────────────────── audio mute toggle ──────────────────────────── */
 
     const toggleAudio = useCallback(() => {
@@ -834,15 +702,15 @@ export default function LiveGlassPanel({
             >
                 {remoteStream && Platform.OS !== 'web' && nativeStreamURL && RTCViewNative ? (
                     <View style={StyleSheet.absoluteFill}>
-                        <NativeVideoRenderer
+                        <RTCViewNative
                             streamURL={nativeStreamURL}
-                            isBnW={remoteIsBnW}
-                            zOrder={1}
                             style={styles.pipVideo}
+                            objectFit="cover"
+                            zOrder={1}
                         />
                     </View>
                 ) : remoteStream && Platform.OS === 'web' ? (
-                    <View style={[StyleSheet.absoluteFill, remoteIsBnW && { filter: 'grayscale(100%)' }] as any}>
+                    <View style={StyleSheet.absoluteFill}>
                         <WebVideo stream={remoteStream} muted={false} />
                     </View>
                 ) : (
@@ -950,29 +818,19 @@ export default function LiveGlassPanel({
                         {remoteStream ? (
                             <View style={StyleSheet.absoluteFill}>
                                 {Platform.OS === 'web' ? (
-                                    <View
-                                        style={
-                                            [
-                                                StyleSheet.absoluteFill,
-                                                remoteIsBnW && { filter: 'grayscale(100%)' },
-                                            ] as any
-                                        }
-                                    >
+                                    <View style={StyleSheet.absoluteFill}>
                                         <WebVideo
                                             stream={remoteStream}
                                             muted={false}
                                         />
                                     </View>
                                 ) : RTCViewNative && nativeStreamURL ? (
-                                    <>
-                                        <NativeVideoRenderer
-                                            streamURL={nativeStreamURL}
-                                            isBnW={remoteIsBnW}
-                                            zOrder={0}
-                                            style={{ width: '100%', height: '100%' }}
-                                        />
-                                        <BlurOverlay blurIntensity={remoteBlur} />
-                                    </>
+                                    <RTCViewNative
+                                        streamURL={nativeStreamURL}
+                                        style={{ width: '100%', height: '100%' }}
+                                        objectFit="cover"
+                                        zOrder={0}
+                                    />
                                 ) : (
                                     <View style={styles.noSignal}>
                                         <Text style={styles.noSignalText}>
@@ -1002,14 +860,7 @@ export default function LiveGlassPanel({
                     <View style={styles.localCameraContainer}>
                         {localStream ? (
                             Platform.OS === 'web' ? (
-                                <View
-                                    style={
-                                        [
-                                            StyleSheet.absoluteFill,
-                                            isBnW && { filter: 'grayscale(100%)' },
-                                        ] as any
-                                    }
-                                >
+                                <View style={StyleSheet.absoluteFill}>
                                     <WebVideo
                                         stream={localStream}
                                         muted
@@ -1018,14 +869,13 @@ export default function LiveGlassPanel({
                                 </View>
                             ) : RTCViewNative ? (
                                 <View style={{ flex: 1 }}>
-                                    <NativeVideoRenderer
+                                    <RTCViewNative
                                         streamURL={localStream.toURL()}
-                                        isBnW={isBnW}
+                                        style={{ width: '100%', height: '100%' }}
+                                        objectFit="cover"
                                         mirror
                                         zOrder={1}
-                                        style={{ width: '100%', height: '100%' }}
                                     />
-                                    <BlurOverlay blurIntensity={blurIntensity} />
                                 </View>
                             ) : (
                                 <View style={styles.noSignal}>
@@ -1051,26 +901,6 @@ export default function LiveGlassPanel({
 
                 {/* ── controls ───────────────────────────────────────── */}
                 <View style={styles.controls}>
-                    {/* blur slider — frosted glass effect */}
-                    <View style={styles.blurControl}>
-                        <Ionicons name="water-outline" size={14} color={blurIntensity > 0 ? '#fff' : THEME.faint} />
-                        <Text style={styles.controlLabel}>GLASS</Text>
-                        <Slider
-                            style={styles.slider}
-                            minimumValue={0}
-                            maximumValue={100}
-                            step={5}
-                            value={blurIntensity}
-                            onValueChange={setBlurIntensity}
-                            minimumTrackTintColor="rgba(255,255,255,0.6)"
-                            maximumTrackTintColor="rgba(255,255,255,0.1)"
-                            thumbTintColor="#fff"
-                        />
-                        <Text style={styles.controlValue}>
-                            {blurIntensity > 0 ? Math.round(blurIntensity) : 'OFF'}
-                        </Text>
-                    </View>
-
                     {/* action buttons row */}
                     <View style={styles.buttonRow}>
                         <TouchableOpacity
