@@ -12,6 +12,7 @@ import { useProAccess, useProTimeline } from '../lib/pro';
 import { usePricing } from '../lib/payment/usePricing';
 import { LEGAL_URLS } from '../lib/legal/consent';
 import FeatureGuide from './FeatureGuide';
+import MenuRow from './MenuRow';
 import { CONFIG } from '../constants/Config';
 
 /**
@@ -241,87 +242,58 @@ export default function SettingsPanel({
                 >
 
                 {/* Channel Key */}
-                <View style={styles.item}>
-                    <Text style={styles.itemLabel}>CHANNEL KEY</Text>
-                    <Text style={styles.itemValueBold}>{roomId || '---'}</Text>
-                </View>
+                <MenuRow icon="key-outline" label="CHANNEL KEY" value={roomId || '---'} disclosure={null} />
 
                 {/* Share Key */}
-                <TouchableOpacity onPress={handleShareKey} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>SHARE KEY</Text>
-                    <Ionicons name="link-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
+                <MenuRow icon="share-social-outline" label="SHARE KEY" onPress={handleShareKey} disclosure="link-outline" />
 
                 {/* Status */}
-                <View style={styles.item}>
-                    <Text style={styles.itemLabel}>STATUS</Text>
-                    <Text style={[styles.itemValueBold, { color: isLive ? THEME.live : THEME.warn }]}>
-                        {isLive ? 'LIVE' : 'WAITING'}
-                    </Text>
-                </View>
+                <MenuRow
+                    icon="pulse-outline"
+                    label="STATUS"
+                    value={isLive ? 'LIVE' : 'WAITING'}
+                    valueColor={isLive ? THEME.live : THEME.warn}
+                    active={isLive}
+                    disclosure={null}
+                />
 
                 {/* Ghost Sync */}
                 {isLive && onLinkDevices && (
-                    <TouchableOpacity onPress={onLinkDevices} style={styles.item} activeOpacity={0.7}>
-                        <Text style={styles.itemLabel}>GHOST SYNC (LINK DEVICE)</Text>
-                        <Ionicons name="link-outline" size={14} color={THEME.live} />
-                    </TouchableOpacity>
+                    <MenuRow icon="link-outline" label="GHOST SYNC (LINK DEVICE)" onPress={onLinkDevices} active />
                 )}
 
                 {/* ── Security ── */}
                 <Text style={styles.sectionLabel}>SECURITY</Text>
 
-                <TouchableOpacity
+                <MenuRow
+                    icon="shield-outline"
+                    label="DISCREET MODE"
+                    value={panicEnabled ? 'ON' : 'OFF'}
+                    active={panicEnabled}
                     onPress={() => setPanicEnabled(!panicEnabled)}
-                    style={styles.item}
-                    activeOpacity={0.7}
-                >
-                    <View style={styles.itemRow}>
-                        <Ionicons name="shield-outline" size={14} color={panicEnabled ? THEME.live : THEME.muted} />
-                        <Text style={styles.itemLabel}>DISCREET MODE</Text>
-                    </View>
-                    <Text style={[styles.itemValueBold, panicEnabled && { color: THEME.live }]}>
-                        {panicEnabled ? 'ON' : 'OFF'}
-                    </Text>
-                </TouchableOpacity>
+                />
 
                 {panicEnabled && (
-                    <TouchableOpacity
+                    <MenuRow
+                        icon="flash-outline"
+                        label="TEST DISCREET MODE"
+                        value={__DEV__ ? 'TAP TO TRIGGER' : 'SHAKE OR TAP'}
                         onPress={() => { onClose(); triggerPanic(); }}
-                        style={styles.item}
-                        activeOpacity={0.7}
-                    >
-                        <View style={styles.itemRow}>
-                            <Ionicons name="flash-outline" size={14} color={THEME.warn} />
-                            <Text style={styles.itemLabel}>TEST DISCREET MODE</Text>
-                        </View>
-                        <Text style={[styles.itemValueBold, { color: THEME.faint }]}>
-                            {__DEV__ ? 'TAP TO TRIGGER' : 'SHAKE OR TAP'}
-                        </Text>
-                    </TouchableOpacity>
+                    />
                 )}
 
                 {Platform.OS !== 'web' && (
-                    <TouchableOpacity
+                    <MenuRow
+                        icon="finger-print"
+                        label="BIOMETRIC LOCK"
+                        value={biometricEnabled ? 'ON' : 'OFF'}
+                        active={biometricEnabled}
                         onPress={() => setBiometricEnabled(!biometricEnabled)}
-                        style={styles.item}
-                        activeOpacity={0.7}
-                    >
-                        <View style={styles.itemRow}>
-                            <Ionicons name="finger-print" size={14} color={biometricEnabled ? THEME.live : THEME.muted} />
-                            <Text style={styles.itemLabel}>BIOMETRIC LOCK</Text>
-                        </View>
-                        <Text style={[styles.itemValueBold, biometricEnabled && { color: THEME.live }]}>
-                            {biometricEnabled ? 'ON' : 'OFF'}
-                        </Text>
-                    </TouchableOpacity>
+                    />
                 )}
 
                 {/* Regenerate Key */}
-                <TouchableOpacity onPress={onRegenerateKey} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>REGENERATE KEY</Text>
-                    <Ionicons name="refresh-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
+                <MenuRow icon="refresh-outline" label="REGENERATE KEY" onPress={onRegenerateKey} disclosure="chevron-forward" />
 
                 {/* ── Piqabu Pro (subscription management) ── */}
                 <Text style={styles.sectionLabel}>PIQABU PRO</Text>
@@ -361,36 +333,38 @@ export default function SettingsPanel({
                     )}
                 </View>
 
-                <TouchableOpacity
+                <MenuRow
+                    icon={isPro ? 'refresh-circle-outline' : 'diamond-outline'}
+                    label={!isPro
+                        ? `UPGRADE TO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`
+                        : proTimeline.inGracePeriod
+                            ? `RENEW NOW · ${pricing.displayPrice}`
+                            : proTimeline.isTrial
+                                ? `GO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`
+                                : `EXTEND ANOTHER YEAR · ${pricing.displayPrice}`}
                     onPress={() => { onClose(); setTimeout(() => router.push('/upgrade'), 200); }}
-                    style={styles.item}
-                    activeOpacity={0.7}
-                >
-                    <View style={styles.itemRow}>
-                        <Ionicons
-                            name={isPro ? 'refresh-circle-outline' : 'diamond-outline'}
-                            size={14}
-                            color={THEME.muted}
-                        />
-                        <Text style={styles.itemLabel}>
-                            {!isPro
-                                ? `UPGRADE TO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`
-                                : proTimeline.inGracePeriod
-                                    ? `RENEW NOW · ${pricing.displayPrice}`
-                                    : proTimeline.isTrial
-                                        ? `GO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`
-                                        : `EXTEND ANOTHER YEAR · ${pricing.displayPrice}`}
-                        </Text>
-                    </View>
-                    <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
-                </TouchableOpacity>
+                    disclosure="arrow-forward"
+                    active={!isPro}
+                />
 
                 {/* ── Piqabu Keyboard ── */}
                 {Platform.OS === 'android' && (
                     <>
                         <Text style={styles.sectionLabel}>PIQABU KEYBOARD</Text>
 
-                        <TouchableOpacity
+                        <MenuRow
+                            icon={!isPro
+                                ? 'lock-closed-outline'
+                                : keyboardConfigured
+                                    ? 'checkmark-circle-outline'
+                                    : 'keypad-outline'}
+                            label={!isPro
+                                ? 'UNLOCK WITH PIQABU PRO'
+                                : keyboardConfigured
+                                    ? 'MANAGE KEYBOARD'
+                                    : 'ENABLE KEYBOARD'}
+                            active={keyboardConfigured && isPro}
+                            disclosure="arrow-forward"
                             onPress={() => {
                                 if (isPro) {
                                     openKeyboardSettings();
@@ -405,63 +379,34 @@ export default function SettingsPanel({
                                     setTimeout(() => router.push('/upgrade'), 200);
                                 }
                             }}
-                            style={styles.item}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.itemRow}>
-                                <Ionicons
-                                    name={!isPro
-                                        ? 'lock-closed-outline'
-                                        : keyboardConfigured
-                                            ? 'checkmark-circle-outline'
-                                            : 'keypad-outline'}
-                                    size={14}
-                                    color={keyboardConfigured && isPro ? THEME.live : THEME.muted}
-                                />
-                                <Text style={styles.itemLabel}>
-                                    {!isPro
-                                        ? 'UNLOCK WITH PIQABU PRO'
-                                        : keyboardConfigured
-                                            ? 'MANAGE KEYBOARD'
-                                            : 'ENABLE KEYBOARD'}
-                                </Text>
-                            </View>
-                            <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
-                        </TouchableOpacity>
+                        />
 
-                        <TouchableOpacity
+                        <MenuRow
+                            icon="book-outline"
+                            label="FEATURE GUIDE"
                             onPress={() => setFeatureGuideVisible(true)}
-                            style={styles.item}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.itemRow}>
-                                <Ionicons name="book-outline" size={14} color={THEME.muted} />
-                                <Text style={styles.itemLabel}>FEATURE GUIDE</Text>
-                            </View>
-                            <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
-                        </TouchableOpacity>
+                            disclosure="arrow-forward"
+                        />
 
-                        <TouchableOpacity
+                        <MenuRow
+                            icon="play-back-outline"
+                            label="REPLAY ONBOARDING"
                             onPress={replayOnboarding}
-                            style={styles.item}
-                            activeOpacity={0.7}
-                        >
-                            <View style={styles.itemRow}>
-                                <Ionicons name="play-back-outline" size={14} color={THEME.muted} />
-                                <Text style={styles.itemLabel}>REPLAY ONBOARDING</Text>
-                            </View>
-                            <Ionicons name="arrow-forward" size={14} color={THEME.ink} />
-                        </TouchableOpacity>
+                            disclosure="arrow-forward"
+                        />
                     </>
                 )}
 
                 {/* ── Support ── */}
                 <Text style={styles.sectionLabel}>SUPPORT</Text>
 
-                <TouchableOpacity onPress={() => setFeedbackVisible(!feedbackVisible)} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>REPORT ISSUE / FEEDBACK</Text>
-                    <Ionicons name="alert-circle-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
+                <MenuRow
+                    icon="alert-circle-outline"
+                    label="REPORT ISSUE / FEEDBACK"
+                    onPress={() => setFeedbackVisible(!feedbackVisible)}
+                    active={feedbackVisible}
+                    disclosure={feedbackVisible ? 'chevron-up' : 'chevron-down'}
+                />
 
                 {feedbackVisible && (
                     <View style={styles.feedbackContainer}>
@@ -483,42 +428,18 @@ export default function SettingsPanel({
                 {/* ── Legal ── */}
                 <Text style={styles.sectionLabel}>LEGAL</Text>
 
-                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.terms).catch(() => {})} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>TERMS OF SERVICE</Text>
-                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.privacy).catch(() => {})} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>PRIVACY POLICY</Text>
-                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.refunds).catch(() => {})} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>REFUND POLICY</Text>
-                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.acceptableUse).catch(() => {})} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>ACCEPTABLE USE</Text>
-                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.lawEnforcement).catch(() => {})} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>LAW ENFORCEMENT POLICY</Text>
-                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => Linking.openURL(LEGAL_URLS.transparency).catch(() => {})} style={styles.item} activeOpacity={0.7}>
-                    <Text style={styles.itemLabel}>TRANSPARENCY REPORTS</Text>
-                    <Ionicons name="open-outline" size={14} color={THEME.ink} />
-                </TouchableOpacity>
+                <MenuRow icon="document-text-outline" label="TERMS OF SERVICE" onPress={() => Linking.openURL(LEGAL_URLS.terms).catch(() => {})} disclosure="open-outline" />
+                <MenuRow icon="lock-closed-outline" label="PRIVACY POLICY" onPress={() => Linking.openURL(LEGAL_URLS.privacy).catch(() => {})} disclosure="open-outline" />
+                <MenuRow icon="cash-outline" label="REFUND POLICY" onPress={() => Linking.openURL(LEGAL_URLS.refunds).catch(() => {})} disclosure="open-outline" />
+                <MenuRow icon="checkmark-done-outline" label="ACCEPTABLE USE" onPress={() => Linking.openURL(LEGAL_URLS.acceptableUse).catch(() => {})} disclosure="open-outline" />
+                <MenuRow icon="shield-checkmark-outline" label="LAW ENFORCEMENT POLICY" onPress={() => Linking.openURL(LEGAL_URLS.lawEnforcement).catch(() => {})} disclosure="open-outline" />
+                <MenuRow icon="bar-chart-outline" label="TRANSPARENCY REPORTS" onPress={() => Linking.openURL(LEGAL_URLS.transparency).catch(() => {})} disclosure="open-outline" />
 
                 {/* Leave Channel */}
-                <TouchableOpacity onPress={onLeaveChannel} style={styles.dangerItem} activeOpacity={0.7}>
-                    <Text style={styles.dangerLabel}>LEAVE CHANNEL</Text>
-                    <Ionicons name="log-out-outline" size={14} color={THEME.bad} />
-                </TouchableOpacity>
+                <MenuRow icon="log-out-outline" label="LEAVE CHANNEL" tone="danger" onPress={onLeaveChannel} disclosure="chevron-forward" />
 
                 {/* Wipe Everything — destructive, with confirmation. */}
-                <TouchableOpacity onPress={handleWipeEverything} style={styles.dangerItem} activeOpacity={0.7}>
-                    <Text style={styles.dangerLabel}>WIPE EVERYTHING</Text>
-                    <Ionicons name="trash-outline" size={14} color={THEME.bad} />
-                </TouchableOpacity>
+                <MenuRow icon="trash-outline" label="WIPE EVERYTHING" tone="danger" onPress={handleWipeEverything} disclosure="chevron-forward" />
 
                 {/* Spacer at end of scroll so the last item never feels
                     hugged by the sticky footer below. */}
