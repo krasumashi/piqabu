@@ -49,15 +49,16 @@ export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisper
                             isActive && styles.dockItemActive,
                         ]}
                     >
-                        {/* Circle */}
+                        {/* Accessory cell */}
                         <View style={[
                             styles.circle,
+                            isActive && styles.circleActive,
                             isWhisperActive && styles.circleWhisperActive,
                         ]}>
                             <Ionicons
                                 name={item.icon as any}
                                 size={20}
-                                color={isWhisperActive ? THEME.accEmerald : THEME.muted}
+                                color={(isActive || isWhisperActive) ? THEME.ink : THEME.muted}
                                 style={{ opacity: 1 }}
                             />
                             {/* Notify badge */}
@@ -96,40 +97,35 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 6,
-        paddingVertical: 8,
+        gap: 8,
+        paddingVertical: 10,
         paddingHorizontal: 6,
-        borderRadius: 16,
+        borderRadius: 15,
         borderWidth: 1,
-        borderStyle: 'dashed' as any,
         borderColor: 'rgba(245,243,235,0.16)',
-        backgroundColor: 'transparent',
+        backgroundColor: 'rgba(245,243,235,0.035)',
     },
     dockItemActive: {
-        backgroundColor: 'rgba(245,243,235,0.02)',
+        borderColor: 'rgba(245,243,235,0.34)',
+        backgroundColor: 'rgba(245,243,235,0.09)',
     },
     circle: {
         width: 44,
         height: 44,
-        borderRadius: 999,
+        borderRadius: 13,
         borderWidth: 1,
-        borderStyle: 'dashed' as any,
-        borderColor: 'rgba(245,243,235,0.22)',
-        backgroundColor: 'transparent',
+        borderColor: 'rgba(245,243,235,0.16)',
+        backgroundColor: 'rgba(245,243,235,0.035)',
         alignItems: 'center',
         justifyContent: 'center',
     },
+    circleActive: {
+        borderColor: 'rgba(245,243,235,0.34)',
+        backgroundColor: 'rgba(245,243,235,0.10)',
+    },
     circleWhisperActive: {
-        borderWidth: 2,
-        borderStyle: 'solid' as any,
-        borderColor: THEME.accEmerald,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        // Shadow for glow effect
-        shadowColor: 'rgba(255, 255, 255, 0.8)',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.3,
-        shadowRadius: 15,
-        elevation: 8,
+        borderColor: 'rgba(255,255,255,0.65)',
+        backgroundColor: 'rgba(255,255,255,0.10)',
     },
     notifyDot: {
         position: 'absolute',

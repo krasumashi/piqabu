@@ -144,17 +144,17 @@ export default function LiveLauncher({
                         Start a real-time channel with your correspondent.
                     </Text>
 
-                    {/* Options */}
+                    {/* Options — segmented cells: accessory · text · disclosure */}
                     <View style={styles.options}>
                         <TouchableOpacity
                             onPress={() => handleSelect('glass')}
-                            style={styles.optionCard}
+                            style={styles.optionRow}
                             activeOpacity={0.75}
                         >
-                            <View style={styles.optionIconWrap}>
-                                <Ionicons name="videocam-outline" size={26} color={THEME.ink} />
+                            <View style={[styles.cell, styles.squareCell]}>
+                                <Ionicons name="videocam-outline" size={24} color={THEME.ink} />
                             </View>
-                            <View style={styles.optionTextWrap}>
+                            <View style={[styles.cell, styles.textCell]}>
                                 <View style={styles.optionLabelRow}>
                                     <Text style={styles.optionLabel}>LIVE GLASS</Text>
                                     {!isPro && (
@@ -167,18 +167,20 @@ export default function LiveLauncher({
                                     Camera-to-camera. Blur and noir filters on by default.
                                 </Text>
                             </View>
-                            <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
+                            <View style={[styles.cell, styles.squareCell]}>
+                                <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
+                            </View>
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             onPress={() => handleSelect('mirror')}
-                            style={styles.optionCard}
+                            style={styles.optionRow}
                             activeOpacity={0.75}
                         >
-                            <View style={styles.optionIconWrap}>
-                                <Ionicons name="phone-portrait-outline" size={26} color={THEME.ink} />
+                            <View style={[styles.cell, styles.squareCell]}>
+                                <Ionicons name="phone-portrait-outline" size={24} color={THEME.ink} />
                             </View>
-                            <View style={styles.optionTextWrap}>
+                            <View style={[styles.cell, styles.textCell]}>
                                 <View style={styles.optionLabelRow}>
                                     <Text style={styles.optionLabel}>LIVE MIRROR</Text>
                                     {!isPro && (
@@ -191,7 +193,9 @@ export default function LiveLauncher({
                                     Share your screen. View-only — no save, no screenshots.
                                 </Text>
                             </View>
-                            <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
+                            <View style={[styles.cell, styles.squareCell]}>
+                                <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
+                            </View>
                         </TouchableOpacity>
                     </View>
 
@@ -281,52 +285,28 @@ const styles = StyleSheet.create({
     options: {
         gap: 10,
     },
-    optionCard: {
+    optionRow: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        backgroundColor: THEME.paper2,
-        borderWidth: 1,
-        borderColor: THEME.edge2,
-        borderRadius: 16,
-        paddingVertical: 14,
-        paddingHorizontal: 14,
+        alignItems: 'stretch',
+        gap: 7,
     },
-    optionCardDisabled: {
-        opacity: 0.55,
-        backgroundColor: 'rgba(0,0,0,0.25)',
-    },
-    optionIconWrap: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
+    cell: {
         borderWidth: 1,
-        borderColor: THEME.edge2,
-        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderColor: 'rgba(245,243,235,0.16)',
+        backgroundColor: 'rgba(245,243,235,0.035)',
+        borderRadius: 15,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    optionIconWrapDisabled: {
-        backgroundColor: 'transparent',
-        borderStyle: 'dashed',
+    squareCell: {
+        width: 58,
     },
-    comingSoonPill: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: THEME.edge,
-        backgroundColor: 'rgba(255,255,255,0.06)',
-    },
-    comingSoonText: {
-        fontFamily: THEME.mono,
-        fontSize: 8,
-        letterSpacing: 1.4,
-        fontWeight: '900',
-        color: THEME.muted,
-    },
-    optionTextWrap: {
+    textCell: {
         flex: 1,
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 14,
     },
     optionLabelRow: {
         flexDirection: 'row',
