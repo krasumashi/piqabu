@@ -251,29 +251,29 @@ function FeatureRow({
     const IconComp = feature.iconLib === 'mc' ? MaterialCommunityIcons : Ionicons;
 
     return (
-        <TouchableOpacity
-            onPress={onTap}
-            activeOpacity={0.7}
-            style={[styles.row, expanded && styles.rowExpanded]}
-        >
-            <View style={styles.rowHeader}>
-                <View style={[styles.iconBubble, expanded && styles.iconBubbleActive]}>
+        <View>
+            {/* Segmented-cell header: accessory · title · disclosure */}
+            <TouchableOpacity onPress={onTap} activeOpacity={0.7} style={styles.segRow}>
+                <View style={[styles.cell, styles.squareCell, expanded && styles.cellActive]}>
                     <IconComp
                         name={feature.icon as any}
-                        size={16}
-                        color={expanded ? THEME.live : THEME.muted}
+                        size={18}
+                        color={expanded ? THEME.ink : THEME.muted}
                     />
                 </View>
-                <Text style={[styles.rowName, expanded && styles.rowNameActive]}>
-                    {feature.name}
-                </Text>
-                <View style={{ flex: 1 }} />
-                <Ionicons
-                    name={expanded ? 'chevron-up' : 'chevron-down'}
-                    size={14}
-                    color={THEME.faint}
-                />
-            </View>
+                <View style={[styles.cell, styles.titleCell, expanded && styles.cellActive]}>
+                    <Text style={[styles.rowName, expanded && styles.rowNameActive]} numberOfLines={1}>
+                        {feature.name}
+                    </Text>
+                </View>
+                <View style={[styles.cell, styles.squareCell, expanded && styles.cellActive]}>
+                    <Ionicons
+                        name={expanded ? 'chevron-up' : 'chevron-down'}
+                        size={16}
+                        color={THEME.faint}
+                    />
+                </View>
+            </TouchableOpacity>
 
             {expanded && (
                 <Animated.View style={[styles.detail, { opacity: fade }]}>
@@ -283,7 +283,7 @@ function FeatureRow({
                     <Text style={styles.detailText}>{feature.how}</Text>
                 </Animated.View>
             )}
-        </TouchableOpacity>
+        </View>
     );
 }
 
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     },
     scroll: { flex: 1 },
     scrollContent: { paddingBottom: 14, gap: 18 },
-    categoryGroup: { gap: 6 },
+    categoryGroup: { gap: 9 },
     categoryLabel: {
         fontFamily: THEME.mono,
         fontSize: 9,
@@ -366,53 +366,52 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         marginBottom: 4,
     },
-    row: {
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: 'rgba(245,243,235,0.10)',
-        backgroundColor: 'rgba(0,0,0,0.10)',
-        paddingHorizontal: 10,
-        paddingVertical: 12,
-    },
-    rowExpanded: {
-        borderColor: 'rgba(245,243,235,0.22)',
-        backgroundColor: 'rgba(245,243,235,0.04)',
-    },
-    rowHeader: {
+    /* Segmented-cell row — shares MenuRow's visual tokens. */
+    segRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
+        gap: 7,
     },
-    iconBubble: {
-        width: 32, height: 32,
-        borderRadius: 16,
+    cell: {
+        height: 50,
+        borderRadius: 15,
         borderWidth: 1,
-        borderStyle: 'dashed' as any,
-        borderColor: 'rgba(245,243,235,0.20)',
-        backgroundColor: 'transparent',
+        borderColor: 'rgba(245,243,235,0.16)',
+        backgroundColor: 'rgba(245,243,235,0.035)',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    iconBubbleActive: {
-        borderStyle: 'solid' as any,
-        borderColor: 'rgba(255,255,255,0.65)',
-        backgroundColor: 'rgba(255,255,255,0.06)',
+    cellActive: {
+        borderColor: 'rgba(245,243,235,0.34)',
+        backgroundColor: 'rgba(245,243,235,0.09)',
+    },
+    squareCell: {
+        width: 50,
+    },
+    titleCell: {
+        flex: 1,
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        paddingHorizontal: 16,
     },
     rowName: {
         fontFamily: THEME.mono,
         fontSize: 11,
-        letterSpacing: 1.8,
+        letterSpacing: 1.4,
         fontWeight: '800',
         color: THEME.muted,
+        textTransform: 'uppercase',
     },
     rowNameActive: {
         color: THEME.ink,
     },
     detail: {
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(245,243,235,0.10)',
+        marginTop: 7,
+        padding: 14,
+        borderRadius: 15,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.12)',
+        backgroundColor: 'rgba(245,243,235,0.03)',
     },
     detailLabel: {
         fontFamily: THEME.mono,
