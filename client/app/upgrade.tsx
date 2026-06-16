@@ -361,8 +361,12 @@ function StatusRow({ label, value, valueColor }: { label: string; value: string;
 function Benefit({ label }: { label: string }) {
     return (
         <View style={styles.benefitRow}>
-            <Ionicons name="ellipse" size={5} color={THEME.muted} style={{ marginTop: 7 }} />
-            <Text style={styles.benefitText}>{label}</Text>
+            <View style={styles.benefitCell}>
+                <Ionicons name="checkmark" size={16} color={THEME.ink} />
+            </View>
+            <View style={[styles.benefitCell, styles.benefitTextCell]}>
+                <Text style={styles.benefitText}>{label}</Text>
+            </View>
         </View>
     );
 }
@@ -459,13 +463,29 @@ const styles = StyleSheet.create({
     benefitsList: {
         alignSelf: 'stretch',
         marginBottom: 22,
-        gap: 8,
+        gap: 7,
     },
     benefitRow: {
-        flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+        flexDirection: 'row', alignItems: 'stretch', gap: 7,
+    },
+    benefitCell: {
+        width: 44,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.16)',
+        backgroundColor: 'rgba(245,243,235,0.035)',
+        borderRadius: 13,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    benefitTextCell: {
+        flex: 1,
+        width: undefined,
+        alignItems: 'flex-start',
+        paddingVertical: 11,
+        paddingHorizontal: 14,
     },
     benefitText: {
-        flex: 1, fontFamily: THEME.mono, fontSize: 12, lineHeight: 18,
+        fontFamily: THEME.mono, fontSize: 12, lineHeight: 18,
         color: THEME.ink, letterSpacing: 0.3,
     },
     emailGroup: { alignSelf: 'stretch', marginBottom: 18 },
