@@ -172,31 +172,27 @@ export default function LiveLauncher({
                             </View>
                         </TouchableOpacity>
 
-                        <TouchableOpacity
-                            onPress={() => handleSelect('mirror')}
-                            style={styles.optionRow}
-                            activeOpacity={0.75}
-                        >
+                        {/* Live Mirror — gated COMING SOON until the screen-share
+                            pipeline is fixed (never worked across device tests). */}
+                        <View style={[styles.optionRow, styles.optionDisabled]}>
                             <View style={[styles.cell, styles.squareCell]}>
-                                <Ionicons name="phone-portrait-outline" size={24} color={THEME.ink} />
+                                <Ionicons name="phone-portrait-outline" size={24} color={THEME.muted} />
                             </View>
                             <View style={[styles.cell, styles.textCell]}>
                                 <View style={styles.optionLabelRow}>
-                                    <Text style={styles.optionLabel}>LIVE MIRROR</Text>
-                                    {!isPro && (
-                                        <View style={styles.proPill}>
-                                            <Text style={styles.proPillText}>PRO</Text>
-                                        </View>
-                                    )}
+                                    <Text style={[styles.optionLabel, { color: THEME.muted }]}>LIVE MIRROR</Text>
+                                    <View style={styles.proPill}>
+                                        <Text style={styles.proPillText}>COMING SOON</Text>
+                                    </View>
                                 </View>
                                 <Text style={styles.optionDesc}>
                                     Share your screen. View-only — no save, no screenshots.
                                 </Text>
                             </View>
                             <View style={[styles.cell, styles.squareCell]}>
-                                <Ionicons name="chevron-forward" size={16} color={THEME.faint} />
+                                <Ionicons name="lock-closed-outline" size={15} color={THEME.faint} />
                             </View>
-                        </TouchableOpacity>
+                        </View>
                     </View>
 
                     {/* Footer */}
@@ -289,6 +285,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'stretch',
         gap: 7,
+    },
+    optionDisabled: {
+        opacity: 0.5,
     },
     cell: {
         borderWidth: 1,

@@ -8,6 +8,7 @@ import GridBackground from '../components/GridBackground';
 import PiqabuProPaywall from '../components/PiqabuProPaywall';
 import { useProAccess } from '../lib/pro';
 import KeyboardFeaturesSlide from '../components/KeyboardFeaturesSlide';
+import FeatureGuide from '../components/FeatureGuide';
 
 const { width } = Dimensions.get('window');
 
@@ -130,6 +131,7 @@ export default function Onboarding() {
     const scrollX = useRef(new Animated.Value(0)).current;
     const { isPro, refresh: refreshPro } = useProAccess();
     const [paywallVisible, setPaywallVisible] = useState(false);
+    const [showFeatureGuide, setShowFeatureGuide] = useState(false);
 
     const handleNext = () => {
         if (activeIndex < slides.length - 1) {
@@ -139,7 +141,16 @@ export default function Onboarding() {
         }
     };
 
+    // Completing the flow opens the Feature Guide once, so new users
+    // learn what each tool does before entering. Closing it drops them
+    // into the app. The guide still lives in Settings for later.
     const handleFinish = async () => {
+        await completeOnboarding();
+        setShowFeatureGuide(true);
+    };
+
+    // Skip bypasses the guide — straight into the app.
+    const handleSkip = async () => {
         await completeOnboarding();
         router.replace('/');
     };
@@ -234,7 +245,7 @@ export default function Onboarding() {
             <GridBackground />
             {/* Skip button */}
             <TouchableOpacity
-                onPress={handleFinish}
+                onPress={handleSkip}
                 className="absolute top-14 right-6 z-10 px-4 py-2"
             >
                 <Text className="text-ghost font-mono text-[10px] uppercase tracking-[2px]">
@@ -303,6 +314,14 @@ export default function Onboarding() {
                 visible={paywallVisible}
                 onDismiss={() => setPaywallVisible(false)}
                 onSubscribed={() => { refreshPro(); }}
+            />
+
+            {/* Feature Guide — auto-opened once at the end of onboarding so
+                users learn each tool before entering. Closing it drops them
+                into the app. Also lives in Settings for later reference. */}
+            <FeatureGuide
+                visible={showFeatureGuide}
+                onClose={() => { setShowFeatureGuide(false); router.replace('/'); }}
             />
         </View>
     );
