@@ -22,6 +22,14 @@ const NativeRTCSD: typeof RTCSessionDescription | undefined = RNWebRTC?.RTCSessi
 const NativeRTCIC: typeof RTCIceCandidate | undefined = RNWebRTC?.RTCIceCandidate;
 const nativeMediaDevices: typeof navigator.mediaDevices | undefined = RNWebRTC?.mediaDevices;
 
+/* Call audio session for WebRTC voice — see LiveGlassPanel for the full
+ * rationale. Whisper is audio-only, so we force the loudspeaker on
+ * (audio calls default to the earpiece otherwise). Guarded require. */
+let InCallManager: any = null;
+if (Platform.OS !== 'web') {
+    try { InCallManager = require('react-native-incall-manager').default; } catch { /* not in this build */ }
+}
+
 const ICE_SERVERS: RTCIceServer[] = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
@@ -107,6 +115,13 @@ export default function WhisperPanel({
                         playThroughEarpieceAndroid: false,
                     } as any).catch(err => console.warn('[Whisper] Audio err:', err));
                 });
+                // Open the WebRTC call audio session + force loudspeaker.
+                if (InCallManager) {
+                    try {
+                        InCallManager.start({ media: 'audio' });
+                        InCallManager.setForceSpeakerphoneOn(true);
+                    } catch { /* noop */ }
+                }
             }
         } else {
             RNAnimated.parallel([
@@ -342,6 +357,11 @@ export default function WhisperPanel({
     const cleanup = useCallback(() => {
         if (cleanedUp.current) return;
         cleanedUp.current = true;
+
+        /* release the call audio session */
+        if (InCallManager) {
+            try { InCallManager.setForceSpeakerphoneOn(false); InCallManager.stop(); } catch { /* noop */ }
+        }
 
         if (pcRef.current) {
             try {

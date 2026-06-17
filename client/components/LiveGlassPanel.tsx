@@ -37,6 +37,33 @@ const nativeMediaDevices: typeof navigator.mediaDevices | undefined =
     RNWebRTC?.mediaDevices;
 const RTCViewNative: React.ComponentType<any> | undefined = RNWebRTC?.RTCView;
 
+/* ── call audio session (react-native-incall-manager) ──────────────────────
+ * WebRTC on Android needs an explicit audio session (MODE_IN_COMMUNICATION
+ * + speaker routing) or the remote voice is silent / stuck on the earpiece.
+ * react-native-webrtc does NOT set this up itself. InCallManager.start()
+ * configures the session and routes a video call to the loudspeaker; stop()
+ * restores normal audio on teardown. Guarded require so web / a build
+ * without the native module degrades gracefully (no audio routing, no crash).
+ */
+let InCallManager: any = null;
+if (Platform.OS !== 'web') {
+    try { InCallManager = require('react-native-incall-manager').default; } catch { /* not in this build */ }
+}
+function startCallAudio() {
+    if (!InCallManager) return;
+    try {
+        InCallManager.start({ media: 'video' });
+        InCallManager.setForceSpeakerphoneOn(true);
+    } catch { /* noop */ }
+}
+function stopCallAudio() {
+    if (!InCallManager) return;
+    try {
+        InCallManager.setForceSpeakerphoneOn(false);
+        InCallManager.stop();
+    } catch { /* noop */ }
+}
+
 /* Live Glass renders plain colour video via RTCView. No B&W / blur. */
 
 /* ─────────────────────────────── constants ───────────────────────────────── */
@@ -253,6 +280,9 @@ export default function LiveGlassPanel({
         if (cleanedUp.current) return;
         cleanedUp.current = true;
 
+        /* release the call audio session */
+        stopCallAudio();
+
         /* close peer connection */
         if (pcRef.current) {
             try {
@@ -468,6 +498,9 @@ export default function LiveGlassPanel({
             setError('No socket connection or camera available.');
             return;
         }
+
+        /* open the call audio session (speaker routing) before negotiating */
+        startCallAudio();
 
         const stream = localStreamRef.current;
 
