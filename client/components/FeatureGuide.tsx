@@ -57,9 +57,9 @@ const CATEGORIES: FeatureCategory[] = [
                 id: 'peep',
                 icon: 'eye-outline',
                 iconLib: 'ion',
-                name: 'PEEP',
+                name: 'PEEK',
                 what: 'View images, videos, and files your correspondent has shared with you.',
-                how: 'When they tap REVEAL on their side, what they sent appears in your PEEP. Closing the view makes it vanish on both ends — nothing is saved.',
+                how: 'When they tap REVEAL on their side, what they sent appears in your PEEK. Closing the view makes it vanish on both ends — nothing is saved.',
             },
             {
                 id: 'reveal',
@@ -67,7 +67,7 @@ const CATEGORIES: FeatureCategory[] = [
                 iconLib: 'ion',
                 name: 'REVEAL',
                 what: 'Send your own images, documents, or files to your correspondent.',
-                how: 'Tap REVEAL, pick a file, send. They open it through PEEP on their side. The file auto-deletes from our servers within 30 minutes regardless of whether they viewed it.',
+                how: 'Tap REVEAL, pick a file, send. They open it through PEEK on their side. The file auto-deletes from our servers within 30 minutes regardless of whether they viewed it.',
             },
             {
                 id: 'whisper',

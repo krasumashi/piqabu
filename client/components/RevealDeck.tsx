@@ -554,7 +554,7 @@ export default function RevealDeck({
                 {/* Footer */}
                 <View style={styles.footer}>
                     <Text style={styles.footerText}>
-                        SHOW = VISIBLE IN THEIR PEEP ROOM. COVER = HIDDEN.
+                        SHOW = VISIBLE IN THEIR PEEK ROOM. COVER = HIDDEN.
                     </Text>
                 </View>
             </RNAnimated.View>

@@ -64,9 +64,9 @@ const slides: Slide[] = [
     },
     {
         icon: 'eye-outline',
-        title: 'REVEAL & PEEP',
+        title: 'REVEAL & PEEK',
         subtitle: 'Controlled exposure',
-        description: 'Load material into your Reveal Vault. Show it when you choose. Your correspondent sees it in their Peep Room -- no screenshots, no trace.',
+        description: 'Load material into your Reveal Vault. Show it when you choose. Your correspondent sees it in their Peek Room -- no screenshots, no trace.',
     },
     {
         icon: 'radio-outline',

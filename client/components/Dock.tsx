@@ -14,7 +14,7 @@ interface DockProps {
 }
 
 const DOCK_ITEMS: { id: 'peep' | 'whisper' | 'reveal'; label: string; icon: string }[] = [
-    { id: 'peep', label: 'PEEP', icon: 'eye-outline' },
+    { id: 'peep', label: 'PEEK', icon: 'eye-outline' },
     { id: 'whisper', label: 'WHISPER', icon: 'mic-outline' },
     { id: 'reveal', label: 'REVEAL', icon: 'folder-open-outline' },
 ];
@@ -98,17 +98,12 @@ const styles = StyleSheet.create({
         flexDirection: 'column',
         alignItems: 'center',
         gap: 8,
-        paddingVertical: 10,
-        paddingHorizontal: 6,
-        borderRadius: 15,
-        borderWidth: 1,
-        borderColor: 'rgba(245,243,235,0.16)',
-        backgroundColor: 'rgba(245,243,235,0.035)',
+        paddingVertical: 6,
+        paddingHorizontal: 4,
+        // No outer box — each button is just its accessory cell + label.
+        // Active state reads through the icon cell + label brightening.
     },
-    dockItemActive: {
-        borderColor: 'rgba(245,243,235,0.34)',
-        backgroundColor: 'rgba(245,243,235,0.09)',
-    },
+    dockItemActive: {},
     circle: {
         width: 44,
         height: 44,

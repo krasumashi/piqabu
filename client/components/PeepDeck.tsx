@@ -212,7 +212,7 @@ export default function PeepDeck({
                 {/* Header */}
                 <View style={styles.header}>
                     <View>
-                        <Text style={styles.headerTitle}>PEEP ROOM</Text>
+                        <Text style={styles.headerTitle}>PEEK ROOM</Text>
                         <Text style={styles.headerSub}>VIEW ONLY • NO TRACE</Text>
                     </View>
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>

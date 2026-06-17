@@ -126,7 +126,7 @@ export default function ConsentGate() {
                 </View>
 
                 <Text style={styles.legalFooter}>
-                    AhTohMoh
+                    AhTohMoh{'\n'}Developed in Ghana
                 </Text>
             </ScrollView>
         </SafeAreaView>
