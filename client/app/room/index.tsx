@@ -80,7 +80,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     setLiveGlassPartnerAccepted: (v: boolean) => void;
     setLiveGlassInitialMode: (m: 'lobby' | 'calling') => void;
 }) {
-    const { socket, deviceId, limits, removeRoom, rooms } = useRoomContext();
+    const { socket, deviceId, limits, removeRoom, rooms, isPro } = useRoomContext();
     const router = useRouter();
 
     // Whether this room came from a deep-link (keyboard MINT or a tapped
@@ -335,6 +335,14 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 
     // ── Dock toggle ──
     const handleDockToggle = (id: 'peep' | 'whisper' | 'reveal') => {
+        // Freemium: PEEK (viewing what a partner revealed to you) is free —
+        // it's participation. REVEAL (sending) and WHISPER (initiating a
+        // voice channel) are Pro to start; free users are routed to the
+        // upgrade screen. Receiving/joining stays free via InviteOverlay.
+        if ((id === 'reveal' || id === 'whisper') && !isPro) {
+            router.push('/upgrade');
+            return;
+        }
         setActiveOverlay(prev => prev === id ? null : id);
     };
 
@@ -513,6 +521,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 onToggle={handleDockToggle}
                 incomingWhisper={whisperBadge > 0}
                 whisperActive={activeOverlay === 'whisper'}
+                isPro={isPro}
             />
 
             {/* Overlays */}
@@ -589,6 +598,13 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 visible={liveLauncherOpen}
                 onDismiss={() => setLiveLauncherOpen(false)}
                 onSelectGlass={() => {
+                    // Pro to START Live Glass; free users upgrade. Receiving a
+                    // Live Glass invite (InviteOverlay) stays free — join is allowed.
+                    if (!isPro) {
+                        setLiveLauncherOpen(false);
+                        router.push('/upgrade');
+                        return;
+                    }
                     setLiveGlassInitialMode('lobby');
                     setLiveGlassPartnerAccepted(false);
                     onOpenLiveGlass();

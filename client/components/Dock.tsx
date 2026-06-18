@@ -11,6 +11,9 @@ interface DockProps {
     onToggle: (id: 'peep' | 'whisper' | 'reveal') => void;
     incomingWhisper?: boolean;
     whisperActive?: boolean;
+    /** Pro entitlement. When false, REVEAL + WHISPER (Pro to initiate)
+     *  show a small PRO tag. PEEK stays unmarked — it's free to view. */
+    isPro?: boolean;
 }
 
 const DOCK_ITEMS: { id: 'peep' | 'whisper' | 'reveal'; label: string; icon: string }[] = [
@@ -19,7 +22,7 @@ const DOCK_ITEMS: { id: 'peep' | 'whisper' | 'reveal'; label: string; icon: stri
     { id: 'reveal', label: 'REVEAL', icon: 'folder-open-outline' },
 ];
 
-export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisperActive }: DockProps) {
+export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisperActive, isPro = true }: DockProps) {
     // Walkthrough targets — one ref per dock item, registered by
     // name so WalkthroughOverlay can measure each. Hooks can't be
     // called inside the map below, so we pre-bind them in the parent.
@@ -64,6 +67,12 @@ export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisper
                             {/* Notify badge */}
                             {item.id === 'whisper' && incomingWhisper && (
                                 <View style={styles.notifyDot} />
+                            )}
+                            {/* PRO tag — REVEAL + WHISPER are Pro to initiate. */}
+                            {!isPro && (item.id === 'reveal' || item.id === 'whisper') && (
+                                <View style={styles.proTag}>
+                                    <Text style={styles.proTagText}>PRO</Text>
+                                </View>
                             )}
                         </View>
 
@@ -132,6 +141,24 @@ const styles = StyleSheet.create({
         backgroundColor: THEME.accDanger,
         borderWidth: 2,
         borderColor: THEME.bg,
+    },
+    proTag: {
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        paddingHorizontal: 4,
+        paddingVertical: 1,
+        borderRadius: 5,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.30)',
+        backgroundColor: THEME.bg,
+    },
+    proTagText: {
+        fontFamily: THEME.mono,
+        fontSize: 7,
+        letterSpacing: 1,
+        fontWeight: '900',
+        color: THEME.muted,
     },
     label: {
         fontFamily: THEME.mono,
