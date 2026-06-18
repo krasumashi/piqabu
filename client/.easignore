@@ -1,0 +1,17 @@
+# Local Android build artifacts — never needed by EAS (it builds fresh).
+# Without this they bloat the upload (saw a 733MB archive) and can crash
+# the local pre-upload steps. EAS regenerates all of this on its builders.
+android/app/build/
+android/app/.cxx/
+android/build/
+android/.gradle/
+android/app/.gradle/
+
+# Local release APKs / bundles
+*.apk
+*.aab
+dist/
+
+# Misc local
+*.log
+.expo/

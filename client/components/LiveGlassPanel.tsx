@@ -144,7 +144,10 @@ export default function LiveGlassPanel({
     const [localStream, setLocalStream] = useState<any>(null);
     const [remoteStream, setRemoteStream] = useState<any>(null);
     const [nativeStreamURL, setNativeStreamURL] = useState<string | null>(null);
-    const [audioEnabled, setAudioEnabled] = useState(true);
+    // Push-to-talk: the mic track is DISABLED by default and only goes
+    // live while the user holds the talk button (walkie-talkie). isTalking
+    // mirrors the audio track's enabled state for the UI.
+    const [isTalking, setIsTalking] = useState(false);
     const [facingFront, setFacingFront] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [displayMode, setDisplayMode] = useState<'expanded' | 'pip'>('expanded');
@@ -325,7 +328,7 @@ export default function LiveGlassPanel({
         setRemoteStream(null);
         setNativeStreamURL(null);
         setMode('lobby');
-        setAudioEnabled(true);
+        setIsTalking(false);
         setFacingFront(true);
         setError(null);
         partnerReady.current = false;
@@ -519,6 +522,12 @@ export default function LiveGlassPanel({
             }
         });
 
+        /* push-to-talk: start with the mic muted — it only goes live
+           while the talk button is held. */
+        const micTrack = stream.getAudioTracks?.()?.[0];
+        if (micTrack) micTrack.enabled = false;
+        setIsTalking(false);
+
         /* listen for remote tracks */
         pc.ontrack = (event: any) => {
             if (event.streams?.[0]) {
@@ -623,19 +632,16 @@ export default function LiveGlassPanel({
         }
     }, [visible, initialMode]);
 
-    /* ──────────────────── audio mute toggle ──────────────────────────── */
+    /* ──────────────────── push-to-talk (walkie-talkie) ───────────────── */
 
-    const toggleAudio = useCallback(() => {
+    // Gate the local mic track. Off by default; live only while the talk
+    // button is held — one-at-a-time walkie-talkie audio over the live
+    // WebRTC connection.
+    const setTalk = useCallback((on: boolean) => {
         const stream = localStreamRef.current;
-        if (!stream) return;
-
-        const audioTracks = stream.getAudioTracks?.() ?? [];
-        const track = audioTracks[0];
-        if (track) {
-            const next = !track.enabled;
-            track.enabled = next;
-            setAudioEnabled(next);
-        }
+        const track = stream?.getAudioTracks?.()?.[0];
+        if (track) track.enabled = on;
+        setIsTalking(on);
     }, []);
 
     /* ──────────────────── camera flip ────────────────────────────────── */
@@ -939,23 +945,25 @@ export default function LiveGlassPanel({
                         <TouchableOpacity
                             style={[
                                 styles.controlBtn,
-                                !audioEnabled && styles.controlBtnActive,
+                                isTalking && styles.controlBtnActive,
                             ]}
-                            onPress={toggleAudio}
-                            activeOpacity={0.7}
+                            onPressIn={() => setTalk(true)}
+                            onPressOut={() => setTalk(false)}
+                            activeOpacity={1}
+                            delayPressOut={0}
                         >
                             <Ionicons
-                                name={audioEnabled ? 'mic' : 'mic-off'}
+                                name={isTalking ? 'mic' : 'mic-outline'}
                                 size={16}
-                                color={audioEnabled ? '#fff' : '#000'}
+                                color={isTalking ? '#000' : '#fff'}
                             />
                             <Text
                                 style={[
                                     styles.controlBtnText,
-                                    !audioEnabled && { color: '#000' },
+                                    isTalking && { color: '#000' },
                                 ]}
                             >
-                                {audioEnabled ? 'AUDIO ON' : 'MUTED'}
+                                {isTalking ? 'ON AIR' : 'HOLD TO TALK'}
                             </Text>
                         </TouchableOpacity>
 
