@@ -189,7 +189,7 @@ export default function UpgradeScreen() {
                 )}
                 {userState === 'free' && (
                     <Text style={styles.tagline}>
-                        One year of the private keyboard, multi-room, and everything to come.
+                        One year of the private keyboard and everything to come.
                     </Text>
                 )}
                 {userState === 'trial' && (
@@ -265,7 +265,6 @@ export default function UpgradeScreen() {
                 {(userState === 'free' || userState === 'trial') && (
                     <View style={styles.benefitsList}>
                         <Benefit label="Piqabu Keyboard — private, no telemetry, ZeroTrace typing." />
-                        <Benefit label="Multi-room — up to 5 simultaneous channels." />
                         <Benefit label="Decoy Send, Quick-Lock, Ghost Paste, full toolset." />
                         <Benefit label="Direct line to the helpdesk in-app." />
                     </View>

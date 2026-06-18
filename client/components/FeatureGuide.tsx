@@ -133,7 +133,7 @@ const CATEGORIES: FeatureCategory[] = [
                 iconLib: 'ion',
                 name: 'PANIC MODE',
                 what: 'Disguise Piqabu as a calculator.',
-                how: 'Enable from Settings → Panic. When triggered, Piqabu swaps the UI for a working calculator. Tap the correct code to return.',
+                how: 'Enable from Settings → Panic. When triggered, Piqabu swaps the UI for a working calculator. To return to the app, press and hold the "0" key for 2 seconds.',
             },
             {
                 id: 'biometric',
