@@ -81,10 +81,16 @@ function getSubscription(deviceId) {
     const now = Date.now();
     let active = false;
     if (record.proUntil) {
-        const graceUntil = new Date(record.proUntil).getTime() + GRACE_PERIOD_MS;
+        // The 14-day grace window is a SOFT-EXPIRY courtesy for PAID subs
+        // (renew-now period). It must NOT apply to the free trial — a
+        // 3-day trial with grace would effectively run 17 days. Trials
+        // expire hard at proUntil; paid subs get the grace.
+        const proUntilMs = new Date(record.proUntil).getTime();
+        const isTrial = record.source === 'trial';
+        const graceUntil = proUntilMs + (isTrial ? 0 : GRACE_PERIOD_MS);
         active = now < graceUntil;
         record.graceUntil = new Date(graceUntil).toISOString();
-        record.inGracePeriod = active && now >= new Date(record.proUntil).getTime();
+        record.inGracePeriod = !isTrial && active && now >= proUntilMs;
     } else if (record.expiresAt) {
         active = new Date(record.expiresAt).getTime() > now;
     }

@@ -38,6 +38,7 @@ const {
     getSubscription,
     setSubscription,
     findByPaystackReference,
+    startTrialIfEligible,
 } = require('../lib/subscriptionStore');
 const adminStore = require('../lib/adminStore');
 
@@ -171,6 +172,15 @@ function createPaystackRouter({ io }) {
     router.get('/api/paystack/status/:deviceId', async (req, res) => {
         const { deviceId } = req.params;
         if (!deviceId) return res.status(400).json({ error: 'Missing deviceId' });
+
+        // Grant the 3-day trial on first contact (idempotent — no-op if the
+        // device has ever had a proUntil or a non-trial source). The trial
+        // was previously granted only on socket connect, which raced this
+        // HTTP status check: a fresh install often hit /status first and saw
+        // 'free' (while Mission Control, seeing the socket grant, showed
+        // Pro). Granting here makes the very first tier check return the
+        // trial.
+        try { startTrialIfEligible(deviceId); } catch { /* noop */ }
 
         const record = getSubscription(deviceId) || {};
 
