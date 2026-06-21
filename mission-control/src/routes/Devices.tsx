@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch, ApiError } from '../lib/api';
 import { relativeTime } from '../lib/time';
 
@@ -22,9 +22,11 @@ interface DevicesResponse {
  * ID prefix (the first 8 chars are usually what people quote when
  * sending feedback).
  *
- * Click a row → drawer with full device details + the levers we know
- * about (block/unblock, force-disconnect, tier override). The levers
- * are wired in Phase 2; for now the drawer is read-only.
+ * Click a row → drawer with full device details + live actions
+ * (Grant Pro / Set Free, Block / Unblock, Kick) that hit the same
+ * /admin/devices/:id endpoints the Levers pane uses — but on THIS
+ * device's Ghost ID directly, so no copy-pasting IDs into Levers.
+ * The list refreshes after each action.
  */
 export default function Devices() {
     const [devices, setDevices] = useState<Device[] | null>(null);
@@ -34,24 +36,31 @@ export default function Devices() {
     const [selected, setSelected] = useState<Device | null>(null);
     const [lastUpdated, setLastUpdated] = useState(0);
 
-    useEffect(() => {
-        let alive = true;
-        const tick = async () => {
-            try {
-                const res = await apiFetch<DevicesResponse>('/admin/devices');
-                if (!alive) return;
-                setDevices(Array.isArray(res?.devices) ? res.devices : []);
-                setLastUpdated(Date.now());
-                setErr(null);
-            } catch (e) {
-                if (!alive) return;
-                setErr(e instanceof ApiError ? e.message : String(e));
-            }
-        };
-        tick();
-        const id = setInterval(tick, 10_000);
-        return () => { alive = false; clearInterval(id); };
+    const load = useCallback(async () => {
+        try {
+            const res = await apiFetch<DevicesResponse>('/admin/devices');
+            setDevices(Array.isArray(res?.devices) ? res.devices : []);
+            setLastUpdated(Date.now());
+            setErr(null);
+            return res?.devices ?? [];
+        } catch (e) {
+            setErr(e instanceof ApiError ? e.message : String(e));
+            return null;
+        }
     }, []);
+
+    useEffect(() => {
+        void load();
+        const id = setInterval(() => { void load(); }, 10_000);
+        return () => clearInterval(id);
+    }, [load]);
+
+    // Keep the open drawer's device in sync after an action refreshes the list.
+    useEffect(() => {
+        if (!selected || !devices) return;
+        const fresh = devices.find(d => d.deviceId === selected.deviceId);
+        if (fresh && fresh !== selected) setSelected(fresh);
+    }, [devices, selected]);
 
     const filtered = useMemo(() => {
         const list = devices ?? [];
@@ -158,13 +167,38 @@ export default function Devices() {
             </div>
 
             {selected && (
-                <DeviceDrawer device={selected} onClose={() => setSelected(null)} />
+                <DeviceDrawer device={selected} onClose={() => setSelected(null)} onActed={load} />
             )}
         </div>
     );
 }
 
-function DeviceDrawer({ device, onClose }: { device: Device; onClose: () => void }) {
+function DeviceDrawer({ device, onClose, onActed }: { device: Device; onClose: () => void; onActed: () => Promise<unknown> }) {
+    const [busy, setBusy] = useState<string | null>(null);
+    const [msg, setMsg] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null);
+
+    const isPro = (device.tier ?? 'free') === 'pro';
+    const isBlocked = !!device.blocked;
+
+    // Act on THIS device directly — its Ghost ID is already known, so no
+    // copy-paste into the Levers pane. Same /admin endpoints Levers uses.
+    const act = async (action: string, body: Record<string, unknown> | undefined, busyKey: string) => {
+        setBusy(busyKey);
+        setMsg(null);
+        try {
+            const res = await apiFetch<{ message?: string }>(
+                `/admin/devices/${device.deviceId}/${action}`,
+                { method: 'POST', body: body ? JSON.stringify(body) : undefined },
+            );
+            setMsg({ tone: 'ok', text: res.message || `${busyKey.toUpperCase()} OK` });
+            await onActed();
+        } catch (e) {
+            setMsg({ tone: 'bad', text: e instanceof ApiError ? e.message : 'Failed' });
+        } finally {
+            setBusy(null);
+        }
+    };
+
     return (
         <div
             className="fixed inset-0 z-40 flex justify-end bg-black/60"
@@ -190,21 +224,54 @@ function DeviceDrawer({ device, onClose }: { device: Device; onClose: () => void
                 </div>
 
                 <dl className="flex flex-col gap-4">
-                    <Row label="TIER" value={(device.tier ?? 'free').toUpperCase()} />
+                    <Row label="TIER" value={(device.tier ?? 'free').toUpperCase()} tone={isPro ? 'ok' : 'neutral'} />
                     <Row label="LAST SEEN" value={device.lastSeen ? relativeTime(device.lastSeen) : '—'} />
                     <Row label="FIRST SEEN" value={device.firstSeen ? relativeTime(device.firstSeen) : '—'} />
                     <Row label="APP BUILD" value={device.appBuild ?? '—'} />
-                    <Row label="STATUS" value={device.blocked ? 'BLOCKED' : 'ACTIVE'} tone={device.blocked ? 'bad' : 'ok'} />
+                    <Row label="STATUS" value={isBlocked ? 'BLOCKED' : 'ACTIVE'} tone={isBlocked ? 'bad' : 'ok'} />
                 </dl>
 
                 <div className="mt-8 pt-6 border-t border-edge2">
                     <div className="text-faint text-[9px] tracking-widest font-bold mb-3">ACTIONS</div>
-                    <div className="text-muted text-[10px] tracking-wider leading-relaxed">
-                        Block / unblock / kick / tier override lever wiring lands in Phase 2 of Mission Control. Today this drawer is read-only — use the existing /admin endpoints directly if you need to act on a device.
+                    <div className="grid grid-cols-2 gap-2">
+                        {/* Tier toggle — show the action that flips current state first. */}
+                        {isPro ? (
+                            <DrawerBtn label="SET FREE" tone="neutral" busy={busy === 'tier-free'} onClick={() => act('tier', { tier: 'free' }, 'tier-free')} />
+                        ) : (
+                            <DrawerBtn label="GRANT PRO" tone="ok" busy={busy === 'tier-pro'} onClick={() => act('tier', { tier: 'pro' }, 'tier-pro')} />
+                        )}
+                        {isBlocked ? (
+                            <DrawerBtn label="UNBLOCK" tone="neutral" busy={busy === 'unblock'} onClick={() => act('unblock', undefined, 'unblock')} />
+                        ) : (
+                            <DrawerBtn label="BLOCK" tone="bad" busy={busy === 'block'} onClick={() => act('block', { reason: 'manual block from Mission Control' }, 'block')} />
+                        )}
+                        <DrawerBtn label="KICK NOW" tone="warn" busy={busy === 'kick'} onClick={() => act('kick', undefined, 'kick')} />
                     </div>
+                    {msg && (
+                        <div className={`mt-3 text-[10px] tracking-widest ${msg.tone === 'ok' ? 'text-ok' : 'text-bad'}`}>
+                            {msg.text}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
+    );
+}
+
+function DrawerBtn({ label, tone, busy, onClick }: { label: string; tone: 'ok' | 'bad' | 'warn' | 'neutral'; busy: boolean; onClick: () => void }) {
+    const toneCls =
+        tone === 'ok' ? 'border-ok/40 text-ok hover:bg-ok/10'
+        : tone === 'bad' ? 'border-bad/40 text-bad hover:bg-bad/10'
+        : tone === 'warn' ? 'border-warn/40 text-warn hover:bg-warn/10'
+        : 'border-edge text-muted hover:text-ink hover:bg-paper2';
+    return (
+        <button
+            onClick={onClick}
+            disabled={busy}
+            className={`px-3 py-2.5 text-[10px] tracking-widest font-bold rounded-lg border bg-transparent transition-colors disabled:opacity-50 ${toneCls}`}
+        >
+            {busy ? '…' : label}
+        </button>
     );
 }
 
