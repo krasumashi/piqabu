@@ -58,6 +58,12 @@ const slides: Slide[] = [
         description: 'Your identity is a ghost ID generated on-device. Nothing is stored on any server. When the session ends, everything vanishes.',
     },
     {
+        icon: 'key-outline',
+        title: 'HOW IT WORKS',
+        subtitle: 'Start in seconds',
+        description: 'Generate a secure code -- or enter the one a friend sent you. Share your code with one person. The moment they join, your private channel opens. Two people, one channel, nothing stored.',
+    },
+    {
         icon: 'sync-outline',
         title: 'LIVE SYNC',
         subtitle: 'Real-time text transmission',
