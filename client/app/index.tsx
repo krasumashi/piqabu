@@ -219,6 +219,10 @@ export default function EntryView() {
                                 <Text style={styles.heroTitle}>PIQABU</Text>
                                 <Text style={styles.heroSubtitle}>TWO PEOPLE ONLY.</Text>
                                 <Text style={styles.heroSubtitle}>NO ACCOUNTS. NO HISTORY.</Text>
+                                {/* How-to — the core mechanic, for first-timers. */}
+                                <Text style={styles.heroHint}>
+                                    Generate a code and share it with one person — or enter the code they sent you, then tap JOIN.
+                                </Text>
                             </View>
 
                             {/* Generate Button */}
@@ -500,6 +504,16 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
         lineHeight: 16,
         marginTop: 2,
+    },
+    heroHint: {
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        lineHeight: 15,
+        letterSpacing: 0.3,
+        color: THEME.faint,
+        textAlign: 'center',
+        marginTop: 14,
+        maxWidth: 300,
     },
 
     // ── Generate Button ──
