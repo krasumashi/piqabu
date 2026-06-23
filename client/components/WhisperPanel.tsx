@@ -120,6 +120,12 @@ export default function WhisperPanel({
                     try {
                         InCallManager.start({ media: 'audio' });
                         InCallManager.setForceSpeakerphoneOn(true);
+                        InCallManager.setSpeakerphoneOn?.(true);
+                        // Audio calls default to the earpiece; re-assert the
+                        // loudspeaker after the session settles so the voice
+                        // isn't faint.
+                        setTimeout(() => { try { InCallManager.setForceSpeakerphoneOn(true); } catch { /* noop */ } }, 800);
+                        setTimeout(() => { try { InCallManager.setForceSpeakerphoneOn(true); } catch { /* noop */ } }, 2200);
                     } catch { /* noop */ }
                 }
             }

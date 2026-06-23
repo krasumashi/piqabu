@@ -327,7 +327,10 @@ const styles = StyleSheet.create({
         left: 16,
         right: 16,
         bottom: 16,
-        top: 100,
+        // Responsive: the sheet grows to fit its content (a single image
+        // stays compact) and caps at 82% so it never swallows the whole
+        // screen. Was top:100 (near-full-screen).
+        maxHeight: '82%',
         borderRadius: 26,
         borderWidth: 1,
         borderColor: 'rgba(245,243,235,0.20)',
@@ -383,7 +386,10 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     grid: {
-        flex: 1,
+        // flexShrink (not flex:1) lets the scroll body size to its content
+        // for the responsive sheet, while still scrolling when content
+        // exceeds the card's maxHeight cap.
+        flexShrink: 1,
     },
     gridContent: {
         padding: 14,

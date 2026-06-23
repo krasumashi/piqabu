@@ -573,7 +573,9 @@ const styles = StyleSheet.create({
         left: 16,
         right: 16,
         bottom: 16,
-        top: 100,
+        // Responsive sheet — sizes to content, caps at 82% (was top:100,
+        // which made it near-full-screen).
+        maxHeight: '82%',
         borderRadius: 26,
         borderWidth: 1,
         borderColor: 'rgba(245,243,235,0.20)',
@@ -670,7 +672,9 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     list: {
-        flex: 1,
+        // flexShrink (not flex:1) so the sheet sizes to content yet the
+        // list still scrolls within the maxHeight cap.
+        flexShrink: 1,
     },
     listContent: {
         padding: 14,

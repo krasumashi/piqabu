@@ -54,6 +54,13 @@ function startCallAudio() {
     try {
         InCallManager.start({ media: 'video' });
         InCallManager.setForceSpeakerphoneOn(true);
+        InCallManager.setSpeakerphoneOn?.(true);
+        // Devices commonly reset audio routing to the earpiece as the
+        // WebRTC audio session finishes initialising after start() — which
+        // makes the remote voice come through faint. Re-assert the
+        // loudspeaker a couple of times once the session has settled.
+        setTimeout(() => { try { InCallManager.setForceSpeakerphoneOn(true); } catch { /* noop */ } }, 800);
+        setTimeout(() => { try { InCallManager.setForceSpeakerphoneOn(true); } catch { /* noop */ } }, 2200);
     } catch { /* noop */ }
 }
 function stopCallAudio() {
