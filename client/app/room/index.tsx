@@ -267,13 +267,27 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     // ── Whisper PTT indicator (partner speaking via walkie-talkie) ──
     useEffect(() => {
         if (!socket || !roomId) return;
+        let expireTimer: ReturnType<typeof setTimeout> | null = null;
         const handlePtt = (data: { roomId: string; speaking: boolean }) => {
-            if (data.roomId === roomId) {
-                setIncomingWhisper(data.speaking);
+            if (data.roomId !== roomId) return;
+            if (expireTimer) { clearTimeout(expireTimer); expireTimer = null; }
+            if (data.speaking) {
+                setIncomingWhisper(true);
+                // Safety net: a PTT burst is short. If no further update
+                // arrives (dropped release event, or the partner closed
+                // Whisper mid-press), force the "transmission received" pill
+                // off after a few seconds so it can never stick.
+                expireTimer = setTimeout(() => setIncomingWhisper(false), 5000);
+            } else {
+                setIncomingWhisper(false);
             }
         };
         socket.on('whisper_ptt', handlePtt);
-        return () => { socket.off('whisper_ptt', handlePtt); };
+        return () => {
+            socket.off('whisper_ptt', handlePtt);
+            if (expireTimer) clearTimeout(expireTimer);
+            setIncomingWhisper(false);
+        };
     }, [socket, roomId]);
 
     // ── Screenshot detection → notify partner ──

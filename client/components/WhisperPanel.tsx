@@ -389,6 +389,11 @@ export default function WhisperPanel({
         }
 
         if (socket) {
+            // Tell the partner we've stopped — otherwise if we close Whisper
+            // mid-press (or our release event dropped), their "transmission
+            // received" pill stays stuck on. Belt-and-suspenders with the
+            // receiver-side auto-expire in the room screen.
+            socket.emit('whisper_ptt', { roomId, speaking: false });
             socket.off('whisper_signal');
             socket.off('whisper_ready');
         }
