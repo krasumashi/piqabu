@@ -12,6 +12,13 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
     const [linkStatus, setLinkStatus] = useState<LinkStatus>('DISCONNECTED');
     const [remoteText, setRemoteText] = useState('');
     const [remoteReveal, setRemoteReveal] = useState<string | null>(null);
+    // Session gallery — every distinct item the partner has shown this
+    // session, accumulated so the viewer can scroll back through all of
+    // them on the Peek deck (each new SHOW adds rather than replaces).
+    // remoteReveal stays the "currently/last shown" item (drives the
+    // PEEK badge); revealGallery is the durable list. Reset on session
+    // end and background memory-wipe.
+    const [revealGallery, setRevealGallery] = useState<string[]>([]);
     const [remoteWhisper, setRemoteWhisper] = useState<string | null>(null);
     const [videoControls, setVideoControls] = useState({ blur: 50, isBnW: true, isMuted: false });
     const [pendingInvite, setPendingInvite] = useState<{ feature: string } | null>(null);
@@ -68,6 +75,7 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
             if (state === 'background' || state === 'inactive') {
                 setRemoteText('');
                 setRemoteReveal(null);
+                setRevealGallery([]);
                 setRemoteWhisper(null);
             }
         });
@@ -84,6 +92,7 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
                 // Clear reveal when partner disconnects
                 if (data.status === 'WAITING' || data.status === 'SIGNAL LOST' || data.status === 'DISCONNECTED') {
                     setRemoteReveal(null);
+                    setRevealGallery([]);
                 }
             }
         };
@@ -103,14 +112,25 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
             }
         };
 
+        const applyReveal = (payload: string | null) => {
+            setRemoteReveal(payload);
+            // Accumulate into the session gallery — append each distinct
+            // item (re-showing the same one doesn't duplicate it). A null
+            // (cover) leaves the gallery intact; items persist for the
+            // session per the running-gallery model.
+            if (payload) {
+                setRevealGallery((prev) => (prev.includes(payload) ? prev : [...prev, payload]));
+            }
+        };
+
         const handleRemoteReveal = (data: { roomId: string; payload: string | null } | string | null) => {
             if (typeof data === 'object' && data !== null && 'roomId' in data) {
                 if (data.roomId === roomId) {
-                    setRemoteReveal(data.payload);
+                    applyReveal(data.payload);
                 }
             } else {
                 // Legacy
-                setRemoteReveal(data as string | null);
+                applyReveal(data as string | null);
             }
         };
 
@@ -241,6 +261,7 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         linkStatus,
         remoteText,
         remoteReveal,
+        revealGallery,
         remoteWhisper,
         videoControls,
         sendText,

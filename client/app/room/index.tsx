@@ -92,7 +92,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const isDeepLinkRoom = currentRoom?.origin === 'deeplink';
     const { partnerPresence, sendPulseTap } = usePresence(socket, roomId);
     const {
-        linkStatus, remoteText, remoteReveal,
+        linkStatus, remoteText, remoteReveal, revealGallery,
         sendText, sendVanish, sendReveal,
         pendingInvite, inviteStatus, inviteFeature,
         sendInvite, acceptInvite, declineInvite, clearInviteStatus,
@@ -565,7 +565,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                     // Clear the peep view — sender must re-expose for it to show again
                     setVideoPlaybackControl(null);
                 }}
-                remoteImage={remoteReveal}
+                remoteImages={revealGallery}
                 videoControls={videoPlaybackControl}
                 onSign={(line) => sendText(line)}
             />

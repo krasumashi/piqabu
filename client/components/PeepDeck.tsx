@@ -35,9 +35,11 @@ function resolveUri(uri: string): string {
 }
 
 export default function PeepDeck({
-    remoteImage, visible, onClose, videoControls, onSign,
+    remoteImages, visible, onClose, videoControls, onSign,
 }: {
-    remoteImage: string | null;
+    /** Session gallery — every item the partner has shown this session.
+     *  Rendered as a grid; tap any cell to focus (full view / playback). */
+    remoteImages: string[];
     visible: boolean;
     onClose: () => void;
     videoControls?: { action: string; position?: number } | null;
@@ -75,15 +77,15 @@ export default function PeepDeck({
         }
     }, [visible]);
 
-    // When sender covers (remoteImage → null), close fullscreen immediately
+    // If the focused item leaves the gallery (session reset), close focus.
     useEffect(() => {
-        if (!remoteImage) setFocusedItem(null);
-    }, [remoteImage]);
+        if (focusedItem && !remoteImages.includes(focusedItem)) setFocusedItem(null);
+    }, [remoteImages, focusedItem]);
 
     // Prevent screenshots when viewing revealed media
     useEffect(() => {
         if (Platform.OS === 'web') return;
-        if (visible && remoteImage) {
+        if (visible && remoteImages.length > 0) {
             ScreenCapture.preventScreenCaptureAsync('peepDeck');
         } else {
             ScreenCapture.allowScreenCaptureAsync('peepDeck');
@@ -91,15 +93,9 @@ export default function PeepDeck({
         return () => {
             ScreenCapture.allowScreenCaptureAsync('peepDeck');
         };
-    }, [visible, remoteImage]);
+    }, [visible, remoteImages.length]);
 
     if (!visible) return null;
-
-    const resolvedUri = remoteImage ? resolveUri(remoteImage) : null;
-    const isVideo = remoteImage ? isVideoUri(remoteImage) : false;
-    const isAudio = remoteImage ? isAudioUri(remoteImage) : false;
-    const isPdf = remoteImage ? isPdfUri(remoteImage) : false;
-    const isDoc = remoteImage ? isDocUri(remoteImage) : false;
 
     // Watermark overlay component
     const Watermark = () => (
@@ -220,90 +216,97 @@ export default function PeepDeck({
                     </TouchableOpacity>
                 </View>
 
-                {/* Grid */}
+                {/* Grid — the full session gallery. Each cell is a uniform
+                    tile; tap to focus (full view / playback). */}
                 <ScrollView style={styles.grid} contentContainerStyle={styles.gridContent}>
-                    {!remoteImage || !resolvedUri ? (
+                    {remoteImages.length === 0 ? (
                         <View style={styles.emptyState}>
                             <Ionicons name="eye-off-outline" size={32} color={THEME.faint} />
                             <Text style={styles.emptyText}>NOTHING SHOWN... YET</Text>
                         </View>
-                    ) : isAudio ? (
-                        <TouchableOpacity
-                            onPress={() => setFocusedItem(remoteImage)}
-                            style={styles.audioContainer}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons name="musical-notes" size={36} color={THEME.accSky} />
-                            <Text style={styles.audioLabel}>AUDIO FILE</Text>
-                            <Text style={styles.audioSub}>TAP TO PLAY</Text>
-                            <Video
-                                source={{ uri: resolvedUri }}
-                                style={{ width: 0, height: 0 }}
-                                shouldPlay
-                                isLooping={false}
-                            />
-                            <Watermark />
-                            <View style={styles.gridItemLabel}>
-                                <Text style={styles.gridItemType}>AUDIO</Text>
-                            </View>
-                        </TouchableOpacity>
-                    ) : isPdf || isDoc ? (
-                        <TouchableOpacity
-                            onPress={() => setFocusedItem(remoteImage)}
-                            style={styles.pdfContainer}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons name="document-text" size={36} color={THEME.accSky} />
-                            <Text style={styles.audioLabel}>{isPdf ? 'PDF DOCUMENT' : 'DOCUMENT'}</Text>
-                            <Text style={styles.audioSub}>TAP TO VIEW</Text>
-                            <Watermark />
-                            <View style={styles.gridItemLabel}>
-                                <Text style={styles.gridItemType}>{isPdf ? 'PDF' : 'DOC'}</Text>
-                            </View>
-                        </TouchableOpacity>
-                    ) : isVideo ? (
-                        <View style={styles.videoContainer}>
-                            <Video
-                                ref={videoRef}
-                                source={{ uri: resolvedUri }}
-                                style={styles.videoPlayer}
-                                resizeMode={ResizeMode.CONTAIN}
-                                shouldPlay={false}
-                                isLooping={false}
-                                useNativeControls={true}
-                            />
-                            <Watermark />
-                            <TouchableOpacity
-                                onPress={() => setFocusedItem(remoteImage)}
-                                style={styles.expandBtn}
-                                activeOpacity={0.7}
-                            >
-                                <Ionicons name="expand-outline" size={18} color="#fff" />
-                            </TouchableOpacity>
-                            <View style={styles.gridItemLabel}>
-                                <Text style={styles.gridItemType}>VIDEO</Text>
-                            </View>
-                        </View>
                     ) : (
-                        <TouchableOpacity
-                            onPress={() => setFocusedItem(remoteImage)}
-                            style={styles.gridItem}
-                            activeOpacity={0.8}
-                        >
-                            <Image source={{ uri: resolvedUri }} style={styles.gridImage} resizeMode="cover" />
-                            <Watermark />
-                            <View style={styles.gridItemLabel}>
-                                <Text style={styles.gridItemType}>IMAGE</Text>
-                            </View>
-                            {/* Phase 1 of the deepfake-detection spec — runs the
-                                on-device synthesis classifier on every received
-                                still image. Indicator only renders if the
-                                computed score crosses SILENT (0.30). Currently
-                                running the stub engine — see
-                                lib/detection/synthesisDetector.ts for swap-in
-                                instructions when the real TFLite model lands. */}
-                            <SynthesisIndicator imageUri={remoteImage} placement="top-right" />
-                        </TouchableOpacity>
+                        remoteImages.map((uri, i) => {
+                            const cellResolved = resolveUri(uri);
+                            const cellIsVideo = isVideoUri(uri);
+                            const cellIsAudio = isAudioUri(uri);
+                            const cellIsPdf = isPdfUri(uri);
+                            const cellIsDoc = isDocUri(uri);
+                            const key = `${i}-${uri.slice(0, 24)}`;
+
+                            if (cellIsAudio) {
+                                return (
+                                    <TouchableOpacity
+                                        key={key}
+                                        onPress={() => setFocusedItem(uri)}
+                                        style={styles.tileCard}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Ionicons name="musical-notes" size={30} color={THEME.accSky} />
+                                        <Text style={styles.tileSub}>TAP TO PLAY</Text>
+                                        <Watermark />
+                                        <View style={styles.gridItemLabel}>
+                                            <Text style={styles.gridItemType}>AUDIO</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            }
+                            if (cellIsPdf || cellIsDoc) {
+                                return (
+                                    <TouchableOpacity
+                                        key={key}
+                                        onPress={() => setFocusedItem(uri)}
+                                        style={styles.tileCard}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Ionicons name="document-text" size={30} color={THEME.accSky} />
+                                        <Text style={styles.tileSub}>TAP TO VIEW</Text>
+                                        <Watermark />
+                                        <View style={styles.gridItemLabel}>
+                                            <Text style={styles.gridItemType}>{cellIsPdf ? 'PDF' : 'DOC'}</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            }
+                            if (cellIsVideo) {
+                                return (
+                                    <TouchableOpacity
+                                        key={key}
+                                        onPress={() => setFocusedItem(uri)}
+                                        style={styles.tileCard}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Ionicons name="play-circle" size={34} color={THEME.ink} />
+                                        <Text style={styles.tileSub}>TAP TO PLAY</Text>
+                                        <Watermark />
+                                        <View style={styles.gridItemLabel}>
+                                            <Text style={styles.gridItemType}>VIDEO</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            }
+                            return (
+                                <TouchableOpacity
+                                    key={key}
+                                    onPress={() => setFocusedItem(uri)}
+                                    style={styles.gridItem}
+                                    activeOpacity={0.8}
+                                >
+                                    <Image source={{ uri: cellResolved }} style={styles.gridImage} resizeMode="cover" />
+                                    <Watermark />
+                                    <View style={styles.gridItemLabel}>
+                                        <Text style={styles.gridItemType}>IMAGE</Text>
+                                    </View>
+                                    {/* Phase 1 of the deepfake-detection spec — runs the
+                                        on-device synthesis classifier on every received
+                                        still image. Indicator only renders if the
+                                        computed score crosses SILENT (0.30). Currently
+                                        running the stub engine — see
+                                        lib/detection/synthesisDetector.ts for swap-in
+                                        instructions when the real TFLite model lands. */}
+                                    <SynthesisIndicator imageUri={uri} placement="top-right" />
+                                </TouchableOpacity>
+                            );
+                        })
                     )}
                 </ScrollView>
 
@@ -424,6 +427,27 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         opacity: 0.8,
+    },
+    // Uniform non-image tile (audio / doc / video) — same footprint as a
+    // gridItem so the gallery reads as a clean grid.
+    tileCard: {
+        width: '31%',
+        aspectRatio: 1,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    tileSub: {
+        fontFamily: THEME.mono,
+        fontSize: 9,
+        letterSpacing: 9 * 0.1,
+        color: THEME.faint,
+        textTransform: 'uppercase',
     },
     videoContainer: {
         width: '100%',
