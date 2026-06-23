@@ -120,6 +120,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const [roomCodeCopied, setRoomCodeCopied] = useState(false);
     const [vanishDuration, setVanishDuration] = useState(0);
     const [incomingWhisper, setIncomingWhisper] = useState(false);
+    const [peekBadge, setPeekBadge] = useState(false);
     const [whisperPartnerAccepted, setWhisperPartnerAccepted] = useState(false);
     const [whisperInitialState, setWhisperInitialState] = useState<'idle' | 'accepted'>('idle');
     const [screenshotAlert, setScreenshotAlert] = useState(false);
@@ -289,6 +290,16 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             setIncomingWhisper(false);
         };
     }, [socket, roomId]);
+
+    // ── Peek indicator: badge the PEEK button when the partner shows
+    //    something and the Peek room isn't already open. ──
+    useEffect(() => {
+        if (remoteReveal) setPeekBadge(activeOverlay !== 'peep');
+        else setPeekBadge(false);
+    }, [remoteReveal]);
+    useEffect(() => {
+        if (activeOverlay === 'peep') setPeekBadge(false);
+    }, [activeOverlay]);
 
     // ── Screenshot detection → notify partner ──
     useEffect(() => {
@@ -534,6 +545,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 activeOverlay={activeOverlay}
                 onToggle={handleDockToggle}
                 incomingWhisper={whisperBadge > 0}
+                peekBadge={peekBadge}
                 whisperActive={activeOverlay === 'whisper'}
                 isPro={isPro}
             />

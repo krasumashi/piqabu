@@ -10,6 +10,8 @@ interface DockProps {
     activeOverlay: DockOverlay;
     onToggle: (id: 'peep' | 'whisper' | 'reveal') => void;
     incomingWhisper?: boolean;
+    /** Partner has shown something the user hasn't opened yet → dot on PEEK. */
+    peekBadge?: boolean;
     whisperActive?: boolean;
     /** Pro entitlement. When false, REVEAL + WHISPER (Pro to initiate)
      *  show a small PRO tag. PEEK stays unmarked — it's free to view. */
@@ -22,7 +24,7 @@ const DOCK_ITEMS: { id: 'peep' | 'whisper' | 'reveal'; label: string; icon: stri
     { id: 'reveal', label: 'REVEAL', icon: 'folder-open-outline' },
 ];
 
-export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisperActive, isPro = true }: DockProps) {
+export default function Dock({ activeOverlay, onToggle, incomingWhisper, peekBadge, whisperActive, isPro = true }: DockProps) {
     // Walkthrough targets — one ref per dock item, registered by
     // name so WalkthroughOverlay can measure each. Hooks can't be
     // called inside the map below, so we pre-bind them in the parent.
@@ -66,6 +68,10 @@ export default function Dock({ activeOverlay, onToggle, incomingWhisper, whisper
                             />
                             {/* Notify badge */}
                             {item.id === 'whisper' && incomingWhisper && (
+                                <View style={styles.notifyDot} />
+                            )}
+                            {/* Peek badge — partner has shown new content. */}
+                            {item.id === 'peep' && peekBadge && (
                                 <View style={styles.notifyDot} />
                             )}
                             {/* PRO tag — REVEAL + WHISPER are Pro to initiate. */}
