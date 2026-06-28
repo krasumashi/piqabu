@@ -98,7 +98,7 @@ export default function SupportScreen() {
 
             <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <View style={styles.iconWrap}>
-                    <Ionicons name="heart-outline" size={34} color={THEME.ink} />
+                    <Ionicons name="heart" size={34} color="#E5484D" />
                 </View>
 
                 <Text style={styles.title}>SUPPORT PIQABU</Text>

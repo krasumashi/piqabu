@@ -42,6 +42,10 @@ interface MenuRowProps {
     tone?: Tone;
     /** Tint override for the value text (e.g. THEME.live for LIVE). */
     valueColor?: string;
+    /** Tint override for the accessory glyph. Breaks the monochrome rule
+     *  on purpose for the rare attention-grabbing row (e.g. the red
+     *  Support/donate heart). */
+    iconColor?: string;
     onPress?: () => void;
     style?: StyleProp<ViewStyle>;
 }
@@ -54,6 +58,7 @@ export default function MenuRow({
     active = false,
     tone = 'default',
     valueColor,
+    iconColor,
     onPress,
     style,
 }: MenuRowProps) {
@@ -64,7 +69,7 @@ export default function MenuRow({
         active && styles.cellActive,
         danger && styles.cellDanger,
     ];
-    const glyphColor = danger ? THEME.bad : active ? THEME.ink : THEME.muted;
+    const glyphColor = iconColor ?? (danger ? THEME.bad : active ? THEME.ink : THEME.muted);
     const labelColor = danger ? THEME.bad : active ? THEME.ink : THEME.muted;
 
     const body = (

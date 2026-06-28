@@ -286,7 +286,8 @@ export default function SettingsPanel({
                 <Text style={styles.sectionLabel}>SUPPORT</Text>
 
                 <MenuRow
-                    icon="heart-outline"
+                    icon="heart"
+                    iconColor="#E5484D"
                     label="SUPPORT PIQABU"
                     onPress={() => { onClose(); setTimeout(() => router.push('/upgrade'), 200); }}
                     disclosure="arrow-forward"
