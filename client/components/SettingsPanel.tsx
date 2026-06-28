@@ -8,8 +8,7 @@ import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
 import { setSecureItem, getSecureItem } from '../lib/platform/storage';
 import { wipeAllPiqabuState } from '../lib/wipe';
-import { useProAccess, useProTimeline } from '../lib/pro';
-import { usePricing } from '../lib/payment/usePricing';
+import { useProAccess } from '../lib/pro';
 import { LEGAL_URLS } from '../lib/legal/consent';
 import FeatureGuide from './FeatureGuide';
 import MenuRow from './MenuRow';
@@ -19,16 +18,6 @@ import { CONFIG } from '../constants/Config';
  * Format an ISO date as e.g. "23 SEP 2027". Locale-free and spare —
  * matches the rest of the Piqabu monospace aesthetic.
  */
-function formatDate(iso: string): string {
-    try {
-        const d = new Date(iso);
-        const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-        return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    } catch {
-        return '—';
-    }
-}
-
 /**
  * Open the Android system IME settings screen so the user can toggle
  * the Piqabu Keyboard on. No-op on iOS/web for v1.
@@ -57,8 +46,6 @@ export default function SettingsPanel({
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { isPro, refresh: refreshPro } = useProAccess();
-    const { timeline: proTimeline, refresh: refreshTimeline } = useProTimeline();
-    const { pricing } = usePricing();
     // We can't reliably detect from JS whether the user has Piqabu
     // Keyboard turned on in Android IME settings without a native
     // bridge call (planned for v0.3.0). For now, track whether they've
@@ -76,15 +63,12 @@ export default function SettingsPanel({
         })();
     }, [visible]);
 
-    // Refresh tier + timeline state whenever the drawer becomes visible
-    // — Mission Control might have flipped tier, or a Paystack purchase
-    // may have completed since last open.
+    // Refresh access state whenever the drawer becomes visible.
     useEffect(() => {
         if (visible) {
             void refreshPro();
-            void refreshTimeline();
         }
-    }, [visible, refreshPro, refreshTimeline]);
+    }, [visible, refreshPro]);
 
     /**
      * Clear the onboarded flag and jump straight back to the onboarding
@@ -295,56 +279,17 @@ export default function SettingsPanel({
                 {/* Regenerate Key */}
                 <MenuRow icon="refresh-outline" label="REGENERATE KEY" onPress={onRegenerateKey} disclosure="chevron-forward" />
 
-                {/* ── Piqabu Pro (subscription management) ── */}
-                <Text style={styles.sectionLabel}>PIQABU PRO</Text>
-
-                <View style={styles.proSummary}>
-                    <View style={styles.proSummaryRow}>
-                        <Text style={styles.proSummaryLabel}>TIER</Text>
-                        <Text style={[styles.proSummaryValue, isPro && { color: THEME.live }]}>
-                            {isPro
-                                ? (proTimeline.isTrial ? 'PRO · TRIAL' : 'PRO · PAID')
-                                : 'FREE'}
-                        </Text>
-                    </View>
-                    {isPro && proTimeline.proUntil && (
-                        <View style={styles.proSummaryRow}>
-                            <Text style={styles.proSummaryLabel}>RENEWS</Text>
-                            <Text style={styles.proSummaryValue}>
-                                {formatDate(proTimeline.proUntil)}
-                            </Text>
-                        </View>
-                    )}
-                    {isPro && proTimeline.daysUntilExpiry !== null && proTimeline.daysUntilExpiry >= 0 && (
-                        <View style={styles.proSummaryRow}>
-                            <Text style={styles.proSummaryLabel}>DAYS LEFT</Text>
-                            <Text style={styles.proSummaryValue}>
-                                {proTimeline.daysUntilExpiry}
-                            </Text>
-                        </View>
-                    )}
-                    {proTimeline.inGracePeriod && (
-                        <View style={styles.proSummaryRow}>
-                            <Text style={[styles.proSummaryLabel, { color: THEME.warn }]}>STATUS</Text>
-                            <Text style={[styles.proSummaryValue, { color: THEME.warn }]}>
-                                GRACE · {proTimeline.daysUntilHardLockout ?? 0}d
-                            </Text>
-                        </View>
-                    )}
-                </View>
+                {/* ── Support Piqabu ── */}
+                {/* Piqabu is free — no tier, no subscription. This is a
+                    voluntary donation entry; it grants nothing and just
+                    helps keep the experiment running. */}
+                <Text style={styles.sectionLabel}>SUPPORT</Text>
 
                 <MenuRow
-                    icon={isPro ? 'refresh-circle-outline' : 'diamond-outline'}
-                    label={!isPro
-                        ? `UPGRADE TO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`
-                        : proTimeline.inGracePeriod
-                            ? `RENEW NOW · ${pricing.displayPrice}`
-                            : proTimeline.isTrial
-                                ? `GO PRO · ${pricing.displayPrice} / ${pricing.periodLabel.toUpperCase()}`
-                                : `EXTEND ANOTHER YEAR · ${pricing.displayPrice}`}
+                    icon="heart-outline"
+                    label="SUPPORT PIQABU"
                     onPress={() => { onClose(); setTimeout(() => router.push('/upgrade'), 200); }}
                     disclosure="arrow-forward"
-                    active={!isPro}
                 />
 
                 {/* ── Piqabu Keyboard ── */}

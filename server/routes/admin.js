@@ -2,6 +2,7 @@ const express = require('express');
 const adminStore = require('../lib/adminStore');
 const subscriptionStore = require('../lib/subscriptionStore');
 const deviceRegistry = require('../lib/deviceRegistry');
+const donationStore = require('../lib/donationStore');
 const githubReleases = require('../lib/githubReleases');
 
 function createAdminRouter({ io, rooms, participants }) {
@@ -383,6 +384,52 @@ function createAdminRouter({ io, rooms, participants }) {
         }
         adminStore.addLog('info', `Operator replied to feedback ${id.substring(0, 6)}`, {
             deviceId: item.deviceId,
+            online: deliveredToCount > 0,
+        });
+        res.json({
+            success: true,
+            deliveredImmediately: deliveredToCount > 0,
+            queuedForReconnect: deliveredToCount === 0,
+        });
+    });
+
+    // GET /admin/donations — list donations + totals for the Donors pane.
+    router.get('/donations', (req, res) => {
+        res.json(donationStore.listDonations());
+    });
+
+    // POST /admin/donations/:reference/thank — operator sends an in-app
+    // thank-you to a donor. Reuses the operator_message channel: delivers
+    // immediately if any of the donor's sockets are live, otherwise queues
+    // for their next connection (see server.js on-connect donor flush).
+    router.post('/donations/:reference/thank', express.json(), (req, res) => {
+        const { reference } = req.params;
+        const { message } = req.body || {};
+        if (!message || typeof message !== 'string' || !message.trim()) {
+            return res.status(400).json({ error: 'Message body required' });
+        }
+        const item = donationStore.markThanked(reference, message.trim());
+        if (!item) {
+            return res.status(404).json({ error: 'Donation not found' });
+        }
+        let deliveredToCount = 0;
+        if (item.deviceId) {
+            io.sockets.sockets.forEach(sock => {
+                if (sock.data?.deviceId === item.deviceId) {
+                    sock.emit('operator_message', {
+                        id: `donation:${item.reference}`,
+                        message: item.thankMessage,
+                        sentAt: item.thankSentAt,
+                    });
+                    deliveredToCount += 1;
+                }
+            });
+        }
+        if (deliveredToCount > 0) {
+            donationStore.markThankDelivered(item.reference);
+        }
+        adminStore.addLog('info', `Operator thanked donor ${String(item.deviceId || '').substring(0, 8)}`, {
+            reference: item.reference,
             online: deliveredToCount > 0,
         });
         res.json({

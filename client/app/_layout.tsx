@@ -16,7 +16,6 @@ import SystemBanner from '../components/SystemBanner';
 import LockoutOverlay from '../components/LockoutOverlay';
 import UpdateBanner from '../components/UpdateBanner';
 import UpdateWall from '../components/UpdateWall';
-import RenewBanner from '../components/RenewBanner';
 import ReceiverKeyboardPrompt from '../components/ReceiverKeyboardPrompt';
 import ConsentGate from '../components/ConsentGate';
 import { WalkthroughProvider } from '../lib/walkthrough/WalkthroughContext';
@@ -90,7 +89,6 @@ export default function RootLayout() {
                         <ProSyncMount />
                         <SystemBannerMount />
                         <UpdateBannerMount />
-                        <RenewBanner />
                         <OperatorBannerMount />
                         <UpdateWallMount />
                         <ReceiverKeyboardPrompt />

@@ -33,10 +33,8 @@ import GridBackground from '../../components/GridBackground';
 import PresencePulse from '../../components/PresencePulse';
 import SandText from '../../components/SandText';
 import { usePresence } from '../../hooks/usePresence';
-import Paywall from '../../components/Paywall';
 import * as ScreenCapture from 'expo-screen-capture';
 import { THEME } from '../../constants/Theme';
-import { useFreemiumTimer } from '../../hooks/useFreemiumTimer';
 import { useWalkthroughTarget } from '../../lib/walkthrough/WalkthroughContext';
 // ─── Typing Indicator ───
 function TypingIndicator({ isTyping }: { isTyping: boolean }) {
@@ -80,7 +78,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     setLiveGlassPartnerAccepted: (v: boolean) => void;
     setLiveGlassInitialMode: (m: 'lobby' | 'calling') => void;
 }) {
-    const { socket, deviceId, limits, removeRoom, rooms, isPro } = useRoomContext();
+    const { socket, deviceId, limits, removeRoom, rooms } = useRoomContext();
     const router = useRouter();
 
     // Whether this room came from a deep-link (keyboard MINT or a tapped
@@ -359,15 +357,9 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     };
 
     // ── Dock toggle ──
+    // Piqabu is free — every surface (Peek, Whisper, Reveal) is open to
+    // all users. No gating.
     const handleDockToggle = (id: 'peep' | 'whisper' | 'reveal') => {
-        // Freemium: PEEK (viewing what a partner revealed to you) is free —
-        // it's participation. REVEAL (sending) and WHISPER (initiating a
-        // voice channel) are Pro to start; free users are routed to the
-        // upgrade screen. Receiving/joining stays free via InviteOverlay.
-        if ((id === 'reveal' || id === 'whisper') && !isPro) {
-            router.push('/upgrade');
-            return;
-        }
         setActiveOverlay(prev => prev === id ? null : id);
     };
 
@@ -547,7 +539,6 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 incomingWhisper={whisperBadge > 0}
                 peekBadge={peekBadge}
                 whisperActive={activeOverlay === 'whisper'}
-                isPro={isPro}
             />
 
             {/* Overlays */}
@@ -624,13 +615,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 visible={liveLauncherOpen}
                 onDismiss={() => setLiveLauncherOpen(false)}
                 onSelectGlass={() => {
-                    // Pro to START Live Glass; free users upgrade. Receiving a
-                    // Live Glass invite (InviteOverlay) stays free — join is allowed.
-                    if (!isPro) {
-                        setLiveLauncherOpen(false);
-                        router.push('/upgrade');
-                        return;
-                    }
+                    // Free for everyone — no gate on starting Live Glass.
                     setLiveGlassInitialMode('lobby');
                     setLiveGlassPartnerAccepted(false);
                     onOpenLiveGlass();
@@ -699,13 +684,11 @@ export default function RoomScreen() {
     const {
         rooms, activeRoomId, addRoom, removeRoom, switchRoom,
         socket, deviceId, requestRoomCode, isConnected,
-        isPro, refreshSubscription, hydrated,
+        hydrated,
     } = useRoomContext();
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [newCode, setNewCode] = useState('');
-    const [showPaywall, setShowPaywall] = useState(false);
-    const [paywallFeature, setPaywallFeature] = useState('multi_room');
     const [showSettings, setShowSettings] = useState(false);
     const [showLiveGlass, setShowLiveGlass] = useState(false);
     const [liveGlassInitialMode, setLiveGlassInitialMode] = useState<'lobby' | 'calling'>('lobby');
@@ -715,20 +698,6 @@ export default function RoomScreen() {
     const [screenShareMinimized, setScreenShareMinimized] = useState(false);
 
     const [roomStatuses, setRoomStatuses] = useState<Record<string, LinkStatus>>({});
-
-    const isAnyRoomConnected = Object.values(roomStatuses).some(s => s === 'LINKED');
-    const { isTimeUp } = useFreemiumTimer(isAnyRoomConnected);
-
-    useEffect(() => {
-        // [TESTING] Hard bypassed the freemium session timer boot
-        /*
-        if (isTimeUp && !isPro) {
-            setPaywallFeature('unlimited_time');
-            setShowPaywall(true);
-            rooms.forEach(r => removeRoom(r.roomId));
-        }
-        */
-    }, [isTimeUp, isPro, rooms, removeRoom]);
 
     const screenFade = useRef(new RNAnimated.Value(0)).current;
     useEffect(() => {
@@ -753,9 +722,8 @@ export default function RoomScreen() {
     const tryAddRoom = (code: string): boolean => {
         const result = addRoom(code);
         if (!result.success) {
-            setPaywallFeature('multi_room');
-            setShowPaywall(true);
             setShowAddModal(false);
+            Alert.alert('Room limit reached', 'You can keep up to 5 active rooms at once. Close one to add another.');
             return false;
         }
         return true;
@@ -899,12 +867,6 @@ export default function RoomScreen() {
                     </View>
                 </View>
             </Modal>
-
-            <Paywall
-                visible={showPaywall} feature={paywallFeature}
-                onDismiss={() => setShowPaywall(false)} deviceId={deviceId}
-                onSubscribed={async () => { await refreshSubscription(); }}
-            />
 
             <StatusBar style="light" />
         </RNAnimated.View>

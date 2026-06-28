@@ -38,9 +38,14 @@ const {
     getSubscription,
     setSubscription,
     findByPaystackReference,
-    startTrialIfEligible,
 } = require('../lib/subscriptionStore');
 const adminStore = require('../lib/adminStore');
+const donationStore = require('../lib/donationStore');
+
+// Donation bounds in minor units (pesewas). ₵1 floor, ₵10,000 ceiling —
+// matches the client donate screen.
+const DONATION_MIN_MINOR = 100;
+const DONATION_MAX_MINOR = 1_000_000;
 
 // Price in the lowest currency unit (pesewas for GHS, cents for USD,
 // kobo for NGN). Backward-compat: if PRO_PRICE_USD_CENTS is still set
@@ -173,15 +178,10 @@ function createPaystackRouter({ io }) {
         const { deviceId } = req.params;
         if (!deviceId) return res.status(400).json({ error: 'Missing deviceId' });
 
-        // Grant the 3-day trial on first contact (idempotent — no-op if the
-        // device has ever had a proUntil or a non-trial source). The trial
-        // was previously granted only on socket connect, which raced this
-        // HTTP status check: a fresh install often hit /status first and saw
-        // 'free' (while Mission Control, seeing the socket grant, showed
-        // Pro). Granting here makes the very first tier check return the
-        // trial.
-        try { startTrialIfEligible(deviceId); } catch { /* noop */ }
-
+        // No trial grant — Piqabu is free for everyone, so there is no
+        // consumer entitlement to provision. This endpoint stays for the
+        // Paystack verify fallback below (and for the future Institutional
+        // tier) but never mints a trial.
         const record = getSubscription(deviceId) || {};
 
         // If there's a pending reference and tier is still 'free' or
@@ -229,6 +229,56 @@ function createPaystackRouter({ io }) {
     });
 
     /**
+     * POST /api/paystack/donate/init
+     * Body: { deviceId, amount (minor units), email? }
+     * Returns: { authorization_url, reference, amount, currency }
+     *
+     * Voluntary donation. Grants nothing — the webhook records it for the
+     * Mission Control thank-you flow but never touches the subscription.
+     */
+    router.post('/api/paystack/donate/init', express.json(), async (req, res) => {
+        try {
+            const { deviceId, amount, email } = req.body || {};
+            if (!deviceId || typeof deviceId !== 'string' || deviceId.length < 8 || deviceId.length > 100) {
+                return res.status(400).json({ error: 'Invalid deviceId' });
+            }
+            const amountMinor = Math.round(Number(amount));
+            if (!Number.isFinite(amountMinor) || amountMinor < DONATION_MIN_MINOR || amountMinor > DONATION_MAX_MINOR) {
+                return res.status(400).json({ error: 'Invalid donation amount' });
+            }
+            const cleanEmail = (typeof email === 'string' && email.includes('@'))
+                ? email.trim().slice(0, 254)
+                : syntheticEmail(deviceId);
+
+            const data = await paystack.initializeTransaction({
+                email: cleanEmail,
+                amount: amountMinor,
+                currency: PRO_CURRENCY,
+                callbackUrl: PAYSTACK_CALLBACK_URL,
+                metadata: { deviceId, product: 'donation' },
+            });
+
+            adminStore.addLog('info', 'Donation initialized', {
+                deviceId,
+                reference: data.reference,
+                amount: amountMinor,
+                currency: PRO_CURRENCY,
+            });
+
+            res.json({
+                authorization_url: data.authorization_url,
+                reference: data.reference,
+                amount: amountMinor,
+                currency: PRO_CURRENCY,
+            });
+        } catch (e) {
+            console.error('[Paystack] donate init failed:', e.message);
+            adminStore.addLog('error', 'Donation init failed', { message: e.message });
+            res.status(500).json({ error: 'Could not start donation' });
+        }
+    });
+
+    /**
      * POST /api/paystack/webhook
      * MUST use express.raw() so the body is the exact byte sequence
      * Paystack signed — express.json() would re-serialize and break
@@ -270,6 +320,27 @@ function createPaystackRouter({ io }) {
 
                     const deviceId = tx.metadata?.deviceId
                         || findByPaystackReference(reference);
+
+                    // Donations grant nothing — record for the Mission
+                    // Control thank-you flow and stop. (deviceId may be
+                    // absent for a stray donation; we still log it.)
+                    if (tx.metadata?.product === 'donation') {
+                        donationStore.recordDonation({
+                            reference,
+                            deviceId,
+                            amount: tx.amount,
+                            currency: tx.currency,
+                            email: tx.customer?.email || null,
+                        });
+                        adminStore.addLog('info', 'Donation received', {
+                            deviceId: deviceId || 'unknown',
+                            reference,
+                            amount: tx.amount,
+                            currency: tx.currency,
+                        });
+                        return;
+                    }
+
                     if (!deviceId) {
                         adminStore.addLog('warn', 'Paystack webhook: no deviceId mapping', { reference });
                         return;

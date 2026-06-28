@@ -337,30 +337,14 @@ io.use((socket, next) => {
         try { isFirstEncounter = deviceRegistry.touch(result.sanitized); }
         catch { /* noop */ }
 
-        // 7-day trial grant on every connect — idempotent inside
-        // subscriptionStore (skips if proUntil already set, skips if
-        // source is set to anything other than 'trial'). Calling
-        // unconditionally rather than gating on first-encounter means
-        // existing users — Android folks already in the device
-        // registry from before this rollout — also pick up the trial
-        // on their next connection. New users get it on first connect.
-        // Suppress the log spam by only logging when a grant actually
-        // happened.
-        try {
-            const adminStore = require('./lib/adminStore');
-            const granted = require('./lib/subscriptionStore').startTrialIfEligible(result.sanitized);
-            if (granted) {
-                adminStore.addLog('info', '7-day trial granted', {
-                    deviceId: result.sanitized,
-                    wasFirstEncounter: isFirstEncounter,
-                });
-            }
-        } catch (e) {
-            console.warn('[Trial] grant failed:', e?.message);
-        }
+        // No trial grant — Piqabu is free for everyone now, so there is no
+        // consumer entitlement to provision on connect. (isFirstEncounter
+        // is still tracked above for the device registry / analytics.)
+        void isFirstEncounter;
 
-        // Look up tier from subscription store (after possible trial grant
-        // above so the freshly-trialing device shows up as 'pro').
+        // Tier from the subscription store. For individuals this is just
+        // 'free' (the app is fully open regardless); the field is retained
+        // for the future Institutional tier + Mission Control display.
         socket.data.tier = getTier(result.sanitized);
     } else {
         socket.data.tier = 'free';
@@ -440,6 +424,29 @@ io.on('connection', (socket) => {
         }
     } catch (e) {
         console.warn('[OperatorMessages] pending delivery failed:', e?.message);
+    }
+
+    // --- Donor thank-yous (Mission Control → donor) ---
+    // Deliver any thank-you the operator sent while this donor was offline.
+    // Reuses the same operator_message banner as feedback replies. The
+    // donation reference is the id so the client ack can be ignored safely
+    // (thank-yous don't need a read receipt — once delivered, done).
+    try {
+        const deviceId = socket.data?.deviceId;
+        if (deviceId) {
+            const donationStore = require('./lib/donationStore');
+            const pendingThanks = donationStore.pendingThanksFor(deviceId);
+            for (const d of pendingThanks) {
+                socket.emit('operator_message', {
+                    id: `donation:${d.reference}`,
+                    message: d.thankMessage,
+                    sentAt: d.thankSentAt,
+                });
+                donationStore.markThankDelivered(d.reference);
+            }
+        }
+    } catch (e) {
+        console.warn('[DonorThanks] pending delivery failed:', e?.message);
     }
 
     // Client acks dismissal — server marks the reply as read so it

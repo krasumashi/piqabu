@@ -13,6 +13,7 @@ const NAV: NavItem[] = [
     { to: '/insights', label: 'INSIGHTS', phase: 2 },
     { to: '/devices', label: 'DEVICES', phase: 1 },
     { to: '/helpdesk', label: 'HELPDESK', phase: 1 },
+    { to: '/donors', label: 'DONORS', phase: 2 },
     { to: '/levers', label: 'LEVERS', phase: 2 },
     { to: '/audit', label: 'AUDIT', phase: 2 },
 ];

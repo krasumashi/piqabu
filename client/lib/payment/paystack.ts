@@ -221,3 +221,59 @@ export async function startCheckout(
     }
     return { kind: 'cancelled' };
 }
+
+/**
+ * Donation checkout. Piqabu is free — this is voluntary support, not a
+ * purchase, and it grants nothing. Unlike startCheckout there is no
+ * entitlement to poll for: the server records the donation (for the
+ * Mission Control thank-you flow) when Paystack's webhook lands, but the
+ * client just needs to know the user got through the payment sheet.
+ *
+ * @param amountMinor donation amount in the lowest currency unit
+ *   (pesewas — e.g. 2000 = ₵20).
+ */
+export async function startDonation(
+    { deviceId, amountMinor, email }: { deviceId: string; amountMinor: number; email?: string },
+): Promise<{ kind: 'success' | 'cancelled' | 'error'; reason?: string }> {
+    const wb = getWebBrowser();
+    if (!wb || typeof wb.openAuthSessionAsync !== 'function') {
+        return {
+            kind: 'error',
+            reason: 'Donations aren\'t available in this build of Piqabu. Please update to the latest version and try again.',
+        };
+    }
+
+    let init: InitResponse;
+    try {
+        const res = await fetch(`${CONFIG.SIGNAL_TOWER_URL}/api/paystack/donate/init`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId, amount: amountMinor, email }),
+        });
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            throw new Error(`donate init failed (${res.status}): ${body.slice(0, 200)}`);
+        }
+        init = await res.json();
+    } catch (e) {
+        return { kind: 'error', reason: e instanceof Error ? e.message : 'Could not start the donation.' };
+    }
+
+    let browserResult: { type: string; url?: string };
+    try {
+        browserResult = await wb.openAuthSessionAsync(
+            init.authorization_url,
+            'https://piqabu.live/upgrade',
+        );
+    } catch (e) {
+        return { kind: 'error', reason: e instanceof Error ? e.message : 'Could not open the payment sheet.' };
+    }
+
+    // The donation is recorded server-side via the webhook; the client
+    // only needs the webview's exit signal to decide whether to thank
+    // the user. A 'success' redirect means Paystack accepted the charge.
+    if (browserResult.type === 'success') {
+        return { kind: 'success' };
+    }
+    return { kind: 'cancelled' };
+}

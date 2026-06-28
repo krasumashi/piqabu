@@ -28,7 +28,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
-import { useProAccess } from '../lib/pro';
 
 interface LiveLauncherProps {
     visible: boolean;
@@ -46,7 +45,6 @@ export default function LiveLauncher({
     const translateY = useRef(new RNAnimated.Value(400)).current;
     const backdrop = useRef(new RNAnimated.Value(0)).current;
     const dotPulse = useRef(new RNAnimated.Value(1)).current;
-    const { isPro } = useProAccess();
 
     useEffect(() => {
         if (visible) {
@@ -157,11 +155,6 @@ export default function LiveLauncher({
                             <View style={[styles.cell, styles.textCell]}>
                                 <View style={styles.optionLabelRow}>
                                     <Text style={styles.optionLabel}>LIVE GLASS</Text>
-                                    {!isPro && (
-                                        <View style={styles.proPill}>
-                                            <Text style={styles.proPillText}>PRO</Text>
-                                        </View>
-                                    )}
                                 </View>
                                 <Text style={styles.optionDesc}>
                                     Camera-to-camera. Blur and noir filters on by default.

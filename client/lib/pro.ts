@@ -18,7 +18,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { NativeModules, Platform } from 'react-native';
 import { getSecureItem, setSecureItem } from './platform/storage';
-import { CONFIG } from '../constants/Config';
 
 const PRO_KEY = 'piqabu_pro_status';
 const PRO_UNTIL_KEY = 'piqabu_pro_until';     // ISO timestamp of expiry
@@ -45,13 +44,18 @@ async function mirrorProStatusToNative(isPro: boolean): Promise<void> {
     try { await bridge.setProStatus(isPro); } catch { /* noop */ }
 }
 
+/**
+ * Piqabu is free for everyone. There is no consumer Pro tier anymore —
+ * the app is an experimental, donation-supported privacy study, and every
+ * feature (including the keyboard) is unlocked for all users. This always
+ * resolves true so every legacy `isPro` gate reads as unlocked.
+ *
+ * The entitlement plumbing below (setProAccess, timelines, the server
+ * sync) is kept dormant so the Institutional tier can repurpose it later
+ * — it just no longer governs individual access.
+ */
 export async function hasProAccess(): Promise<boolean> {
-    try {
-        const raw = await getSecureItem(PRO_KEY);
-        return raw === '1';
-    } catch {
-        return false;
-    }
+    return true;
 }
 
 /**
@@ -167,22 +171,13 @@ export function useProTimeline(): { timeline: ProTimeline; refresh: () => Promis
  *   - device clock skew
  */
 export async function syncProAccessFromServer(deviceId: string): Promise<void> {
-    if (!deviceId) return;
-    try {
-        const res = await fetch(`${CONFIG.SIGNAL_TOWER_URL}/api/paystack/status/${encodeURIComponent(deviceId)}`);
-        if (!res.ok) return;
-        const data = await res.json() as {
-            tier: 'free' | 'pro';
-            proUntil: string | null;
-            graceUntil: string | null;
-            source?: string | null;
-        };
-        await setProAccess(data.tier === 'pro', {
-            proUntil: data.proUntil,
-            graceUntil: data.graceUntil,
-            source: data.source ?? null,
-        });
-    } catch { /* offline / dev — silently skip */ }
+    // No-op since Piqabu went free. Previously this pulled the server's
+    // subscription state and could write a '0' (free) flag — which would
+    // re-lock the keyboard bridge. With no consumer tier there's nothing
+    // to reconcile; access is always granted (see hasProAccess). Kept as
+    // a callable stub so existing call sites don't need to change, and so
+    // the Institutional tier can reinstate a real sync later.
+    void deviceId;
 }
 
 /**

@@ -5,6 +5,7 @@ import Login from './routes/Login';
 import Pulse from './routes/Pulse';
 import Devices from './routes/Devices';
 import Helpdesk from './routes/Helpdesk';
+import Donors from './routes/Donors';
 import Levers from './routes/Levers';
 import Audit from './routes/Audit';
 import Insights from './routes/Insights';
@@ -28,6 +29,7 @@ export default function App() {
                 <Route path="/insights" element={<Insights />} />
                 <Route path="/devices" element={<Devices />} />
                 <Route path="/helpdesk" element={<Helpdesk />} />
+                <Route path="/donors" element={<Donors />} />
                 <Route path="/levers" element={<Levers />} />
                 <Route path="/audit" element={<Audit />} />
                 <Route path="/" element={<Navigate to="/pulse" replace />} />
