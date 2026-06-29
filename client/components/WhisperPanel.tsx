@@ -573,6 +573,21 @@ export default function WhisperPanel({
                         )}
                     </View>
 
+                    {/* Upcoming \u2014 non-interactive previews of what's planned
+                        for Whisper. Wiring lands in a later pass. */}
+                    <View style={styles.soonList}>
+                        <View style={styles.soonRow}>
+                            <Ionicons name="language-outline" size={14} color={THEME.faint} />
+                            <Text style={styles.soonLabel}>LIVE TRANSLATION</Text>
+                            <View style={styles.soonTag}><Text style={styles.soonTagText}>COMING SOON</Text></View>
+                        </View>
+                        <View style={styles.soonRow}>
+                            <Ionicons name="color-wand-outline" size={14} color={THEME.faint} />
+                            <Text style={styles.soonLabel}>VOICE CHANGE</Text>
+                            <View style={styles.soonTag}><Text style={styles.soonTagText}>COMING SOON</Text></View>
+                        </View>
+                    </View>
+
                     <Text style={styles.footer}>PUSH TO TALK {'\u2022'} NO RECORDING {'\u2022'} NO HISTORY</Text>
                 </View>
             </RNAnimated.View>
@@ -795,6 +810,44 @@ const styles = StyleSheet.create({
         letterSpacing: 10 * 0.12,
         color: THEME.faint,
         textAlign: 'center',
+        textTransform: 'uppercase',
+    },
+    soonList: {
+        gap: 8,
+    },
+    soonRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 11,
+        paddingHorizontal: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.12)',
+        backgroundColor: 'rgba(245,243,235,0.025)',
+    },
+    soonLabel: {
+        flex: 1,
+        fontFamily: THEME.mono,
+        fontSize: 11,
+        letterSpacing: 1.2,
+        fontWeight: '900',
+        color: THEME.muted,
+        textTransform: 'uppercase',
+    },
+    soonTag: {
+        borderWidth: 1,
+        borderColor: 'rgba(245,243,235,0.20)',
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+    },
+    soonTagText: {
+        fontFamily: THEME.mono,
+        fontSize: 8,
+        letterSpacing: 1,
+        fontWeight: '900',
+        color: THEME.faint,
         textTransform: 'uppercase',
     },
 });

@@ -987,6 +987,15 @@ export default function LiveGlassPanel({
                             <Text style={styles.controlBtnText}>FLIP</Text>
                         </TouchableOpacity>
                     </View>
+
+                    {/* Upcoming — non-interactive preview. On-device check
+                        that flags a synthetic / deepfaked partner feed.
+                        Wiring lands in a later pass. */}
+                    <View style={styles.dfRow}>
+                        <Ionicons name="shield-checkmark-outline" size={14} color="rgba(255,255,255,0.5)" />
+                        <Text style={styles.dfLabel}>DEEPFAKE DETECTION</Text>
+                        <View style={styles.dfTag}><Text style={styles.dfTagText}>COMING SOON</Text></View>
+                    </View>
                 </View>
 
                 {/* ── CALL / END button ───────────────────────────────── */}
@@ -1214,6 +1223,44 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: 1,
         color: '#fff',
+        textTransform: 'uppercase',
+    },
+
+    /* upcoming feature preview (deepfake detection) */
+    dfRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: 'rgba(255,255,255,0.04)',
+    },
+    dfLabel: {
+        flex: 1,
+        fontFamily: THEME.mono,
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 1.2,
+        color: 'rgba(255,255,255,0.7)',
+        textTransform: 'uppercase',
+    },
+    dfTag: {
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.25)',
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+    },
+    dfTagText: {
+        fontFamily: THEME.mono,
+        fontSize: 8,
+        fontWeight: '900',
+        letterSpacing: 1,
+        color: 'rgba(255,255,255,0.55)',
         textTransform: 'uppercase',
     },
 
