@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, FlatList, Animated, Linking, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, FlatList, Animated, Linking, Platform, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -177,7 +177,11 @@ export default function Onboarding() {
             );
         }
         return (
-        <View style={{ width }} className="flex-1 items-center justify-center p-8">
+        <ScrollView
+            style={{ width }}
+            contentContainerStyle={{ flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}
+            showsVerticalScrollIndicator={false}
+        >
             {/* Animated Icon */}
             <View className="w-28 h-28 border-2 border-signal/40 rounded-full items-center justify-center mb-10">
                 <View className="w-20 h-20 border border-signal/20 rounded-full items-center justify-center">
@@ -236,7 +240,7 @@ export default function Onboarding() {
                     </Text>
                 </TouchableOpacity>
             )}
-        </View>
+        </ScrollView>
         );
     };
 

@@ -22,6 +22,7 @@ import {
     Easing,
     Dimensions,
     Platform,
+    ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
@@ -123,7 +124,11 @@ export default function KeyboardFeaturesSlide({ item, active, isPro, onCtaPress 
                 <Text style={styles.subtitle}>{item.subtitle}</Text>
             </Animated.View>
 
-            <View style={styles.list}>
+            <ScrollView
+                style={styles.listScroll}
+                contentContainerStyle={styles.list}
+                showsVerticalScrollIndicator={false}
+            >
                 {features.map((f, i) => (
                     <Animated.View
                         key={f.title}
@@ -144,7 +149,7 @@ export default function KeyboardFeaturesSlide({ item, active, isPro, onCtaPress 
                         </View>
                     </Animated.View>
                 ))}
-            </View>
+            </ScrollView>
 
             <Animated.View
                 style={{
@@ -213,10 +218,12 @@ const styles = StyleSheet.create({
         letterSpacing: 1.6,
         fontWeight: '600',
     },
-    list: {
+    listScroll: {
         flex: 1,
+    },
+    list: {
         gap: 12,
-        marginVertical: 4,
+        paddingVertical: 4,
     },
     row: {
         flexDirection: 'row',
