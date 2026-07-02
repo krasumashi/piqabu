@@ -646,7 +646,11 @@ io.on('connection', (socket) => {
             if (!roomId || !participant.rooms.has(roomId)) return;
             const result = validateRevealPayload(data.payload);
             if (!result.valid) return;
-            socket.to(roomId).emit('remote_reveal', { roomId, payload: result.sanitized });
+            // action: 'show' (default) adds the item to the partner's Peek
+            // gallery; 'cover' removes that specific item; 'coverAll' clears
+            // the gallery. Relayed verbatim so the receiver can reconcile.
+            const action = (data.action === 'cover' || data.action === 'coverAll') ? data.action : 'show';
+            socket.to(roomId).emit('remote_reveal', { roomId, payload: result.sanitized, action });
         } else {
             // Legacy: data is the payload directly
             const result = validateRevealPayload(data);

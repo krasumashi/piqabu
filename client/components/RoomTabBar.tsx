@@ -28,7 +28,12 @@ export default function RoomTabBar({
     onAddRoom,
     onCloseRoom,
 }: RoomTabBarProps) {
-    if (rooms.length <= 1) return null; // Hide tab bar for single room
+    // Show the bar whenever there's at least one room so the "+" (add
+    // channel) button is always reachable from the main app — not only
+    // after a second room already exists (which was a chicken-and-egg:
+    // you could only add channels via the keyboard mint). The per-tab
+    // close is guarded below so you can't close your only room.
+    if (rooms.length === 0) return null;
 
     return (
         <View className="border-b border-ghost/20 bg-void">
@@ -79,12 +84,15 @@ export default function RoomTabBar({
                     );
                 })}
 
-                {/* Add Room Button */}
+                {/* Add Channel Button */}
                 <TouchableOpacity
                     onPress={onAddRoom}
                     className="flex-row items-center px-3 py-2 rounded-lg border border-dashed border-ghost/30"
                 >
-                    <Ionicons name="add" size={12} color="#333" />
+                    <Ionicons name="add" size={12} color="#888" />
+                    <Text className="font-mono text-[9px] uppercase tracking-[1px] text-ghost ml-1">
+                        NEW CHANNEL
+                    </Text>
                 </TouchableOpacity>
             </ScrollView>
         </View>

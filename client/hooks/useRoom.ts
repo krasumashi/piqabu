@@ -112,25 +112,38 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
             }
         };
 
-        const applyReveal = (payload: string | null) => {
+        // The gallery is the live set of items the partner currently has
+        // shown. 'show' adds an item, 'cover' removes that specific item,
+        // 'coverAll' clears everything. remoteReveal tracks the most recent
+        // change (drives the PEEK badge).
+        const applyReveal = (payload: string | null, action: 'show' | 'cover' | 'coverAll') => {
+            if (action === 'coverAll') {
+                setRemoteReveal(null);
+                setRevealGallery([]);
+                return;
+            }
+            if (action === 'cover') {
+                if (payload) setRevealGallery((prev) => prev.filter((u) => u !== payload));
+                setRemoteReveal((prev) => (prev === payload ? null : prev));
+                return;
+            }
+            // show
             setRemoteReveal(payload);
-            // Accumulate into the session gallery — append each distinct
-            // item (re-showing the same one doesn't duplicate it). A null
-            // (cover) leaves the gallery intact; items persist for the
-            // session per the running-gallery model.
             if (payload) {
                 setRevealGallery((prev) => (prev.includes(payload) ? prev : [...prev, payload]));
             }
         };
 
-        const handleRemoteReveal = (data: { roomId: string; payload: string | null } | string | null) => {
+        const handleRemoteReveal = (
+            data: { roomId: string; payload: string | null; action?: 'show' | 'cover' | 'coverAll' } | string | null,
+        ) => {
             if (typeof data === 'object' && data !== null && 'roomId' in data) {
                 if (data.roomId === roomId) {
-                    applyReveal(data.payload);
+                    applyReveal(data.payload, data.action ?? 'show');
                 }
             } else {
-                // Legacy
-                applyReveal(data as string | null);
+                // Legacy (payload-only) — always a show.
+                applyReveal(data as string | null, 'show');
             }
         };
 
@@ -219,10 +232,10 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         socket?.emit('transmit_vanish', { roomId });
     }, [socket, roomId]);
 
-    const sendReveal = useCallback((payload: string | null) => {
+    const sendReveal = useCallback((payload: string | null, action: 'show' | 'cover' | 'coverAll' = 'show') => {
         // Server upload URLs are short strings — skip size check for those
         if (payload !== null && !payload.startsWith('/uploads/') && payload.length > MAX_IMAGE_SIZE) return;
-        socket?.emit('transmit_reveal', { roomId, payload });
+        socket?.emit('transmit_reveal', { roomId, payload, action });
     }, [socket, roomId]);
 
     const sendWhisper = useCallback((payload: string) => {

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     View, Image, TouchableOpacity, Text, StyleSheet, Alert, ScrollView,
-    Animated as RNAnimated, Platform, ActivityIndicator, ActionSheetIOS
+    Animated as RNAnimated, Platform, ActivityIndicator, ActionSheetIOS,
+    useWindowDimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -75,13 +76,15 @@ export default function RevealDeck({
 }: {
     visible: boolean;
     onClose: () => void;
-    onReveal: (payload: string | null) => void;
+    onReveal: (payload: string | null, action?: 'show' | 'cover' | 'coverAll') => void;
     roomId: string;
     maxImages?: number;
     onVideoControl?: (controls: { action: string; position?: number }) => void;
 }) {
     const [items, setItems] = useState<EvidenceItem[]>([]);
-    const [exposedId, setExposedId] = useState<string | null>(null);
+    // Set of item ids currently shown to the partner. Multiple can be
+    // shown at once; the partner's Peek gallery mirrors exactly this set.
+    const [exposedIds, setExposedIds] = useState<Set<string>>(new Set());
     const [uploading, setUploading] = useState(false);
     const [isPlaying, setIsPlaying] = useState(true);
     const [videoDuration, setVideoDuration] = useState(0);
@@ -90,6 +93,11 @@ export default function RevealDeck({
     const videoRef = useRef<any>(null);
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
+
+    // Responsive media-preview height — a fraction of the screen, clamped,
+    // so on short phones it doesn't crowd out the list + footer.
+    const { height: winH } = useWindowDimensions();
+    const previewHeight = Math.max(140, Math.min(280, Math.round(winH * 0.28)));
 
     const { setFilePickerActive } = useSecurity();
 
@@ -276,30 +284,41 @@ export default function RevealDeck({
         }
     };
 
-    // Radio-style expose: only ONE item exposed at a time
+    // Multi-select expose: each item toggles independently. SHOW adds it
+    // to the partner's Peek gallery; COVER removes that specific item.
     const toggleExpose = (id: string) => {
-        if (exposedId === id) {
-            setExposedId(null);
-            onReveal(null);
-        } else {
-            setExposedId(id);
-            const item = items.find(i => i.id === id);
-            if (item) onReveal(item.uri);
-        }
+        const item = items.find(i => i.id === id);
+        if (!item) return;
+        setExposedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+                onReveal(item.uri, 'cover');
+            } else {
+                next.add(id);
+                onReveal(item.uri, 'show');
+            }
+            return next;
+        });
     };
 
     const removeItem = (id: string) => {
+        const item = items.find(i => i.id === id);
+        // If it's currently shown, cover it on the partner's side first.
+        if (item && exposedIds.has(id)) onReveal(item.uri, 'cover');
         setItems(prev => prev.filter(i => i.id !== id));
-        if (exposedId === id) {
-            setExposedId(null);
-            onReveal(null);
-        }
+        setExposedIds(prev => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
     };
 
     const clearAll = () => {
         setItems([]);
-        setExposedId(null);
-        onReveal(null);
+        setExposedIds(new Set());
+        onReveal(null, 'coverAll');
     };
 
     if (!visible) return null;
@@ -318,7 +337,7 @@ export default function RevealDeck({
                     <View>
                         <Text style={styles.headerTitle}>REVEAL VAULT</Text>
                         <Text style={styles.headerSub}>
-                            ITEMS: {items.length} • SHOWN: {exposedId ? '1' : '0'}
+                            ITEMS: {items.length} • SHOWN: {exposedIds.size}
                         </Text>
                     </View>
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
@@ -357,7 +376,7 @@ export default function RevealDeck({
                         </View>
                     ) : (
                         items.map((item, idx) => {
-                            const isExposed = exposedId === item.id;
+                            const isExposed = exposedIds.has(item.id);
                             return (
                                 <View key={item.id} style={styles.evidenceRow}>
                                     {/* Thumbnail */}
@@ -421,10 +440,12 @@ export default function RevealDeck({
                     )}
                 </ScrollView>
 
-                {/* Video/Audio Preview for exposed media */}
-                {exposedId && (() => {
-                    const exposedItem = items.find(i => i.id === exposedId);
-                    if (!exposedItem || (exposedItem.type !== 'video' && exposedItem.type !== 'audio')) return null;
+                {/* Video/Audio Preview for exposed media. When several items
+                    are shown, preview the first exposed video/audio so the
+                    sender keeps playback control of it. */}
+                {(() => {
+                    const exposedItem = items.find(i => exposedIds.has(i.id) && (i.type === 'video' || i.type === 'audio'));
+                    if (!exposedItem) return null;
                     const playbackUri = exposedItem.localUri || exposedItem.uri;
                     const formatTime = (ms: number) => {
                         const s = Math.floor(ms / 1000);
@@ -432,7 +453,7 @@ export default function RevealDeck({
                         return `${m}:${String(s % 60).padStart(2, '0')}`;
                     };
                     return (
-                        <View style={styles.videoPreview}>
+                        <View style={[styles.videoPreview, { height: previewHeight }]}>
                             <Video
                                 ref={videoRef}
                                 source={{ uri: playbackUri }}
@@ -796,6 +817,8 @@ const styles = StyleSheet.create({
         color: THEME.accEmerald,
     },
     videoPreview: {
+        // Height is applied responsively inline (previewHeight); this is a
+        // fallback for any static render.
         height: 280,
         marginHorizontal: 14,
         marginBottom: 6,

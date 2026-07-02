@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     View, Text, TouchableOpacity, Pressable, StyleSheet, Platform,
-    Animated as RNAnimated, PermissionsAndroid,
+    Animated as RNAnimated, PermissionsAndroid, useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
@@ -61,6 +61,10 @@ export default function WhisperPanel({
 }: WhisperPanelProps) {
     const slideAnim = useRef(new RNAnimated.Value(400)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
+
+    // Responsive primary-button height so the card fits short screens.
+    const { height: winH } = useWindowDimensions();
+    const bigBtnH = Math.max(110, Math.min(160, Math.round(winH * 0.20)));
 
     const [state, setState] = useState<WhisperState>('IDLE');
     const [isSpeaking, setIsSpeaking] = useState(false);
@@ -504,7 +508,7 @@ export default function WhisperPanel({
 
                     {/* IDLE: connect button */}
                     {state === 'IDLE' && !error && (
-                        <TouchableOpacity onPress={handleConnect} style={styles.connectBtn} activeOpacity={0.7}>
+                        <TouchableOpacity onPress={handleConnect} style={[styles.connectBtn, { height: bigBtnH }]} activeOpacity={0.7}>
                             <Ionicons name="radio-outline" size={28} color="#000" />
                             <Text style={styles.connectBtnText}>CONNECT</Text>
                         </TouchableOpacity>
@@ -512,7 +516,7 @@ export default function WhisperPanel({
 
                     {/* INVITED: waiting */}
                     {state === 'INVITED' && (
-                        <View style={styles.waitingBox}>
+                        <View style={[styles.waitingBox, { height: bigBtnH }]}>
                             <Ionicons name="radio" size={24} color={THEME.faint} />
                             <Text style={styles.waitingText}>WAITING FOR PARTNER...</Text>
                         </View>
@@ -520,7 +524,7 @@ export default function WhisperPanel({
 
                     {/* CONNECTING */}
                     {state === 'CONNECTING' && (
-                        <View style={styles.waitingBox}>
+                        <View style={[styles.waitingBox, { height: bigBtnH }]}>
                             <Ionicons name="pulse-outline" size={24} color={THEME.faint} />
                             <Text style={styles.waitingText}>ESTABLISHING LINE...</Text>
                         </View>
@@ -541,6 +545,7 @@ export default function WhisperPanel({
                                 onPressOut={handlePTTOut}
                                 style={({ pressed }) => [
                                     styles.pttBtn,
+                                    { height: bigBtnH },
                                     (isSpeaking || pressed) && styles.pttBtnActive,
                                 ]}
                             >
@@ -608,6 +613,8 @@ const styles = StyleSheet.create({
         left: 16,
         right: 16,
         bottom: 16,
+        // Never taller than the screen on short phones.
+        maxHeight: '92%',
         borderRadius: 26,
         borderWidth: 1,
         borderColor: 'rgba(245,243,235,0.20)',
