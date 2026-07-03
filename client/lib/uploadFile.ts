@@ -13,6 +13,31 @@ export async function uploadFile(
     roomId: string,
 ): Promise<{ url: string } | { error: string }> {
     try {
+        // Web: the browser's FormData needs a real Blob/File, not React
+        // Native's { uri, name, type } shape. Fetch the blob (works for
+        // blob:, data:, and http(s) URIs the pickers hand back) and post
+        // it. Don't set Content-Type — the browser adds the multipart
+        // boundary itself.
+        if (Platform.OS === 'web') {
+            let blob: Blob;
+            try {
+                blob = await (await fetch(uri)).blob();
+            } catch {
+                return { error: 'Could not read the file. Try a different file.' };
+            }
+            const webForm = new FormData();
+            webForm.append('file', blob, fileName);
+            webForm.append('roomId', roomId);
+            const res = await fetch(`${CONFIG.SIGNAL_TOWER_URL}/upload`, { method: 'POST', body: webForm });
+            if (!res.ok) {
+                const text = await res.text().catch(() => '');
+                return { error: text || `Upload failed (${res.status})` };
+            }
+            const data = await res.json();
+            if (!data.url) return { error: 'Server did not return a file URL.' };
+            return { url: data.url };
+        }
+
         // On Android, content:// URIs can't be used directly with FormData.
         // Copy to a cache file first.
         let fileUri = uri;
