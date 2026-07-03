@@ -69,7 +69,10 @@ export default function RootLayout() {
         }
     }, []);
 
-    if (!loaded) {
+    // On native we hold the splash until the custom font is ready. On web
+    // we don't block on it — the system font renders immediately and
+    // SpaceMono swaps in when loaded, so the app never shows a blank page.
+    if (!loaded && Platform.OS !== 'web') {
         return null;
     }
 
