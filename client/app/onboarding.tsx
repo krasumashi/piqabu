@@ -141,7 +141,14 @@ export default function Onboarding() {
 
     const handleNext = () => {
         if (activeIndex < slides.length - 1) {
-            flatListRef.current?.scrollToIndex({ index: activeIndex + 1, animated: true });
+            const next = activeIndex + 1;
+            // scrollToOffset is reliable on react-native-web; scrollToIndex
+            // silently no-ops there without getItemLayout (which is why the
+            // Next button did nothing in the PWA). Update the index
+            // optimistically so the dots + CTA react even if the viewability
+            // callback lags on web.
+            setActiveIndex(next);
+            flatListRef.current?.scrollToOffset({ offset: next * width, animated: true });
         } else {
             handleFinish();
         }
@@ -278,6 +285,7 @@ export default function Onboarding() {
                 onViewableItemsChanged={onViewableItemsChanged}
                 viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
                 keyExtractor={(_, i) => i.toString()}
+                getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
             />
 
             {/* Bottom Controls */}
