@@ -1,0 +1,19 @@
+{
+  "name": "Piqabu",
+  "short_name": "Piqabu",
+  "description": "Private, ephemeral messaging. Zero trace.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#060709",
+  "theme_color": "#060709",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
