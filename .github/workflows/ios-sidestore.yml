@@ -22,6 +22,8 @@ on:
 jobs:
   build-ipa:
     runs-on: macos-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: client
@@ -83,12 +85,29 @@ jobs:
           echo "Packaging $APP"
           mkdir -p Payload
           cp -R "$APP" Payload/
-          zip -qr Piqabu-unsigned.ipa Payload
-          ls -la Piqabu-unsigned.ipa
+          # Stable asset name so the download URL never changes between builds.
+          zip -qr Piqabu.ipa Payload
+          ls -la Piqabu.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: Piqabu-ios-unsigned-ipa
-          path: client/ios/build/Piqabu-unsigned.ipa
+          path: client/ios/build/Piqabu.ipa
           if-no-files-found: error
+
+      # Publish to a fixed `ios-latest` release so the landing page has a
+      # stable, never-changing download URL:
+      #   https://github.com/krasumashi/piqabu/releases/download/ios-latest/Piqabu.ipa
+      # Marked prerelease so it never becomes the repo's "latest release"
+      # (which the Android APK uses via /releases/latest/download/piqabu.apk).
+      - name: Publish to ios-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd ios/build
+          gh release view ios-latest >/dev/null 2>&1 || gh release create ios-latest \
+            --title "Piqabu for iPhone (SideStore)" \
+            --prerelease \
+            --notes "Unsigned .ipa for SideStore/AltStore — signs on your device with your own Apple ID. Rebuilt automatically; this download always points to the newest build."
+          gh release upload ios-latest Piqabu.ipa --clobber

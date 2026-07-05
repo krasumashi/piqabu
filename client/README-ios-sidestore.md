@@ -36,13 +36,18 @@ on-device at install.
    download the **`Piqabu-ios-unsigned-ipa`** artifact. Inside is
    `Piqabu-unsigned.ipa`.
 
-> First run may fail on an Xcode/pod/config detail — iOS issues only show
-> up on macOS. Read the failing step's log and adjust; it usually takes a
-> fix or two to go green.
+Every successful build also **auto-publishes** the `.ipa` to a fixed
+GitHub prerelease tagged `ios-latest`, so there's a **stable download URL
+that never changes**:
 
-Host the `.ipa` somewhere the phone can reach (e.g. drop it in a GitHub
-Release, or AirDrop / send it to the device), or install straight from the
-Files app.
+```
+https://github.com/krasumashi/piqabu/releases/download/ios-latest/Piqabu.ipa
+```
+
+Hand that URL to the landing page (the "iPhone download" button) and to
+testers. Each new build replaces the file behind the same link. (It's
+marked *prerelease* so it never overrides the Android APK's "latest
+release" download.)
 
 ---
 
