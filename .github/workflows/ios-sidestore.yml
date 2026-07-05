@@ -89,11 +89,16 @@ jobs:
           zip -qr Piqabu.ipa Payload
           ls -la Piqabu.ipa
 
+      - name: Generate SideStore source (apps.json)
+        run: node scripts/gen-sidestore-source.js ios/build/Piqabu.ipa ios/build/apps.json
+
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
           name: Piqabu-ios-unsigned-ipa
-          path: client/ios/build/Piqabu.ipa
+          path: |
+            client/ios/build/Piqabu.ipa
+            client/ios/build/apps.json
           if-no-files-found: error
 
       # Publish to a fixed `ios-latest` release so the landing page has a
@@ -110,4 +115,4 @@ jobs:
             --title "Piqabu for iPhone (SideStore)" \
             --prerelease \
             --notes "Unsigned .ipa for SideStore/AltStore — signs on your device with your own Apple ID. Rebuilt automatically; this download always points to the newest build."
-          gh release upload ios-latest Piqabu.ipa --clobber
+          gh release upload ios-latest Piqabu.ipa apps.json --clobber

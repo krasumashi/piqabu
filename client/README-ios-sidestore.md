@@ -49,6 +49,29 @@ testers. Each new build replaces the file behind the same link. (It's
 marked *prerelease* so it never overrides the Android APK's "latest
 release" download.)
 
+### SideStore Source (recommended — one-tap install + auto-update)
+
+Each build also publishes a **SideStore/AltStore source manifest** to the
+same release. This is the nicer distribution: users add the source once,
+then install *and auto-update* Piqabu from inside SideStore — no
+re-downloading .ipa files. Stable source URL:
+
+```
+https://github.com/krasumashi/piqabu/releases/download/ios-latest/apps.json
+```
+
+- **Add-to-SideStore deep link** for a landing-page button:
+  `sidestore://source?url=https://github.com/krasumashi/piqabu/releases/download/ios-latest/apps.json`
+- Version + file size in the manifest are regenerated on every build
+  (`scripts/gen-sidestore-source.js`) so SideStore detects updates
+  correctly.
+- Want a branded URL? Add a redirect on the landing site from
+  `piqabu.live/apps.json` → the release-asset URL above, and hand the
+  landing page `piqabu.live/apps.json` instead.
+
+> The repo must be **public** for the release-asset + raw-icon URLs to be
+> reachable without auth.
+
 ---
 
 ## 2. Install SideStore on the iPhone (one-time)
