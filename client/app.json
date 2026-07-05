@@ -2,7 +2,7 @@
   "expo": {
     "name": "Piqabu",
     "slug": "client",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.krasumashi.piqabu",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Piqabu uses the camera only when you start a Live Glass session, so you and your conversation partner can see each other privately.",
@@ -71,6 +71,15 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#060709",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain"
+        }
+      ],
       "expo-secure-store",
       "expo-font",
       "expo-document-picker",
@@ -91,7 +100,7 @@
       "url": "https://u.expo.dev/eb9a4e25-cfdd-4c53-b25c-d5e52973595c",
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 3000
+      "fallbackToCacheTimeout": 0
     }
   }
 }

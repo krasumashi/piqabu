@@ -3,7 +3,7 @@ import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as ScreenCapture from 'expo-screen-capture';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
@@ -40,15 +40,31 @@ const PiqabuTheme = {
 };
 
 export default function RootLayout() {
-    const [loaded] = useFonts({
+    const [loaded, fontError] = useFonts({
         SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     });
 
+    // Never hang on the splash. The app used to render null until the
+    // SpaceMono font loaded — but on some builds (seen on the iOS sideload)
+    // the font never resolves, so the app sat on the splash logo forever.
+    // Render once the font loads OR errors OR a short timeout elapses,
+    // whichever comes first. The system font is a fine fallback.
+    const [renderReady, setRenderReady] = useState(false);
+
     useEffect(() => {
-        if (loaded) {
-            SplashScreen.hideAsync();
+        if (loaded || fontError) setRenderReady(true);
+    }, [loaded, fontError]);
+
+    useEffect(() => {
+        const t = setTimeout(() => setRenderReady(true), 2500);
+        return () => clearTimeout(t);
+    }, []);
+
+    useEffect(() => {
+        if (renderReady) {
+            SplashScreen.hideAsync().catch(() => { /* already hidden */ });
         }
-    }, [loaded]);
+    }, [renderReady]);
 
     // Block screenshots & screen recording on native (FLAG_SECURE on Android)
     useEffect(() => {
@@ -69,10 +85,10 @@ export default function RootLayout() {
         }
     }, []);
 
-    // On native we hold the splash until the custom font is ready. On web
-    // we don't block on it — the system font renders immediately and
-    // SpaceMono swaps in when loaded, so the app never shows a blank page.
-    if (!loaded && Platform.OS !== 'web') {
+    // Hold the splash briefly on native until the font resolves or the
+    // 2.5s safety timeout fires (renderReady). Web never blocks — the
+    // system font renders immediately and SpaceMono swaps in when loaded.
+    if (!renderReady && Platform.OS !== 'web') {
         return null;
     }
 
