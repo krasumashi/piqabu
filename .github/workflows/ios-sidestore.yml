@@ -1,0 +1,94 @@
+name: iOS unsigned IPA (SideStore)
+
+# Builds an UNSIGNED .ipa of the Piqabu app on a GitHub-hosted macOS
+# runner. SideStore (or AltStore) re-signs it on-device with the user's
+# free Apple ID at install time, so no paid Apple Developer account and no
+# Mac are needed to distribute it.
+#
+# Run it: GitHub → Actions → "iOS unsigned IPA (SideStore)" → Run workflow.
+# Or push a tag like `ios-v0.3.0`. The .ipa lands as a downloadable
+# artifact on the run's summary page.
+#
+# NOTE: iOS native builds only surface issues on macOS, so the first run
+# may need a fix or two (Xcode version, a pod, or a config plugin). That's
+# expected — read the failing step's log and adjust.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'ios-v*'
+
+jobs:
+  build-ipa:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Prebuild iOS native project
+        run: npx expo prebuild --platform ios --no-install
+        env:
+          EXPO_NO_TELEMETRY: '1'
+
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
+      - name: Detect workspace & scheme
+        id: xc
+        run: |
+          cd ios
+          WORKSPACE=$(ls -d *.xcworkspace | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+          echo "Using workspace=$WORKSPACE  scheme=$SCHEME"
+
+      - name: Build unsigned archive
+        run: |
+          cd ios
+          xcodebuild \
+            -workspace "${{ steps.xc.outputs.workspace }}" \
+            -scheme "${{ steps.xc.outputs.scheme }}" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/Piqabu.xcarchive" \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Package unsigned IPA
+        run: |
+          cd ios/build
+          APP=$(ls -d Piqabu.xcarchive/Products/Applications/*.app | head -1)
+          echo "Packaging $APP"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qr Piqabu-unsigned.ipa Payload
+          ls -la Piqabu-unsigned.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Piqabu-ios-unsigned-ipa
+          path: client/ios/build/Piqabu-unsigned.ipa
+          if-no-files-found: error
