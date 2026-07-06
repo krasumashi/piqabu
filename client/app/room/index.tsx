@@ -163,11 +163,16 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const COMPOSE_MIN = 46;                              // ~1 line + padding
     const COMPOSE_MAX = Math.round(winH * 0.34);          // cap, then scrolls
     const [composeHeight, setComposeHeight] = useState(COMPOSE_MIN);
-    const [keyboardVisible, setKeyboardVisible] = useState(false);
+    // Manual keyboard inset. Expo's edge-to-edge mode means the window does
+    // NOT auto-resize for the IME even with adjustResize, so we measure the
+    // keyboard height and lift the feed+compose by it ourselves (works on
+    // both platforms, OTA-safe).
+    const [kbHeight, setKbHeight] = useState(0);
+    const keyboardVisible = kbHeight > 0;
 
     useEffect(() => {
-        const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates?.height ?? 0));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
         return () => { showSub.remove(); hideSub.remove(); };
     }, []);
 
@@ -450,11 +455,9 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             </View>
 
             {/* ─── Feed + compose ─── */}
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-                style={st.splitContainer}
-            >
+            {/* paddingBottom = keyboard height when typing (lifts the compose
+                bar above the keys), or a small gap to the Dock at rest. */}
+            <View style={[st.splitContainer, { paddingBottom: kbHeight > 0 ? kbHeight : 14 }]}>
                 {/* Correspondent feed — fills the top like a chat thread */}
                 <View style={[st.card, { flex: 1 }]}>
                     <View style={st.cardHeader}>
@@ -518,7 +521,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                         )}
                     </View>
                 </View>
-            </KeyboardAvoidingView>
+            </View>
 
             {/* Listening Indicator */}
             <ListeningIndicator incomingWhisper={incomingWhisper} />
