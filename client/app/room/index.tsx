@@ -169,11 +169,16 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     // both platforms, OTA-safe).
     const [kbHeight, setKbHeight] = useState(0);
     const keyboardVisible = kbHeight > 0;
+    const KB_GAP = 10; // breathing room between the compose bar and the keys
 
     useEffect(() => {
-        const showSub = Keyboard.addListener('keyboardDidShow', (e) => setKbHeight(e.endCoordinates?.height ?? 0));
+        // Track the keyboard frame on show AND on change (switching to
+        // emoji/another keyboard resizes it) so the compose bar follows it.
+        const onFrame = (e: any) => setKbHeight(e?.endCoordinates?.height ?? 0);
+        const showSub = Keyboard.addListener('keyboardDidShow', onFrame);
+        const changeSub = Keyboard.addListener('keyboardDidChangeFrame', onFrame);
         const hideSub = Keyboard.addListener('keyboardDidHide', () => setKbHeight(0));
-        return () => { showSub.remove(); hideSub.remove(); };
+        return () => { showSub.remove(); changeSub.remove(); hideSub.remove(); };
     }, []);
 
     // ── Typing indicator ──
@@ -457,7 +462,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             {/* ─── Feed + compose ─── */}
             {/* paddingBottom = keyboard height when typing (lifts the compose
                 bar above the keys), or a small gap to the Dock at rest. */}
-            <View style={[st.splitContainer, { paddingBottom: kbHeight > 0 ? kbHeight : 14 }]}>
+            <View style={[st.splitContainer, { paddingBottom: kbHeight > 0 ? kbHeight + KB_GAP : 14 }]}>
                 {/* Correspondent feed — fills the top like a chat thread */}
                 <View style={[st.card, { flex: 1 }]}>
                     <View style={st.cardHeader}>
