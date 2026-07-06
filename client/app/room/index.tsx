@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView,
     Platform, ScrollView, Alert, Modal, StyleSheet, Share,
-    Animated as RNAnimated, Keyboard, Easing,
+    Animated as RNAnimated, Keyboard, Easing, useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -155,23 +155,19 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     // Keep ref in sync so vanish timer always reads current text
     useEffect(() => { localTextRef.current = localText; }, [localText]);
 
-    // ── Keyboard-aware dynamic split ──
-    const remoteFlex = useRef(new RNAnimated.Value(1)).current;
-    const localFlex = useRef(new RNAnimated.Value(1)).current;
+    // ── WhatsApp-style compose: partner feed fills the top, the input
+    //    grows line-by-line and docks above the keyboard. We only track
+    //    keyboard visibility (to hide the Dock while typing) and the
+    //    input's content height (to auto-grow it, clamped). ──
+    const { height: winH } = useWindowDimensions();
+    const COMPOSE_MIN = 46;                              // ~1 line + padding
+    const COMPOSE_MAX = Math.round(winH * 0.34);          // cap, then scrolls
+    const [composeHeight, setComposeHeight] = useState(COMPOSE_MIN);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
 
     useEffect(() => {
-        const showSub = Keyboard.addListener('keyboardDidShow', () => {
-            RNAnimated.parallel([
-                RNAnimated.timing(remoteFlex, { toValue: 0.6, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: false }),
-                RNAnimated.timing(localFlex, { toValue: 1.4, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: false }),
-            ]).start();
-        });
-        const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-            RNAnimated.parallel([
-                RNAnimated.timing(remoteFlex, { toValue: 1, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: false }),
-                RNAnimated.timing(localFlex, { toValue: 1, duration: 300, easing: Easing.out(Easing.quad), useNativeDriver: false }),
-            ]).start();
-        });
+        const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+        const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
         return () => { showSub.remove(); hideSub.remove(); };
     }, []);
 
@@ -453,10 +449,14 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 </View>
             </View>
 
-            {/* ─── Split Text Interface ─── */}
-            <View style={st.splitContainer}>
-                {/* Remote Card */}
-                <RNAnimated.View style={[st.card, { flex: remoteFlex }]}>
+            {/* ─── Feed + compose ─── */}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                style={st.splitContainer}
+            >
+                {/* Correspondent feed — fills the top like a chat thread */}
+                <View style={[st.card, { flex: 1 }]}>
                     <View style={st.cardHeader}>
                         <View style={st.cardHeaderLeft}>
                             <View style={[st.cardDot, { backgroundColor: THEME.remote }]} />
@@ -484,62 +484,56 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                         </ScrollView>
                         <LinearGradient colors={['transparent', 'rgba(15,17,20,0.95)']} style={st.fadeBottom} pointerEvents="none" />
                     </View>
-                </RNAnimated.View>
+                </View>
 
-                {/* Local Card */}
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
-                    style={{ flex: 1 }}
-                >
-                    <RNAnimated.View style={[st.card, { flex: localFlex }]}>
-                        <View style={st.cardHeader}>
-                            <View style={st.cardHeaderLeft}>
-                                <View style={[st.cardDot, { backgroundColor: THEME.local }]} />
-                                <Text style={st.cardLabel}>YOU</Text>
+                {/* Compose bar — grows line-by-line, docks above the keyboard
+                    (Android adjustResize handles the push-up). */}
+                <View style={st.composeBar}>
+                    <View style={[st.cardDot, st.composeDot, { backgroundColor: THEME.local }]} />
+                    <View style={st.composeInputWrap}>
+                        <TextInput
+                            multiline
+                            value={localText}
+                            onChangeText={handleTextChange}
+                            onContentSizeChange={(e) => {
+                                const h = e.nativeEvent.contentSize.height + 20;
+                                setComposeHeight(Math.max(COMPOSE_MIN, Math.min(COMPOSE_MAX, h)));
+                            }}
+                            placeholder="START TRANSMISSION..."
+                            placeholderTextColor={THEME.faint}
+                            style={[st.composeInput, { height: composeHeight }]}
+                        />
+                        {/* Sand dissipation overlay */}
+                        {sandOverlayText && (
+                            <View style={[StyleSheet.absoluteFill, { paddingHorizontal: 4, paddingVertical: 10, zIndex: 10 }]} pointerEvents="none">
+                                <SandText
+                                    text={sandOverlayText}
+                                    trigger={sandOverlayActive}
+                                    onComplete={() => {
+                                        setSandOverlayText(null);
+                                        setSandOverlayActive(false);
+                                    }}
+                                />
                             </View>
-                            <Text style={st.cardSub}>WRITE • SHOW</Text>
-                        </View>
-                        <View style={st.cardBody}>
-                            <LinearGradient colors={['rgba(15,17,20,0.95)', 'transparent']} style={st.fadeTop} pointerEvents="none" />
-                            <TextInput
-                                multiline
-                                value={localText}
-                                onChangeText={handleTextChange}
-                                placeholder="START TRANSMISSION..."
-                                placeholderTextColor={THEME.faint}
-                                style={st.textArea}
-                            />
-                            {/* Sand dissipation overlay */}
-                            {sandOverlayText && (
-                                <View style={[StyleSheet.absoluteFill, { padding: 12, zIndex: 10 }]} pointerEvents="none">
-                                    <SandText
-                                        text={sandOverlayText}
-                                        trigger={sandOverlayActive}
-                                        onComplete={() => {
-                                            setSandOverlayText(null);
-                                            setSandOverlayActive(false);
-                                        }}
-                                    />
-                                </View>
-                            )}
-                            <LinearGradient colors={['transparent', 'rgba(15,17,20,0.95)']} style={st.fadeBottom} pointerEvents="none" />
-                        </View>
-                    </RNAnimated.View>
-                </KeyboardAvoidingView>
-            </View>
+                        )}
+                    </View>
+                </View>
+            </KeyboardAvoidingView>
 
             {/* Listening Indicator */}
             <ListeningIndicator incomingWhisper={incomingWhisper} />
 
-            {/* Dock */}
-            <Dock
-                activeOverlay={activeOverlay}
-                onToggle={handleDockToggle}
-                incomingWhisper={whisperBadge > 0}
-                peekBadge={peekBadge}
-                whisperActive={activeOverlay === 'whisper'}
-            />
+            {/* Dock — hidden while typing so the compose bar sits right
+                above the keyboard; returns when the keyboard dismisses. */}
+            {!keyboardVisible && (
+                <Dock
+                    activeOverlay={activeOverlay}
+                    onToggle={handleDockToggle}
+                    incomingWhisper={whisperBadge > 0}
+                    peekBadge={peekBadge}
+                    whisperActive={activeOverlay === 'whisper'}
+                />
+            )}
 
             {/* Overlays */}
             <RevealDeck
@@ -951,6 +945,29 @@ const st = StyleSheet.create({
     textArea: {
         flex: 1, padding: 12, fontFamily: THEME.mono, fontSize: 13,
         lineHeight: 20, color: THEME.ink, textAlignVertical: 'top', opacity: 0.92,
+    },
+    // WhatsApp-style growing compose bar (docks above the keyboard).
+    composeBar: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 9,
+        borderRadius: THEME.r,
+        borderWidth: 1,
+        borderColor: THEME.edge,
+        backgroundColor: 'rgba(0,0,0,0.10)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    composeDot: { marginTop: 17 },
+    composeInputWrap: { flex: 1, position: 'relative' },
+    composeInput: {
+        fontFamily: THEME.mono,
+        fontSize: 14,
+        lineHeight: 20,
+        color: THEME.ink,
+        textAlignVertical: 'top',
+        paddingVertical: 10,
+        paddingHorizontal: 2,
     },
     placeholderText: { fontFamily: THEME.mono, fontSize: 13, color: THEME.faint, textTransform: 'uppercase' },
     decayText: { fontFamily: THEME.mono, fontSize: 13, lineHeight: 20, color: THEME.ink },
