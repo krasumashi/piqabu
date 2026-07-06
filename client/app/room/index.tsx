@@ -466,12 +466,16 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             {/* paddingBottom = keyboard height when typing (lifts the compose
                 bar above the keys), or a small gap to the Dock at rest. */}
             <View style={[st.splitContainer, {
-                paddingBottom: kbHeight > 0
-                    // Android edge-to-edge under-reports the keyboard by the
-                    // nav-bar height; iOS already includes the bottom inset.
-                    ? kbHeight + (Platform.OS === 'android' ? insets.bottom : 0) + KB_GAP
-                    : activeOverlay === 'peep'
-                        ? PEEK_TRAY_H + 8                       // above the Peek tray
+                // Peek tray takes priority over the keyboard: while the tray
+                // is open the compose bar sits fixed above it and ignores the
+                // keyboard (so typing doesn't drop it behind the tray). Only
+                // when the tray is closed does the keyboard drive the lift.
+                paddingBottom: activeOverlay === 'peep'
+                    ? PEEK_TRAY_H + 8                           // above the Peek tray
+                    : kbHeight > 0
+                        // Android edge-to-edge under-reports the keyboard by
+                        // the nav-bar height; iOS already includes the inset.
+                        ? kbHeight + (Platform.OS === 'android' ? insets.bottom : 0) + KB_GAP
                         : 14,                                   // rest: gap to the Dock
             }]}>
                 {/* Correspondent feed — fills the top like a chat thread */}
