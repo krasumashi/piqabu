@@ -467,7 +467,9 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 bar above the keys), or a small gap to the Dock at rest. */}
             <View style={[st.splitContainer, {
                 paddingBottom: kbHeight > 0
-                    ? kbHeight + insets.bottom + KB_GAP        // above the keyboard
+                    // Android edge-to-edge under-reports the keyboard by the
+                    // nav-bar height; iOS already includes the bottom inset.
+                    ? kbHeight + (Platform.OS === 'android' ? insets.bottom : 0) + KB_GAP
                     : activeOverlay === 'peep'
                         ? PEEK_TRAY_H + 8                       // above the Peek tray
                         : 14,                                   // rest: gap to the Dock
