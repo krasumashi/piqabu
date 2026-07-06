@@ -169,7 +169,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     // both platforms, OTA-safe).
     const [kbHeight, setKbHeight] = useState(0);
     const keyboardVisible = kbHeight > 0;
-    const KB_GAP = 10; // breathing room between the compose bar and the keys
+    const KB_GAP = 15; // breathing room between the compose bar and the keys
 
     useEffect(() => {
         // Track the keyboard frame on show AND on change (switching to
