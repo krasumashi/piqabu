@@ -1,7 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { Platform, AppState, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { getSecureItem, setSecureItem } from '../lib/platform/storage';
+
+// Marker written whenever the app opens a native picker / permission
+// dialog (camera, mic, media). Android can kill+relaunch the app on a
+// permission grant; useRoomManager only restores the open channels if
+// this marker is fresh — so an intentional swipe-close + reopen starts
+// clean, but a permission restart mid-session recovers.
+export const PERM_RESTART_KEY = 'piqabu_perm_restart';
 
 /* ─────────────────── types ─────────────────── */
 
@@ -54,6 +62,15 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
     const [biometricLocked, setBiometricLocked] = useState(false);
     const [screenShareActive, setScreenShareActive] = useState(false);
     const [filePickerActive, setFilePickerActive] = useState(false);
+
+    // Wrap the picker-active setter so opening a picker/permission dialog
+    // also stamps the restart marker (consumed by useRoomManager).
+    const markFilePickerActive = useCallback((v: boolean) => {
+        setFilePickerActive(v);
+        if (v) {
+            AsyncStorage.setItem(PERM_RESTART_KEY, String(Date.now())).catch(() => {});
+        }
+    }, []);
 
     const shakeCountRef = useRef(0);
     const cooldownRef = useRef(false);
@@ -220,7 +237,7 @@ export function SecurityProvider({ children }: { children: React.ReactNode }) {
             setPanicEnabled,
             setBiometricEnabled,
             setScreenShareActive,
-            setFilePickerActive,
+            setFilePickerActive: markFilePickerActive,
             triggerPanic,
             dismissPanic,
             authenticate,

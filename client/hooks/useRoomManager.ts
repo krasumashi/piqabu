@@ -19,22 +19,16 @@ export interface RoomTab {
 
 const DEFAULT_MAX_ROOMS = 99; // [TESTING] Hard bypassed Free tier limits
 
-// Rooms are only considered valid if they were saved within this window.
-// The point of this is to survive Android's permission-grant activity
-// restart — when you grant camera/mic/etc, Android kills and re-launches
-// the app instantly. That's typically <5s, sometimes up to ~10s on
-// low-end devices.
-//
-// We do NOT want this window wide enough to also restore state on an
-// intentional close-and-reopen — when a user backgrounds the app and
-// returns to it deliberately, they expect a fresh start. With a 90s
-// window we were auto-redirecting users into the /room screen with a
-// server-side dead room, blocking the Generate-new flow until storage
-// expired ("can't generate new session unless I wait a while").
-//
-// 15 seconds gives the permission restart a comfortable runway without
-// capturing intentional close-and-reopen.
-const SESSION_TTL_MS = 15_000;
+// Channels are ephemeral: closing the app (any way) clears them. The ONLY
+// exception is Android's permission-grant activity restart — granting
+// camera/mic/media can kill+relaunch the app mid-session, and we don't want
+// that to drop the user out of an active call. We can't tell that restart
+// apart from an intentional close by *time*, so instead we key off an
+// explicit marker (`PERM_RESTART_KEY`) that SecurityContext stamps whenever
+// a native picker/permission dialog opens. Rooms are restored only if that
+// marker is fresh; otherwise every (re)launch starts clean.
+const RESTART_WINDOW_MS = 25_000;
+const RESTART_FLAG_KEY = 'piqabu_perm_restart';
 const STORAGE_KEY = 'piqabu_session_rooms_v2';
 
 interface PersistedSession {
@@ -48,23 +42,29 @@ export function useRoomManager(maxRooms: number = DEFAULT_MAX_ROOMS) {
     const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
     const [hydrated, setHydrated] = useState(false);
 
-    // On mount, restore rooms if within the TTL window (permission restart recovery)
+    // On mount, restore rooms ONLY if a permission-restart marker is fresh.
+    // Any other (re)launch — including an intentional swipe-close + reopen —
+    // starts with no channels.
     useEffect(() => {
         (async () => {
             try {
+                const flagRaw = await AsyncStorage.getItem(RESTART_FLAG_KEY);
+                const flag = flagRaw ? parseInt(flagRaw, 10) : 0;
+                const restartRecent = flag > 0 && (Date.now() - flag) < RESTART_WINDOW_MS;
+
                 const raw = await AsyncStorage.getItem(STORAGE_KEY);
-                if (raw) {
+                if (restartRecent && raw) {
                     const session: PersistedSession = JSON.parse(raw);
-                    const age = Date.now() - session.savedAt;
-                    if (age < SESSION_TTL_MS && session.rooms.length > 0) {
-                        // Restore the room so the redirect guard doesn't fire
+                    if (session.rooms.length > 0) {
                         setRooms(session.rooms);
                         setActiveRoomId(session.activeRoomId);
-                    } else {
-                        // Expired or empty — clean up
-                        await AsyncStorage.removeItem(STORAGE_KEY);
                     }
+                } else {
+                    // Not a permission restart → fresh start. Clear channels.
+                    await AsyncStorage.removeItem(STORAGE_KEY);
                 }
+                // Consume the marker so it can't restore a second time.
+                await AsyncStorage.removeItem(RESTART_FLAG_KEY);
             } catch {}
             setHydrated(true);
         })();
