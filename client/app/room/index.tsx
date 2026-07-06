@@ -80,6 +80,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 }) {
     const { socket, deviceId, limits, removeRoom, rooms } = useRoomContext();
     const router = useRouter();
+    const insets = useSafeAreaInsets();
 
     // Whether this room came from a deep-link (keyboard MINT or a tapped
     // share-link). Drives whether the handshake/waiting screen renders
@@ -169,7 +170,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     // both platforms, OTA-safe).
     const [kbHeight, setKbHeight] = useState(0);
     const keyboardVisible = kbHeight > 0;
-    const KB_GAP = 15; // breathing room between the compose bar and the keys
+    const KB_GAP = 8; // visible margin above the keys (insets.bottom corrects
+    // the edge-to-edge nav-bar under-lift; this is the actual breathing room)
 
     useEffect(() => {
         // Track the keyboard frame on show AND on change (switching to
@@ -462,7 +464,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             {/* ─── Feed + compose ─── */}
             {/* paddingBottom = keyboard height when typing (lifts the compose
                 bar above the keys), or a small gap to the Dock at rest. */}
-            <View style={[st.splitContainer, { paddingBottom: kbHeight > 0 ? kbHeight + KB_GAP : 14 }]}>
+            <View style={[st.splitContainer, { paddingBottom: kbHeight > 0 ? kbHeight + insets.bottom + KB_GAP : 14 }]}>
                 {/* Correspondent feed — fills the top like a chat thread */}
                 <View style={[st.card, { flex: 1 }]}>
                     <View style={st.cardHeader}>
