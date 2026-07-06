@@ -163,6 +163,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const { height: winH } = useWindowDimensions();
     const COMPOSE_MIN = 46;                              // ~1 line + padding
     const COMPOSE_MAX = Math.round(winH * 0.34);          // cap, then scrolls
+    const PEEK_TRAY_H = Math.round(winH * 0.46);          // Peek tray height
     const [composeHeight, setComposeHeight] = useState(COMPOSE_MIN);
     // Manual keyboard inset. Expo's edge-to-edge mode means the window does
     // NOT auto-resize for the IME even with adjustResize, so we measure the
@@ -464,7 +465,13 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             {/* ─── Feed + compose ─── */}
             {/* paddingBottom = keyboard height when typing (lifts the compose
                 bar above the keys), or a small gap to the Dock at rest. */}
-            <View style={[st.splitContainer, { paddingBottom: kbHeight > 0 ? kbHeight + insets.bottom + KB_GAP : 14 }]}>
+            <View style={[st.splitContainer, {
+                paddingBottom: kbHeight > 0
+                    ? kbHeight + insets.bottom + KB_GAP        // above the keyboard
+                    : activeOverlay === 'peep'
+                        ? PEEK_TRAY_H + 8                       // above the Peek tray
+                        : 14,                                   // rest: gap to the Dock
+            }]}>
                 {/* Correspondent feed — fills the top like a chat thread */}
                 <View style={[st.card, { flex: 1 }]}>
                     <View style={st.cardHeader}>
@@ -533,9 +540,10 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             {/* Listening Indicator */}
             <ListeningIndicator incomingWhisper={incomingWhisper} />
 
-            {/* Dock — hidden while typing so the compose bar sits right
-                above the keyboard; returns when the keyboard dismisses. */}
-            {!keyboardVisible && (
+            {/* Dock — hidden while typing (compose sits above the keyboard)
+                and while the Peek tray is open (compose sits above the tray;
+                fold the tray shut to bring the Dock back). */}
+            {!keyboardVisible && activeOverlay !== 'peep' && (
                 <Dock
                     activeOverlay={activeOverlay}
                     onToggle={handleDockToggle}
@@ -563,6 +571,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 remoteImages={revealGallery}
                 videoControls={videoPlaybackControl}
                 onSign={(line) => sendText(line)}
+                trayHeight={PEEK_TRAY_H}
             />
             <WhisperPanel
                 visible={activeOverlay === 'whisper'}

@@ -35,7 +35,7 @@ function resolveUri(uri: string): string {
 }
 
 export default function PeepDeck({
-    remoteImages, visible, onClose, videoControls, onSign,
+    remoteImages, visible, onClose, videoControls, onSign, trayHeight,
 }: {
     /** Session gallery — every item the partner has shown this session.
      *  Rendered as a grid; tap any cell to focus (full view / playback). */
@@ -46,6 +46,12 @@ export default function PeepDeck({
     /** Optional callback for the SIGN & RETURN flow on PDFs. Receives the
      *  formatted signature line ready to wire into sendText. */
     onSign?: (signatureLine: string) => void;
+    /** When set, Peek renders as a bottom-docked TRAY of this pixel height
+     *  (WhatsApp-style) instead of a floating sheet: no backdrop, full width,
+     *  top-rounded, and touches above it pass through so the chat feed +
+     *  compose bar stay visible and usable. The room lifts the compose above
+     *  the tray. Undefined → the original floating-sheet behaviour. */
+    trayHeight?: number;
 }) {
     const slideAnim = useRef(new RNAnimated.Value(600)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
@@ -197,14 +203,24 @@ export default function PeepDeck({
     }
 
     return (
-        <View style={StyleSheet.absoluteFill}>
-            {/* Backdrop */}
-            <RNAnimated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-                <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
-            </RNAnimated.View>
+        <View style={StyleSheet.absoluteFill} pointerEvents={trayHeight != null ? 'box-none' : 'auto'}>
+            {/* Backdrop — only in floating-sheet mode. In tray mode the feed
+                + compose above stay visible/usable, so no dim + no capture. */}
+            {trayHeight == null && (
+                <RNAnimated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+                    <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+                </RNAnimated.View>
+            )}
 
-            {/* Card */}
-            <RNAnimated.View style={[styles.card, { transform: [{ translateY: slideAnim }] }]}>
+            {/* Card (floating sheet) or bottom-docked tray */}
+            <RNAnimated.View style={[
+                styles.card,
+                trayHeight != null && {
+                    left: 0, right: 0, bottom: 0, height: trayHeight, maxHeight: undefined as any,
+                    borderBottomLeftRadius: 0, borderBottomRightRadius: 0,
+                },
+                { transform: [{ translateY: slideAnim }] },
+            ]}>
                 {/* Header */}
                 <View style={styles.header}>
                     <View>
