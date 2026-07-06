@@ -51,6 +51,22 @@ jobs:
           cd ios
           pod install --repo-update
 
+      # Point expo-updates at the `preview` OTA channel so the sideloaded
+      # app pulls JS-only updates from `eas update --branch preview` without
+      # a full rebuild — same as the Android build. Bare/prebuild flow sets
+      # this via Expo.plist's expo-channel-name request header.
+      - name: Configure OTA channel (preview)
+        run: |
+          PLIST=$(find ios -name Expo.plist | head -1)
+          echo "Expo.plist: $PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :EXUpdatesRequestHeaders" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :EXUpdatesRequestHeaders dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :EXUpdatesRequestHeaders:expo-channel-name string preview" "$PLIST"
+          echo "--- updates config ---"
+          /usr/libexec/PlistBuddy -c "Print :EXUpdatesURL" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Print :EXUpdatesRuntimeVersion" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Print :EXUpdatesRequestHeaders" "$PLIST" || true
+
       - name: Detect workspace & scheme
         id: xc
         run: |

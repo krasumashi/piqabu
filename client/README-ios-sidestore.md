@@ -124,11 +124,19 @@ SideStore — open SideStore once a week to keep Piqabu active."*
 
 ## Updating the app later
 
-- **JS-only changes** (most features/fixes): the app is wired for EAS
-  Update OTA, so many changes reach the installed app without a rebuild.
-- **Native changes** (new native module, permission, icon): re-run the
-  GitHub Actions build to produce a new `.ipa`, then install it over the
-  old one in SideStore.
+The iOS build is wired to the **`preview` OTA channel** (the workflow sets
+`expo-channel-name: preview` in Expo.plist), same as Android.
+
+- **JS-only changes** (most features/fixes): publish with
+  `eas update --branch preview --platform android,ios` — the change reaches
+  the installed iOS app on next launch, **no rebuild**. (Include `ios`;
+  older commands used `--platform android` only.)
+- **Native changes** (new native module, permission, icon, version bump):
+  re-run the GitHub Actions build for a new `.ipa`, then update it in
+  SideStore.
+
+Runtime version is fixed at `1.0.0`, so OTA updates apply as long as that
+doesn't change.
 
 ---
 
