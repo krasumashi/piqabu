@@ -24,12 +24,14 @@ import { THEME } from '../constants/Theme';
 import { useRoomContext } from '../contexts/RoomContext';
 import { startDonation } from '../lib/payment/paystack';
 
-// Suggested amounts in pesewas (₵1 = 100). Custom lets the user type any
-// amount. These match the product decision: ₵20 / ₵50 / ₵100 + custom.
+// Suggested amounts in pesewas (₵1 = 100). Cedis lead (that's the actual
+// Paystack charge); the `usd` line is an approximate reference for the
+// diaspora — the cedi/dollar rate drifts, so it's "≈" only. Custom lets
+// anyone give what they want.
 const PRESETS = [
-    { label: '₵20', minor: 2000 },
-    { label: '₵50', minor: 5000 },
-    { label: '₵100', minor: 10000 },
+    { label: '₵50', usd: '≈ $5', minor: 5000 },
+    { label: '₵100', usd: '≈ $10', minor: 10000 },
+    { label: '₵300', usd: '≈ $30', minor: 30000 },
 ];
 
 const MIN_MINOR = 100;        // ₵1 floor
@@ -38,7 +40,7 @@ const MAX_MINOR = 1_000_000;  // ₵10,000 ceiling
 export default function SupportScreen() {
     const router = useRouter();
     const { deviceId } = useRoomContext();
-    const [selected, setSelected] = useState<number | null>(2000);
+    const [selected, setSelected] = useState<number | null>(10000);
     const [custom, setCustom] = useState('');
     const [email, setEmail] = useState('');
     const [busy, setBusy] = useState(false);
@@ -125,6 +127,7 @@ export default function SupportScreen() {
                                 style={[styles.chip, active && styles.chipActive]}
                             >
                                 <Text style={[styles.chipText, active && styles.chipTextActive]}>{p.label}</Text>
+                                <Text style={[styles.chipSub, active && styles.chipSubActive]}>{p.usd}</Text>
                             </TouchableOpacity>
                         );
                     })}
@@ -225,10 +228,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignSelf: 'stretch', gap: 10, marginBottom: 16,
     },
     chip: {
-        flex: 1, paddingVertical: 16, borderRadius: 14,
+        flex: 1, paddingVertical: 13, borderRadius: 14,
         borderWidth: 1, borderColor: 'rgba(245,243,235,0.16)',
         backgroundColor: 'rgba(245,243,235,0.035)',
-        alignItems: 'center', justifyContent: 'center',
+        alignItems: 'center', justifyContent: 'center', gap: 3,
     },
     chipActive: {
         borderColor: THEME.ink, backgroundColor: 'rgba(245,243,235,0.12)',
@@ -238,6 +241,11 @@ const styles = StyleSheet.create({
         letterSpacing: 1, color: THEME.muted,
     },
     chipTextActive: { color: THEME.ink },
+    chipSub: {
+        fontFamily: THEME.mono, fontSize: 9, letterSpacing: 0.6,
+        color: THEME.faint,
+    },
+    chipSubActive: { color: THEME.muted },
     customGroup: { alignSelf: 'stretch', marginBottom: 18 },
     fieldLabel: {
         fontFamily: THEME.mono, fontSize: 9, letterSpacing: 2,
