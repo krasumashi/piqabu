@@ -33,7 +33,8 @@
     "production": {},
     "testflight": {
       "ios": {
-        "appleTeamId": "VL5QP7VU37"
+        "appleTeamId": "VL5QP7VU37",
+        "ascAppId": "6788590877"
       }
     }
   }
