@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, FlatList, Animated, Linking, Platform, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, FlatList, Animated, Linking, Platform, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,10 +23,12 @@ interface Slide {
     title: string;
     subtitle: string;
     description: string;
+    /** iOS-specific wording for platform constraints that do not apply on Android. */
+    iosDescription?: string;
     /**
      * If set, renders an in-slide action button above the bottom Next/Finish
-     * CTA. Used by the keyboard slide to deep-link into the Android system
-     * Input Method Settings screen.
+     * CTA. Used by the keyboard slide to open the platform's keyboard
+     * activation settings.
      */
     cta?: 'enable_keyboard';
     /** Slide layout variant. 'features' renders a stacked feature-list with
@@ -37,18 +39,63 @@ interface Slide {
 }
 
 /**
- * Open the Android system IME settings screen so the user can toggle
- * the Piqabu Keyboard on. No-op on iOS/web for v1 (we ship iOS later
- * via Share Extension + Shortcuts).
+ * Open the platform's supported settings surface. Android can deep-link to
+ * its IME list. iOS only exposes the app's Settings page, so show the exact
+ * manual path before leaving Piqabu.
  */
 function openKeyboardSettings() {
-    if (Platform.OS !== 'android') return;
-    Linking.sendIntent('android.settings.INPUT_METHOD_SETTINGS').catch(() => {
-        // Fall back to general settings if the specific action fails
-        // on older Android versions or oddball OEMs.
-        Linking.openSettings().catch(() => {});
-    });
+    if (Platform.OS === 'android') {
+        Linking.sendIntent('android.settings.INPUT_METHOD_SETTINGS').catch(() => {
+            // Fall back to general settings if the specific action fails
+            // on older Android versions or oddball OEMs.
+            Linking.openSettings().catch(() => {});
+        });
+        return;
+    }
+    if (Platform.OS === 'ios') {
+        Alert.alert(
+            'ENABLE PIQABU KEYBOARD',
+            'In Settings, open General → Keyboard → Keyboards → Add New Keyboard, then choose Piqabu. Full Access is not required.\n\nOn iPhone, MINT inserts the private link. Send it, then tap the link yourself to enter Piqabu.',
+            [
+                { text: 'NOT NOW', style: 'cancel' },
+                { text: 'OPEN SETTINGS', onPress: () => Linking.openSettings().catch(() => {}) },
+            ],
+        );
+    }
 }
+
+const iosKeyboardFeatures: KeyboardFeature[] = [
+    {
+        icon: 'send-outline',
+        title: 'MINT FROM ANYWHERE',
+        desc: 'Generate and insert a private-channel link from any app that permits custom keyboards.',
+    },
+    {
+        icon: 'eye-off-outline',
+        title: 'ZERO TRACE TYPING',
+        desc: 'No suggestions, learning, clipboard access, network access, or Full Access permission.',
+    },
+    {
+        icon: 'globe-outline',
+        title: 'APPLE-SAFE SWITCHING',
+        desc: 'The globe key always returns you to your other keyboards, as iOS requires.',
+    },
+    {
+        icon: 'swap-horizontal-outline',
+        title: 'DECOY KEY',
+        desc: 'A dedicated key inserts a plausible decoy phrase without sending it.',
+    },
+    {
+        icon: 'link-outline',
+        title: 'TAP YOUR LINK',
+        desc: 'Apple blocks keyboards from opening apps. After sending, tap the link to enter Piqabu.',
+    },
+    {
+        icon: 'lock-closed-outline',
+        title: 'PRIVATE BY DEFAULT',
+        desc: 'The keyboard works offline and never asks for the sensitive Full Access permission.',
+    },
+];
 
 const slides: Slide[] = [
     {
@@ -86,6 +133,7 @@ const slides: Slide[] = [
         title: 'PIQABU KEYBOARD',
         subtitle: 'Private channels, one key away',
         description: 'Add the Piqabu Keyboard so you can summon a private channel from inside any chat app -- WhatsApp, Telegram, anywhere you type.',
+        iosDescription: 'Add the Piqabu Keyboard to mint a private-channel link from other apps. On iPhone, send the link and tap it yourself to enter Piqabu -- Apple does not allow a keyboard to open another app directly.',
     },
     {
         icon: 'shield-checkmark-outline',
@@ -170,11 +218,18 @@ export default function Onboarding() {
 
     const renderSlide = ({ item, index }: { item: Slide; index: number }) => {
         if (item.kind === 'features' && item.features) {
+            const platformItem = Platform.OS === 'ios'
+                ? { ...item, features: iosKeyboardFeatures }
+                : item;
             return (
                 <KeyboardFeaturesSlide
-                    item={item}
+                    item={platformItem}
                     active={index === activeIndex}
                     onCtaPress={() => {
+                        if (Platform.OS === 'ios') {
+                            openKeyboardSettings();
+                            return;
+                        }
                         if (Platform.OS !== 'android') return;
                         if (isPro) openKeyboardSettings();
                         else setPaywallVisible(true);
@@ -205,13 +260,17 @@ export default function Onboarding() {
             </Text>
 
             <Text className="text-ghost font-mono text-xs text-center leading-5 px-4">
-                {item.description}
+                {Platform.OS === 'ios' && item.iosDescription ? item.iosDescription : item.description}
             </Text>
 
             {/* In-slide CTA — gated on Pro tier (pseudo paywall for now). */}
             {item.cta === 'enable_keyboard' && (
                 <TouchableOpacity
                     onPress={() => {
+                        if (Platform.OS === 'ios') {
+                            openKeyboardSettings();
+                            return;
+                        }
                         if (Platform.OS !== 'android') return;
                         if (isPro) {
                             openKeyboardSettings();
@@ -233,7 +292,7 @@ export default function Onboarding() {
                     }}
                 >
                     <Ionicons
-                        name={Platform.OS !== 'android' ? 'phone-portrait-outline' : (isPro ? 'add-circle-outline' : 'lock-closed-outline')}
+                        name={Platform.OS === 'ios' ? 'settings-outline' : Platform.OS === 'android' ? (isPro ? 'add-circle-outline' : 'lock-closed-outline') : 'phone-portrait-outline'}
                         size={16}
                         color="#FFFFFF"
                     />
@@ -241,9 +300,11 @@ export default function Onboarding() {
                         className="text-signal font-mono font-bold uppercase"
                         style={{ letterSpacing: 2, fontSize: 11 }}
                     >
-                        {Platform.OS !== 'android'
-                            ? 'Android only for now'
-                            : (isPro ? 'Enable Piqabu Keyboard' : 'Unlock with Piqabu Pro')}
+                        {Platform.OS === 'ios'
+                            ? 'Enable Piqabu Keyboard'
+                            : Platform.OS === 'android'
+                                ? (isPro ? 'Enable Piqabu Keyboard' : 'Unlock with Piqabu Pro')
+                                : 'Mobile app only'}
                     </Text>
                 </TouchableOpacity>
             )}

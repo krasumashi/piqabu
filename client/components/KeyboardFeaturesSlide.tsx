@@ -151,6 +151,15 @@ export default function KeyboardFeaturesSlide({ item, active, isPro, onCtaPress 
                 ))}
             </ScrollView>
 
+            {Platform.OS === 'ios' && (
+                <View style={styles.iosNote}>
+                    <Ionicons name="information-circle-outline" size={14} color={THEME.muted} />
+                    <Text style={styles.iosNoteText}>
+                        iPhone adds one step: send the minted link, then tap it to enter Piqabu. Full Access is not required.
+                    </Text>
+                </View>
+            )}
+
             <Animated.View
                 style={{
                     opacity: ctaAnim,
@@ -164,16 +173,20 @@ export default function KeyboardFeaturesSlide({ item, active, isPro, onCtaPress 
                     style={styles.cta}
                 >
                     <Ionicons
-                        name={Platform.OS !== 'android'
-                            ? 'phone-portrait-outline'
-                            : (isPro ? 'add-circle-outline' : 'lock-closed-outline')}
+                        name={Platform.OS === 'ios'
+                            ? 'settings-outline'
+                            : Platform.OS === 'android'
+                                ? (isPro ? 'add-circle-outline' : 'lock-closed-outline')
+                                : 'phone-portrait-outline'}
                         size={16}
                         color={THEME.ink}
                     />
                     <Text style={styles.ctaText}>
-                        {Platform.OS !== 'android'
-                            ? 'Android only for now'
-                            : (isPro ? 'Enable Piqabu Keyboard' : 'Unlock with Piqabu Pro')}
+                        {Platform.OS === 'ios'
+                            ? 'Enable on iPhone'
+                            : Platform.OS === 'android'
+                                ? (isPro ? 'Enable Piqabu Keyboard' : 'Unlock with Piqabu Pro')
+                                : 'Mobile app only'}
                     </Text>
                 </TouchableOpacity>
             </Animated.View>
@@ -271,6 +284,25 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
+    },
+    iosNote: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+        marginTop: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: THEME.edge2,
+        backgroundColor: 'rgba(255,255,255,0.025)',
+    },
+    iosNoteText: {
+        flex: 1,
+        fontFamily: THEME.mono,
+        color: THEME.muted,
+        fontSize: 8.5,
+        lineHeight: 12,
     },
     ctaText: {
         fontFamily: THEME.mono,

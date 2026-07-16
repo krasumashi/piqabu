@@ -38,6 +38,8 @@ Use the root `https://admin.piqabu.live/` URL for Mission Control. Friendly deep
 
 The client lives in `client/` and uses Expo Router, React Native, Socket.IO, and WebRTC. Production API traffic is configured in `client/constants/Config.ts` for `https://api.piqabu.live`.
 
+The Android keyboard remains a native Kotlin IME under `client/android/`. The iOS keyboard is an independent, offline Swift extension under `client/targets/keyboard/`, generated into the Xcode project by `@bacons/apple-targets`. Its bundle identifier is `com.krasumashi.piqabu.keyboard`; it requests no Full Access, network, pasteboard, or shared-container capability. It locally inserts a universal link, after which sender and receiver enter the containing app by tapping the link.
+
 Native identity and update constraints:
 
 - Apple Team ID: `VL5QP7VU37`.
@@ -50,6 +52,8 @@ Native identity and update constraints:
 - EAS branches/channels: `preview` and `production`.
 
 An OTA may update compatible JavaScript and bundled assets. It cannot safely add or change native modules, permissions, entitlements, identifiers, schemes, icons, or runtime compatibility.
+
+The iOS keyboard is therefore present only in native binaries built after the extension was added. TestFlight build 5 does not contain it.
 
 ### Signal Tower backend
 

@@ -9,6 +9,7 @@ Piqabu is an ephemeral messaging platform. Preserve its privacy model: room memb
 ## Repository map
 
 - `client/`: Expo/React Native app for iOS, Android, and web.
+- `client/targets/keyboard/`: offline native Swift iOS keyboard extension; do not add Full Access or networking casually.
 - `server/`: Node.js, Express, and Socket.IO Signal Tower API.
 - `mission-control/`: React/Vite operator console served by the backend.
 - `landing-site/`: static Cloudflare Pages site for `piqabu.live`.

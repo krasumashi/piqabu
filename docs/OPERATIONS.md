@@ -66,13 +66,25 @@ TestFlight is the primary beta channel. Signed builds are currently managed thro
 
 The `testflight` EAS profile uses the `preview` channel and auto-increments the build number. Native changes require a new EAS build and submission. JavaScript-only changes compatible with runtime `1.0.0` can use the preview OTA without a new upload.
 
+The native iOS keyboard target lives under `client/targets/keyboard/`. Adding or changing it requires a new binary and extension provisioning; it cannot be delivered by OTA. Existing build 5 has no keyboard. For the first keyboard-enabled build, confirm EAS detects target `PiqabuKeyboard` with bundle identifier `com.krasumashi.piqabu.keyboard`, creates its credentials, and embeds it in the archive.
+
+On-device acceptance checks:
+
+- Piqabu appears under **Settings → General → Keyboard → Keyboards → Add New Keyboard**;
+- Full Access remains off and is not required;
+- globe switching, letters, symbols, Shift, Space, Delete, and Return work;
+- MINT inserts a valid `https://piqabu.live/j/<code>` link and RESET is idempotent;
+- sender and receiver can tap the link into the same waiting room;
+- the decoy key inserts but does not send a phrase;
+- Android behavior and its existing Kotlin IME remain unchanged.
+
 External TestFlight users can use a public link only after Apple approves the external testing build/group. Internal testers always require App Store Connect membership; they cannot be converted into a public anonymous link.
 
 ### SideStore
 
 Repository workflow: `.github/workflows/ios-sidestore.yml`.
 
-The workflow creates an unsigned SideStore-compatible IPA and updates the fixed `ios-latest` GitHub prerelease plus `apps.json`. It is an additional distribution route, not an App Store replacement. Confirm `https://piqabu.live/apps.json` and the IPA URL after each run.
+The workflow creates an unsigned SideStore-compatible IPA and updates the fixed `ios-latest` GitHub prerelease plus `apps.json`. It is an additional distribution route, not an App Store replacement. Confirm `https://piqabu.live/apps.json` and the IPA URL after each run. The new keyboard extension is TestFlight-first; do not claim SideStore keyboard support until SideStore successfully re-signs the embedded extension and it appears in iOS Settings.
 
 ## Android distribution
 

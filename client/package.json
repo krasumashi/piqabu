@@ -12,6 +12,7 @@
     "update:production": "eas update --branch production --message"
   },
   "dependencies": {
+    "@bacons/apple-targets": "^4.0.7",
     "@config-plugins/react-native-webrtc": "^13.0.0",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",

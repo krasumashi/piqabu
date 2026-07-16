@@ -7,7 +7,7 @@ install via a link, and OTA JS updates keep working. It replaces the
 SideStore path (no more 7-day re-signing).
 
 - Bundle identifier: `com.krasumashi.piqabu`
-- Apple Team ID: `C78383ZQUS` (already in app.json + eas.json)
+- Apple Team ID: `VL5QP7VU37` (already in app.json + eas.json)
 - OTA channel: `preview` (the TestFlight build receives the same
   `eas update --branch preview` updates as everything else)
 
@@ -79,8 +79,12 @@ open — no computer, no weekly refresh.
   nothing, so Apple IAP is not required — genuine donations via Paystack
   are allowed. (Only gating features behind payment would trigger IAP
   rules.)
-- **No iOS keyboard.** Same as before — iPhone users use the normal
-  keyboard + generate/share a link; the keyboard is Android-only.
+- **Native Piqabu keyboard:** source lives under `targets/keyboard/` and
+  is added during Expo prebuild. Existing build 5 does not contain it;
+  it requires a new EAS/TestFlight binary (build 6 or later), not an OTA.
+  The extension works without Full Access: MINT inserts a private link,
+  the user sends it, then taps that link to enter Piqabu. Apple does not
+  allow the keyboard itself to launch the app.
 - **SideStore is now retired** as the primary path. The
   `.github/workflows/ios-sidestore.yml` workflow + `README-ios-sidestore.md`
   can stay as an optional "no-gatekeeper" fallback, but nobody needs to

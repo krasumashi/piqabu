@@ -8,10 +8,11 @@ work with real hardware access.
 
 ## Scope (important)
 
-- **No iOS keyboard.** iPhone users type with their normal keyboard, open
-  the app, generate a code/link, and share it. The Piqabu keyboard is
-  Android-only (iOS keyboard extensions can't integrate the way we need on
-  a free-account sideload — App Groups are disabled there).
+- **Keyboard extension is TestFlight-first.** The repository now contains
+  an offline iOS keyboard target that requires no App Group or Full Access,
+  but SideStore re-signing of the embedded extension has not been validated.
+  Do not advertise keyboard support for the SideStore build until the IPA
+  installs, exposes the keyboard in Settings, and passes an on-device test.
 - **No Apple cloud features.** Push notifications, Sign in with Apple,
   In-App Purchases, and iCloud sync do **not** work on free-account
   sideloads. Piqabu doesn't need them (it's free/donation-supported and

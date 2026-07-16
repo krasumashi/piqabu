@@ -100,3 +100,14 @@ Reason: a clean migration is safer than modifying the only working origin in pla
 Cloudflare R2 must be documented as inactive for application uploads and backups until code, credentials, lifecycle rules, privacy behavior, and restore tests are implemented.
 
 Reason: an enabled provider product is not a working or verified data path.
+
+## D-012: Offline iOS keyboard with an explicit handoff
+
+- Date: 2026-07-16
+- Status: accepted, pending on-device validation
+
+The iOS keyboard is a native Swift extension that mirrors the safe offline portion of the Android experience: normal text input, local MINT/RESET, universal-link insertion, keyboard switching, and a dedicated decoy key. It does not request Full Access, use the network or pasteboard, share a container, gate functionality behind payment, or launch the containing app.
+
+After sending a minted link, the sender taps it to enter Piqabu. Onboarding and activation explain this iOS-only extra step. The Android Kotlin IME remains unchanged.
+
+Reason: Apple requires keyboard extensions to remain functional without Full Access, provide normal keyboard input and switching, and not launch other apps. The offline design preserves Piqabu's privacy posture and reduces App Review risk. Any future in-keyboard networking or shared state requires a separate decision and privacy review.

@@ -19,14 +19,27 @@ import { CONFIG } from '../constants/Config';
  * matches the rest of the Piqabu monospace aesthetic.
  */
 /**
- * Open the Android system IME settings screen so the user can toggle
- * the Piqabu Keyboard on. No-op on iOS/web for v1.
+ * Open the supported keyboard settings surface. Android exposes its IME
+ * list directly. iOS requires a short manual path, which we explain before
+ * opening the app's Settings page.
  */
 function openKeyboardSettings() {
-    if (Platform.OS !== 'android') return;
-    Linking.sendIntent('android.settings.INPUT_METHOD_SETTINGS').catch(() => {
-        Linking.openSettings().catch(() => {});
-    });
+    if (Platform.OS === 'android') {
+        Linking.sendIntent('android.settings.INPUT_METHOD_SETTINGS').catch(() => {
+            Linking.openSettings().catch(() => {});
+        });
+        return;
+    }
+    if (Platform.OS === 'ios') {
+        Alert.alert(
+            'ENABLE PIQABU KEYBOARD',
+            'In Settings, open General → Keyboard → Keyboards → Add New Keyboard, then choose Piqabu. Full Access is not required.\n\nOn iPhone, MINT inserts the private link. Send it, then tap the link yourself to enter Piqabu.',
+            [
+                { text: 'NOT NOW', style: 'cancel' },
+                { text: 'OPEN SETTINGS', onPress: () => Linking.openSettings().catch(() => {}) },
+            ],
+        );
+    }
 }
 
 interface SettingsPanelProps {
@@ -47,7 +60,7 @@ export default function SettingsPanel({
     const router = useRouter();
     const { isPro, refresh: refreshPro } = useProAccess();
     // We can't reliably detect from JS whether the user has Piqabu
-    // Keyboard turned on in Android IME settings without a native
+    // Keyboard turned on in platform settings without a native
     // bridge call (planned for v0.3.0). For now, track whether they've
     // tapped the "Enable Keyboard" row at least once — a proxy for
     // "user knows where IME settings are." Label flips from ENABLE to
@@ -294,24 +307,34 @@ export default function SettingsPanel({
                 />
 
                 {/* ── Piqabu Keyboard ── */}
-                {Platform.OS === 'android' && (
+                {(Platform.OS === 'android' || Platform.OS === 'ios') && (
                     <>
                         <Text style={styles.sectionLabel}>PIQABU KEYBOARD</Text>
 
                         <MenuRow
-                            icon={!isPro
-                                ? 'lock-closed-outline'
-                                : keyboardConfigured
-                                    ? 'checkmark-circle-outline'
-                                    : 'keypad-outline'}
-                            label={!isPro
-                                ? 'UNLOCK WITH PIQABU PRO'
-                                : keyboardConfigured
-                                    ? 'MANAGE KEYBOARD'
-                                    : 'ENABLE KEYBOARD'}
-                            active={keyboardConfigured && isPro}
+                            icon={Platform.OS === 'ios'
+                                ? keyboardConfigured ? 'checkmark-circle-outline' : 'keypad-outline'
+                                : !isPro
+                                    ? 'lock-closed-outline'
+                                    : keyboardConfigured
+                                        ? 'checkmark-circle-outline'
+                                        : 'keypad-outline'}
+                            label={Platform.OS === 'ios'
+                                ? keyboardConfigured ? 'MANAGE KEYBOARD' : 'ENABLE KEYBOARD'
+                                : !isPro
+                                    ? 'UNLOCK WITH PIQABU PRO'
+                                    : keyboardConfigured
+                                        ? 'MANAGE KEYBOARD'
+                                        : 'ENABLE KEYBOARD'}
+                            active={keyboardConfigured && (Platform.OS === 'ios' || isPro)}
                             disclosure="arrow-forward"
                             onPress={() => {
+                                if (Platform.OS === 'ios') {
+                                    openKeyboardSettings();
+                                    setKeyboardConfigured(true);
+                                    void setSecureItem('piqabu_keyboard_configured', '1');
+                                    return;
+                                }
                                 if (isPro) {
                                     openKeyboardSettings();
                                     // Stamp "user has been to IME settings" so the
