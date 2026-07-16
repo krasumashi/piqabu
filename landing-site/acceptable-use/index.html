@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta property="og:title" content="Piqabu — Acceptable Use">
+  <title>Piqabu — Acceptable Use</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080808;
+      --fg: rgba(255,255,255,0.9);
+      --muted: rgba(255,255,255,0.68);
+      --line: rgba(255,255,255,0.16);
+      --link: rgba(255,255,255,0.95);
+    }
+
+    html, body {
+      background-color: var(--bg);
+      color: var(--fg);
+      font-family: 'SF Mono', 'Roboto Mono', 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 60px 32px 100px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 60px;
+      font-family: 'Inter', sans-serif;
+    }
+    .back {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.62);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      padding: 6px 2px;
+      transition: color 0.25s ease, border-color 0.25s ease;
+    }
+    .back:hover {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.6);
+    }
+    .topbar-logo {
+      width: 70px;
+      height: auto;
+      opacity: 0.85;
+    }
+
+    .legal-content h1 {
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: -0.01em;
+      margin-bottom: 22px;
+      line-height: 1.25;
+    }
+    .legal-content h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-top: 48px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .legal-content h3 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.95);
+      letter-spacing: 0.02em;
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+    .legal-content p { margin-bottom: 18px; }
+    .legal-content strong { color: #fff; font-weight: 700; }
+    .legal-content em { color: rgba(255,255,255,0.78); font-style: italic; }
+    .legal-content a {
+      color: var(--link);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .legal-content a:hover {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.75);
+    }
+    .legal-content ul, .legal-content ol {
+      margin: 0 0 18px 22px;
+      padding: 0;
+    }
+    .legal-content li { margin-bottom: 6px; }
+    .legal-content hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      margin: 36px 0;
+    }
+    .legal-content code {
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.06);
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+    .legal-content blockquote {
+      border-left: 2px solid rgba(255,255,255,0.32);
+      padding-left: 18px;
+      color: rgba(255,255,255,0.75);
+      margin: 18px 0;
+    }
+    .legal-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 13px;
+    }
+    .legal-content th, .legal-content td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .legal-content th {
+      color: rgba(255,255,255,0.9);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    .legal-nav {
+      margin-top: 80px;
+      padding-top: 30px;
+      border-top: 1px solid var(--line);
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .legal-nav-label {
+      display: block;
+      margin-bottom: 14px;
+      color: rgba(255,255,255,0.55);
+    }
+    .legal-nav ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 22px;
+      margin: 0;
+      padding: 0;
+    }
+    .legal-nav a {
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .legal-nav a:hover { color: #fff; }
+    .legal-nav a.current {
+      color: #fff;
+      border-bottom: 1px solid rgba(255,255,255,0.6);
+      padding-bottom: 1px;
+    }
+
+    .legal-footer {
+      margin-top: 40px;
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 40px 22px 80px; }
+      html, body { font-size: 13px; line-height: 1.7; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="topbar">
+      <a class="back" href="/">← Piqabu</a>
+      <img class="topbar-logo" src="/assets/piqabu-logo.png" alt="Piqabu">
+    </header>
+
+    <article class="legal-content">
+<h1>Piqabu Acceptable Use Policy</h1>
+<p><strong>Effective: 10 June 2026</strong></p>
+<p>This policy describes what you may not do with Piqabu. It is part of our <a href="/terms">Terms of Service</a> and applies to every use of the app, regardless of tier.</p>
+<p>Piqabu's privacy posture is built to protect lawful private communication. It is not a tool for crime. Where we see violations of this policy, we will act on them — including by blocking devices and, where appropriate, cooperating with lawful law enforcement requests.</p>
+<hr />
+<h2>1. Zero tolerance — automatic ban + report</h2>
+<p>The following will result in <strong>immediate, permanent banning of the device and reporting to law enforcement</strong> where we are required to do so:</p>
+<h3>1.1 Child sexual abuse material (CSAM)</h3>
+<p>Any creation, distribution, possession, solicitation, or facilitation of sexual content involving anyone under 18. We will report any instance of CSAM we become aware of to the relevant authorities, including the <strong>Cyber Security Authority of Ghana</strong>, and where applicable to international hotlines (NCMEC CyberTipline).</p>
+<h3>1.2 Terrorism, mass violence, and genocide</h3>
+<p>Planning, recruitment for, financing of, or material support to terrorist organisations or attacks. Any content celebrating or inciting genocide or mass violence.</p>
+<h3>1.3 Active threats of imminent harm</h3>
+<p>Specific, credible threats of imminent harm against an identified person.</p>
+<hr />
+<h2>2. Banned conduct — ban without notice</h2>
+<p>The following will result in <strong>device banning without prior notice</strong>, at our discretion:</p>
+<ul>
+<li><strong>Harassment, stalking, doxxing</strong> — repeated unwanted contact, publishing personal information without consent, threatening behaviour.</li>
+<li><strong>Non-consensual intimate imagery</strong> — sharing sexually explicit images of any person without their consent.</li>
+<li><strong>Hate speech</strong> — content attacking people based on race, ethnicity, religion, nationality, disability, sexual orientation, or gender identity.</li>
+<li><strong>Fraud and impersonation</strong> — pretending to be someone you are not with intent to deceive.</li>
+<li><strong>Illegal commerce</strong> — sale or purchase of illegal drugs, weapons, stolen goods, counterfeit currency, or services illegal under Ghana law.</li>
+<li><strong>Human trafficking and labour exploitation</strong> — any role in recruiting, transporting, harbouring, or exploiting people.</li>
+<li><strong>Malware</strong> — distributing, hosting, or linking to malicious software.</li>
+<li><strong>Spam</strong> — unsolicited bulk communications.</li>
+<li><strong>Evasion of bans</strong> — using a new device, factory reset, or Ghost ID to resume conduct that got you banned.</li>
+</ul>
+<hr />
+<h2>3. Service abuse — operational consequences</h2>
+<p>The following will result in <strong>rate limiting, throttling, or banning</strong>:</p>
+<ul>
+<li>Attempts to overload our servers (DDoS, repeated room minting, automated scraping).</li>
+<li>Reverse-engineering or probing the app for vulnerabilities, except as permitted under our coordinated disclosure programme (see Section 5).</li>
+<li>Use of automated tools (bots) to send messages, mint rooms, or otherwise interact with the service.</li>
+<li>Circumventing Pro tier gates by means other than payment.</li>
+<li>Sharing your Pro entitlement across multiple devices not under your sole control.</li>
+</ul>
+<hr />
+<h2>4. How violations are detected</h2>
+<p>We do not read message contents. We learn about violations through:</p>
+<ul>
+<li><strong>Reports from your conversation partner</strong> — a recipient who finds your content objectionable can use the in-app helpdesk to report you.</li>
+<li><strong>Observable abuse patterns</strong> — repeated forced disconnections, rate-limit triggers, spam-like burst behaviour are visible to our operators in aggregate without reading messages.</li>
+<li><strong>Law enforcement notification</strong> — if a court order or police report is brought to us, we act on it.</li>
+<li><strong>Direct observation by an operator</strong> — if you submit feedback or screenshots that themselves contain banned content, we will act.</li>
+</ul>
+<hr />
+<h2>5. Coordinated disclosure</h2>
+<p>If you believe you have found a security vulnerability in Piqabu, please do not exploit it. Email <strong>security@piqabu.live</strong> with:</p>
+<ul>
+<li>A clear description of the vulnerability.</li>
+<li>Steps to reproduce.</li>
+<li>Your contact details (if you want to be credited).</li>
+</ul>
+<p>We commit to:</p>
+<ul>
+<li>Acknowledging your report within 5 business days.</li>
+<li>Not taking legal action against you for good-faith research under this policy.</li>
+<li>Crediting you in our release notes if you wish, when the issue is fixed.</li>
+</ul>
+<p>Specifically out of scope: attacks against our infrastructure (DDoS, social engineering of staff, physical attacks), attacks against third-party providers (Paystack, Render, GitHub), and attacks involving compromised user devices.</p>
+<hr />
+<h2>6. Consequences of violation</h2>
+<p>Depending on the violation, consequences may include:</p>
+<ol>
+<li>A warning delivered through the operator messaging channel.</li>
+<li>Temporary rate limiting.</li>
+<li>Temporary suspension of Pro features.</li>
+<li>Permanent ban of your Ghost ID with no refund of any remaining Pro entitlement.</li>
+<li>Reporting to law enforcement.</li>
+</ol>
+<p>Bans are at our discretion. We do not provide an appeal process beyond emailing <strong>support@piqabu.live</strong> for a one-time review by a human operator.</p>
+<hr />
+<h2>7. How to report a violation</h2>
+<p>If you receive content from someone on Piqabu that violates this policy:</p>
+<ul>
+<li>For CSAM specifically: do <strong>not</strong> screenshot or save the content. Use the in-app <strong>Settings → Report Issue</strong> to describe what happened, and consider reporting directly to the Cyber Security Authority of Ghana.</li>
+<li>For other violations: use <strong>Settings → Report Issue</strong>. Describe what happened and, if appropriate, attach the partner's Ghost ID (visible in the room handshake).</li>
+</ul>
+<p>We will respond through the in-app helpdesk thread.</p>
+<hr />
+<h2>Contact</h2>
+<p>Wyetey LTD
+<strong>support@piqabu.live</strong> — general / abuse reports
+<strong>security@piqabu.live</strong> — vulnerability reports
+<strong>legal@piqabu.live</strong> — formal legal correspondence
+Ghana</p>
+    </article>
+
+    <nav class="legal-nav">
+      <span class="legal-nav-label">Legal</span>
+      <ul>
+        <li><a href="/terms"           class="">Terms</a></li>
+        <li><a href="/privacy"         class="">Privacy</a></li>
+        <li><a href="/refunds"         class="">Refunds</a></li>
+        <li><a href="/acceptable-use"  class="current">Acceptable Use</a></li>
+        <li><a href="/law-enforcement" class="">Law Enforcement</a></li>
+        <li><a href="/transparency"    class="">Transparency</a></li>
+      </ul>
+    </nav>
+
+    <footer class="legal-footer">
+      Wyetey LTD &nbsp;·&nbsp; Operating under the Ahtohmoh brand &nbsp;·&nbsp; piqabu.live
+    </footer>
+
+  </div>
+
+</body>
+</html>

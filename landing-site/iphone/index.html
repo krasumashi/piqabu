@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta property="og:title" content="Piqabu — iPhone install">
+  <meta property="og:description" content="Install Piqabu on iPhone via SideStore. No App Store gatekeeper.">
+  <title>Piqabu — iPhone install</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:    #060709;
+      --fg:    rgba(255,255,255,0.94);
+      --body:  rgba(255,255,255,0.82);
+      --muted: rgba(255,255,255,0.62);
+      --dim:   rgba(255,255,255,0.5);
+      --line:  rgba(255,255,255,0.14);
+      --mono:  'SF Mono', 'Roboto Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--body);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100vh;
+    }
+
+    .grid-bg {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none; z-index: 0;
+    }
+    /* Radial vignette darkens the grid behind the content column so text always wins */
+    .grid-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center,
+        rgba(6,7,9,0.55) 0%,
+        rgba(6,7,9,0.25) 50%,
+        rgba(6,7,9,0) 100%);
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative; z-index: 1;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 60px 28px 120px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 56px;
+    }
+    .back {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.42);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 6px 2px;
+      transition: color 0.25s, border-color 0.25s;
+    }
+    .back:hover { color: #fff; border-bottom-color: rgba(255,255,255,0.42); }
+    .topbar-logo { width: 70px; height: auto; opacity: 0.85; }
+
+    /* ─── Hero ─── */
+    .hero { margin-bottom: 60px; }
+    .hero-eyebrow {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 14px;
+    }
+    .hero-title {
+      font-size: clamp(28px, 5vw, 38px);
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: -0.01em;
+      line-height: 1.15;
+      margin-bottom: 14px;
+    }
+    .hero-title .via {
+      color: var(--muted);
+      font-size: 0.62em;
+      letter-spacing: 0.02em;
+      display: inline-block;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+    .hero-tagline {
+      font-size: 14px;
+      color: var(--body);
+      letter-spacing: 0.02em;
+      line-height: 1.75;
+      max-width: 460px;
+    }
+
+    /* ─── Steps ─── */
+    .steps { list-style: none; padding: 0; }
+    .step {
+      display: grid;
+      grid-template-columns: 46px 1fr;
+      gap: 20px;
+      padding: 28px 24px 32px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid var(--line);
+      margin-bottom: 12px;
+    }
+    .step-num {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.62);
+      padding-top: 4px;
+    }
+    .step-body {}
+    .step-title {
+      font-size: 17px;
+      font-weight: 400;
+      color: #fff;
+      letter-spacing: 0.01em;
+      margin-bottom: 12px;
+    }
+    .step-copy {
+      font-size: 14px;
+      color: var(--body);
+      line-height: 1.75;
+      margin-bottom: 20px;
+      max-width: 460px;
+    }
+
+    /* ─── Buttons ─── */
+    .btn {
+      display: inline-block;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 13px 26px;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.32);
+      color: #fff;
+      background: rgba(255,255,255,0.04);
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .btn:hover {
+      color: #fff;
+      border-color: rgba(255,255,255,0.65);
+      background: rgba(255,255,255,0.08);
+    }
+    .btn.primary {
+      color: var(--bg);
+      background: #fff;
+      border-color: transparent;
+      font-weight: 700;
+    }
+    .btn.primary:hover { background: #fff; color: var(--bg); opacity: 0.92; }
+
+    /* ─── Fallback groups within a step ─── */
+    .fallback {
+      margin-top: 22px;
+      padding-top: 20px;
+      border-top: 1px dashed rgba(255,255,255,0.14);
+    }
+    .fallback-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.68);
+      margin-bottom: 10px;
+    }
+    .copy-row {
+      display: flex;
+      align-items: stretch;
+      border: 1px solid rgba(255,255,255,0.22);
+      background: rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .copy-target {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: #fff;
+      padding: 13px 14px;
+      user-select: all;
+      overflow-x: auto;
+      white-space: nowrap;
+      line-height: 1.5;
+    }
+    .copy-btn {
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #fff;
+      background: rgba(255,255,255,0.06);
+      border: none;
+      border-left: 1px solid rgba(255,255,255,0.22);
+      padding: 0 22px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.2s, background 0.2s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.12); }
+    .copy-btn.done { background: rgba(255,255,255,0.2); }
+
+    .fallback-link {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 300;
+      color: #fff;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.4);
+      padding: 3px 2px;
+      margin-right: 12px;
+      transition: border-color 0.2s;
+    }
+    .fallback-link:hover { border-bottom-color: #fff; }
+    .fallback-note {
+      display: block;
+      margin-top: 10px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.62);
+      letter-spacing: 0.02em;
+      line-height: 1.6;
+    }
+
+    /* ─── Honest note ─── */
+    .honest-note {
+      margin-top: 48px;
+      padding: 24px 26px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.04);
+    }
+    .honest-note-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 12px;
+      display: block;
+    }
+    .honest-note p {
+      font-size: 13px;
+      color: var(--body);
+      line-height: 1.8;
+      letter-spacing: 0.01em;
+    }
+
+    /* ─── Back link ─── */
+    .back-link-wrap {
+      margin-top: 60px;
+      text-align: center;
+    }
+    .back-link {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.42);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 6px 2px;
+      transition: color 0.25s, border-color 0.25s;
+    }
+    .back-link:hover { color: #fff; border-bottom-color: rgba(255,255,255,0.42); }
+
+    @media (max-width: 500px) {
+      .container { padding: 40px 22px 100px; }
+      .topbar { margin-bottom: 40px; }
+      .step { grid-template-columns: 34px 1fr; gap: 14px; }
+      .copy-target { font-size: 11px; padding: 11px 12px; }
+      .copy-btn { padding: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-bg" aria-hidden="true"></div>
+
+  <div class="container">
+
+    <header class="topbar">
+      <a class="back" href="/">← Piqabu</a>
+      <img class="topbar-logo" src="/assets/piqabu-logo.png" alt="Piqabu">
+    </header>
+
+    <section class="hero">
+      <p class="hero-eyebrow">Piqabu for iPhone</p>
+      <h1 class="hero-title">iPhone <span class="via">via SideStore</span></h1>
+      <p class="hero-tagline">
+        No App Store gatekeeper. Installs without asking Apple's permission.<br>
+        Three steps, one week's maintenance.
+      </p>
+    </section>
+
+    <ol class="steps">
+
+      <!-- Step 1 — Install SideStore -->
+      <li class="step">
+        <div class="step-num">01</div>
+        <div class="step-body">
+          <h2 class="step-title">Install SideStore</h2>
+          <p class="step-copy">iPhone install is done through SideStore (free). Set it up once.</p>
+          <a class="btn" href="https://sidestore.io" target="_blank" rel="noopener">
+            Get SideStore &nbsp;↗
+          </a>
+        </div>
+      </li>
+
+      <!-- Step 2 — Add Piqabu to SideStore -->
+      <li class="step">
+        <div class="step-num">02</div>
+        <div class="step-body">
+          <h2 class="step-title">Add Piqabu to SideStore</h2>
+          <p class="step-copy">Adds Piqabu as a source in SideStore, so you can install it and get updates from inside the app.</p>
+
+          <a class="btn primary" href="sidestore://source?url=https://piqabu.live/apps.json">
+            Add to SideStore &nbsp;→
+          </a>
+
+          <div class="fallback">
+            <span class="fallback-label">Deep link didn't fire? Paste this into SideStore manually.</span>
+            <div class="copy-row">
+              <code class="copy-target" id="source-url">https://piqabu.live/apps.json</code>
+              <button class="copy-btn" id="copy-btn" onclick="copyText('source-url', this)">Copy</button>
+            </div>
+          </div>
+
+          <div class="fallback">
+            <span class="fallback-label">Or grab the .ipa directly</span>
+            <a class="fallback-link"
+               href="https://github.com/krasumashi/piqabu/releases/download/ios-latest/Piqabu.ipa"
+               download>Download Piqabu.ipa &nbsp;↓</a>
+            <span class="fallback-note">Safari saves the file, then open it in SideStore.</span>
+          </div>
+        </div>
+      </li>
+
+      <!-- Step 3 — Keep it active -->
+      <li class="step">
+        <div class="step-num">03</div>
+        <div class="step-body">
+          <h2 class="step-title">Keep it active</h2>
+          <p class="step-copy">Apple limits free-installed apps to 7 days. Just open SideStore about once a week and it re-signs Piqabu automatically to keep it working.</p>
+        </div>
+      </li>
+
+    </ol>
+
+    <aside class="honest-note">
+      <span class="honest-note-label">Honest note</span>
+      <p>iPhone runs the full Piqabu app — rooms, Reveal/Peek, Whisper voice, Live Glass video. The Piqabu Keyboard is Android-only, and some device-level protections (screenshot blocking) aren't possible on iOS — that's Apple's sandbox, not a Piqabu limitation.</p>
+    </aside>
+
+    <div class="back-link-wrap">
+      <a class="back-link" href="/">← Back to Piqabu</a>
+    </div>
+
+  </div>
+
+  <script>
+    function copyText(id, btn) {
+      const text = document.getElementById(id).textContent.trim();
+      const done = () => {
+        btn.textContent = 'Copied';
+        btn.classList.add('done');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(legacy);
+      } else {
+        legacy();
+      }
+      function legacy() {
+        const t = document.createElement('textarea');
+        t.value = text;
+        t.setAttribute('readonly', '');
+        t.style.position = 'fixed';
+        t.style.left = '-9999px';
+        document.body.appendChild(t);
+        t.select();
+        try { if (document.execCommand('copy')) done(); } catch (e) {}
+        document.body.removeChild(t);
+      }
+    }
+  </script>
+
+</body>
+</html>

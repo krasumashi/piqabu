@@ -1,0 +1,51 @@
+name: Expo OTA update
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        type: choice
+        default: preview
+        options:
+          - preview
+          - production
+      message:
+        description: Update message shown in Expo
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: expo-ota-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - name: Checkout selected revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Publish OTA update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          OTA_BRANCH: ${{ inputs.channel }}
+          OTA_MESSAGE: ${{ inputs.message }}
+        run: npx eas-cli update --branch "$OTA_BRANCH" --message "$OTA_MESSAGE" --non-interactive

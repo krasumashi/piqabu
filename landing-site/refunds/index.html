@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta property="og:title" content="Piqabu — Refund Policy">
+  <title>Piqabu — Refund Policy</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080808;
+      --fg: rgba(255,255,255,0.9);
+      --muted: rgba(255,255,255,0.68);
+      --line: rgba(255,255,255,0.16);
+      --link: rgba(255,255,255,0.95);
+    }
+
+    html, body {
+      background-color: var(--bg);
+      color: var(--fg);
+      font-family: 'SF Mono', 'Roboto Mono', 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 60px 32px 100px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 60px;
+      font-family: 'Inter', sans-serif;
+    }
+    .back {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.62);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      padding: 6px 2px;
+      transition: color 0.25s ease, border-color 0.25s ease;
+    }
+    .back:hover {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.6);
+    }
+    .topbar-logo {
+      width: 70px;
+      height: auto;
+      opacity: 0.85;
+    }
+
+    .legal-content h1 {
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: -0.01em;
+      margin-bottom: 22px;
+      line-height: 1.25;
+    }
+    .legal-content h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-top: 48px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .legal-content h3 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.95);
+      letter-spacing: 0.02em;
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+    .legal-content p { margin-bottom: 18px; }
+    .legal-content strong { color: #fff; font-weight: 700; }
+    .legal-content em { color: rgba(255,255,255,0.78); font-style: italic; }
+    .legal-content a {
+      color: var(--link);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .legal-content a:hover {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.75);
+    }
+    .legal-content ul, .legal-content ol {
+      margin: 0 0 18px 22px;
+      padding: 0;
+    }
+    .legal-content li { margin-bottom: 6px; }
+    .legal-content hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      margin: 36px 0;
+    }
+    .legal-content code {
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.06);
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+    .legal-content blockquote {
+      border-left: 2px solid rgba(255,255,255,0.32);
+      padding-left: 18px;
+      color: rgba(255,255,255,0.75);
+      margin: 18px 0;
+    }
+    .legal-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 13px;
+    }
+    .legal-content th, .legal-content td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .legal-content th {
+      color: rgba(255,255,255,0.9);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    .legal-nav {
+      margin-top: 80px;
+      padding-top: 30px;
+      border-top: 1px solid var(--line);
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .legal-nav-label {
+      display: block;
+      margin-bottom: 14px;
+      color: rgba(255,255,255,0.55);
+    }
+    .legal-nav ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 22px;
+      margin: 0;
+      padding: 0;
+    }
+    .legal-nav a {
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .legal-nav a:hover { color: #fff; }
+    .legal-nav a.current {
+      color: #fff;
+      border-bottom: 1px solid rgba(255,255,255,0.6);
+      padding-bottom: 1px;
+    }
+
+    .legal-footer {
+      margin-top: 40px;
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 40px 22px 80px; }
+      html, body { font-size: 13px; line-height: 1.7; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="topbar">
+      <a class="back" href="/">← Piqabu</a>
+      <img class="topbar-logo" src="/assets/piqabu-logo.png" alt="Piqabu">
+    </header>
+
+    <article class="legal-content">
+<h1>Piqabu Refund Policy</h1>
+<p><strong>Effective: 10 June 2026</strong></p>
+<p>This policy explains when refunds are and are not available for purchases of Piqabu Pro.</p>
+<p>By purchasing Piqabu Pro you agree to this policy. This policy supplements our <a href="/terms">Terms of Service</a>.</p>
+<hr />
+<h2>1. General rule</h2>
+<p><strong>Piqabu Pro purchases are final at the point of successful charge.</strong> Once payment is captured by Paystack and Pro entitlement is granted to your device, the charge is non-refundable.</p>
+<p>This reflects the nature of the product: Pro is a one-year digital licence granted to a specific device, and access is delivered instantly when payment succeeds.</p>
+<hr />
+<h2>2. The 14-day grace window is <strong>not</strong> a refund window</h2>
+<p>Piqabu Pro includes a 14-day "grace period" after your subscription's 1-year term expires. During grace, Pro features continue to work and the app prompts you to renew.</p>
+<p>This is <strong>a feature of the renewal experience</strong>, not a refund window. It does not entitle you to a refund of the original 1-year purchase, even if you decide during grace not to renew.</p>
+<hr />
+<h2>3. Limited circumstances in which we will issue a refund</h2>
+<p>We will refund the full amount of your most recent Pro purchase in the following circumstances:</p>
+<h3>3.1 Duplicate charge</h3>
+<p>You were charged twice for the same Pro upgrade due to a technical error (yours, Paystack's, or ours). The duplicate is refunded; the original purchase remains in effect.</p>
+<h3>3.2 Failed activation on our side</h3>
+<p>Payment succeeded but, due to a fault on our infrastructure (not on yours), Pro was not granted to your device within 7 days of payment. In that case we will either:</p>
+<ul>
+<li>Grant the missing Pro entitlement and let the year run normally; or</li>
+<li>Refund the full amount on your request.</li>
+</ul>
+<h3>3.3 Unauthorised use of your payment method</h3>
+<p>Someone used your card or bank to purchase Pro without your authorisation, AND you contacted us within <strong>30 days</strong> of the charge with supporting evidence (bank report, police report, or equivalent).</p>
+<p>In this case we will refund and ban the receiving Ghost ID. You should also contact Paystack and your card issuer directly.</p>
+<h3>3.4 Required by mandatory consumer law</h3>
+<p>If Ghana consumer law mandates a refund in a circumstance not listed above, we will comply with that requirement to the extent required.</p>
+<hr />
+<h2>4. Circumstances in which we will <strong>not</strong> issue a refund</h2>
+<p>The following situations do not qualify for a refund:</p>
+<ul>
+<li>You changed your mind after purchase.</li>
+<li>You stopped using the app.</li>
+<li>You lost access because you uninstalled the app, factory-reset your device, or wiped your Ghost ID.</li>
+<li>Your Ghost ID was banned for violating our <a href="/acceptable-use">Acceptable Use Policy</a>.</li>
+<li>A feature you expected to be in Pro was not available, where the feature was not represented to be in Pro at the time of your purchase.</li>
+<li>You were dissatisfied with the service quality, subject to Section 3.2 above.</li>
+<li>The price changed after your purchase. Your existing subscription remains at the price you paid.</li>
+</ul>
+<hr />
+<h2>5. How to request a refund</h2>
+<p>If you believe Section 3 applies to your situation:</p>
+<ol>
+<li>Email <strong>support@piqabu.live</strong> from the email address you used at Paystack checkout (or from any email if you used a synthesised placeholder).</li>
+<li>Provide:
+   - Your Ghost ID (find it in <strong>Settings → PIQABU PRO</strong>).
+   - The Paystack transaction reference (find it in your receipt from Paystack).
+   - The reason you believe you are entitled to a refund.
+   - For unauthorised use (Section 3.3), supporting evidence.</li>
+<li>We will respond within <strong>10 business days</strong>. We may ask follow-up questions to verify your claim.</li>
+<li>Approved refunds are issued via Paystack to the original payment method. Funds typically arrive within 5–10 business days of approval, subject to your bank's processing time.</li>
+</ol>
+<hr />
+<h2>6. Disputed charges</h2>
+<p>If you initiate a chargeback through your card issuer without first contacting us, we will:</p>
+<ul>
+<li>Provide your card issuer with our records of the transaction.</li>
+<li>Suspend the Pro entitlement associated with the disputed charge while the dispute is pending.</li>
+<li>Permanently ban the associated Ghost ID if the chargeback is found to be without merit.</li>
+</ul>
+<p>We encourage you to contact us first. We are faster, fairer, and don't penalise good faith.</p>
+<hr />
+<h2>7. Changes to this policy</h2>
+<p>We may revise this policy. Changes apply prospectively to new purchases — your existing purchase is governed by the version of this policy that was in effect at the time of your charge.</p>
+<hr />
+<h2>Contact</h2>
+<p>Wyetey LTD
+<strong>support@piqabu.live</strong>
+Ghana</p>
+    </article>
+
+    <nav class="legal-nav">
+      <span class="legal-nav-label">Legal</span>
+      <ul>
+        <li><a href="/terms"           class="">Terms</a></li>
+        <li><a href="/privacy"         class="">Privacy</a></li>
+        <li><a href="/refunds"         class="current">Refunds</a></li>
+        <li><a href="/acceptable-use"  class="">Acceptable Use</a></li>
+        <li><a href="/law-enforcement" class="">Law Enforcement</a></li>
+        <li><a href="/transparency"    class="">Transparency</a></li>
+      </ul>
+    </nav>
+
+    <footer class="legal-footer">
+      Wyetey LTD &nbsp;·&nbsp; Operating under the Ahtohmoh brand &nbsp;·&nbsp; piqabu.live
+    </footer>
+
+  </div>
+
+</body>
+</html>

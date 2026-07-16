@@ -1,0 +1,42 @@
+name: Deploy API to Vultr
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: piqabu-vultr-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure deployment key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.VULTR_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.VULTR_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/piqabu_deploy
+          chmod 600 ~/.ssh/piqabu_deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy selected commit
+        env:
+          VULTR_HOST: ${{ secrets.VULTR_HOST }}
+          VULTR_USER: ${{ secrets.VULTR_USER }}
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          ssh -i ~/.ssh/piqabu_deploy \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$VULTR_USER@$VULTR_HOST" \
+            "sudo -n /usr/local/sbin/deploy-piqabu '$DEPLOY_SHA'"
+
+      - name: Verify production health
+        run: curl --fail --silent --show-error --retry 12 --retry-delay 5 https://api.piqabu.live/health
+

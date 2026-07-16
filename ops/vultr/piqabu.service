@@ -1,0 +1,22 @@
+[Unit]
+Description=Piqabu Signal Tower
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=piqabu
+Group=piqabu
+WorkingDirectory=/srv/piqabu/current/server
+EnvironmentFile=/etc/piqabu/piqabu.env
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/piqabu /tmp
+
+[Install]
+WantedBy=multi-user.target

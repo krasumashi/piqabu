@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta property="og:title" content="Piqabu — Law Enforcement">
+  <title>Piqabu — Law Enforcement</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080808;
+      --fg: rgba(255,255,255,0.9);
+      --muted: rgba(255,255,255,0.68);
+      --line: rgba(255,255,255,0.16);
+      --link: rgba(255,255,255,0.95);
+    }
+
+    html, body {
+      background-color: var(--bg);
+      color: var(--fg);
+      font-family: 'SF Mono', 'Roboto Mono', 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 60px 32px 100px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 60px;
+      font-family: 'Inter', sans-serif;
+    }
+    .back {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.62);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      padding: 6px 2px;
+      transition: color 0.25s ease, border-color 0.25s ease;
+    }
+    .back:hover {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.6);
+    }
+    .topbar-logo {
+      width: 70px;
+      height: auto;
+      opacity: 0.85;
+    }
+
+    .legal-content h1 {
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: -0.01em;
+      margin-bottom: 22px;
+      line-height: 1.25;
+    }
+    .legal-content h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-top: 48px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .legal-content h3 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.95);
+      letter-spacing: 0.02em;
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+    .legal-content p { margin-bottom: 18px; }
+    .legal-content strong { color: #fff; font-weight: 700; }
+    .legal-content em { color: rgba(255,255,255,0.78); font-style: italic; }
+    .legal-content a {
+      color: var(--link);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .legal-content a:hover {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.75);
+    }
+    .legal-content ul, .legal-content ol {
+      margin: 0 0 18px 22px;
+      padding: 0;
+    }
+    .legal-content li { margin-bottom: 6px; }
+    .legal-content hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      margin: 36px 0;
+    }
+    .legal-content code {
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.06);
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+    .legal-content blockquote {
+      border-left: 2px solid rgba(255,255,255,0.32);
+      padding-left: 18px;
+      color: rgba(255,255,255,0.75);
+      margin: 18px 0;
+    }
+    .legal-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 13px;
+    }
+    .legal-content th, .legal-content td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .legal-content th {
+      color: rgba(255,255,255,0.9);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    .legal-nav {
+      margin-top: 80px;
+      padding-top: 30px;
+      border-top: 1px solid var(--line);
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .legal-nav-label {
+      display: block;
+      margin-bottom: 14px;
+      color: rgba(255,255,255,0.55);
+    }
+    .legal-nav ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 22px;
+      margin: 0;
+      padding: 0;
+    }
+    .legal-nav a {
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .legal-nav a:hover { color: #fff; }
+    .legal-nav a.current {
+      color: #fff;
+      border-bottom: 1px solid rgba(255,255,255,0.6);
+      padding-bottom: 1px;
+    }
+
+    .legal-footer {
+      margin-top: 40px;
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 40px 22px 80px; }
+      html, body { font-size: 13px; line-height: 1.7; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="topbar">
+      <a class="back" href="/">← Piqabu</a>
+      <img class="topbar-logo" src="/assets/piqabu-logo.png" alt="Piqabu">
+    </header>
+
+    <article class="legal-content">
+<h1>Law Enforcement Response Policy</h1>
+<p><strong>Effective: 10 June 2026</strong></p>
+<p>This policy describes how <strong>Wyetey LTD</strong> responds to requests for user data from government and law enforcement agencies.</p>
+<p>We have written it for two audiences: (1) law enforcement officials who need to know how to validly request data from us, and (2) Piqabu users who want to know what we will and won't do under legal pressure.</p>
+<p>We are committed to lawful cooperation. We are equally committed to honest disclosure of what we have, and what we don't.</p>
+<hr />
+<h2>1. The short version</h2>
+<ul>
+<li>We require <strong>valid legal process</strong> issued by a court in Ghana or competent authority, properly served on us at the address below.</li>
+<li>We produce <strong>only data we actually hold</strong>. By design, that is very little: a Ghost ID, connection timestamps, payment records.</li>
+<li>We <strong>do not have message contents</strong>. The product is built so message contents are ephemeral and not persisted past delivery. We cannot produce what we don't have.</li>
+<li>We <strong>notify affected users</strong> of the request when not prohibited by law from doing so.</li>
+<li>We <strong>publish a Transparency Report</strong> twice a year summarising the requests we received.</li>
+</ul>
+<hr />
+<h2>2. What we can produce</h2>
+<p>The complete list of data tied to a Ghost ID that we can typically produce on lawful request:</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Available?</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ghost ID itself</td>
+<td>Yes</td>
+<td>The opaque identifier</td>
+</tr>
+<tr>
+<td>First-seen timestamp</td>
+<td>Yes</td>
+<td>When the device first connected to our service</td>
+</tr>
+<tr>
+<td>Last-seen timestamp</td>
+<td>Yes</td>
+<td>When the device most recently connected</td>
+</tr>
+<tr>
+<td>Subscription tier</td>
+<td>Yes</td>
+<td>Free or Pro, and Pro expiry date if applicable</td>
+</tr>
+<tr>
+<td>Payment records</td>
+<td>Yes</td>
+<td>Transaction reference, amount, currency, date — <strong>for Pro purchases only</strong></td>
+</tr>
+<tr>
+<td>Email used at Paystack checkout</td>
+<td>No</td>
+<td>Not stored by Piqabu (held by Paystack)</td>
+</tr>
+<tr>
+<td>Real name, phone number, address</td>
+<td>No</td>
+<td>Never collected by Piqabu</td>
+</tr>
+<tr>
+<td>IP address history</td>
+<td>Generally no</td>
+<td>We do not persist IP addresses to our database. Render's infrastructure logs may contain IP records for a limited time per their policy</td>
+</tr>
+<tr>
+<td>Message content (text)</td>
+<td>No</td>
+<td>Ephemeral, not persisted past delivery</td>
+</tr>
+<tr>
+<td>Image / file content</td>
+<td>No</td>
+<td>Stored on disk for at most 30 minutes during room lifetime, then deleted</td>
+</tr>
+<tr>
+<td>Voice / audio content</td>
+<td>No</td>
+<td>Streamed peer-to-peer via WebRTC; not stored on our servers</td>
+</tr>
+<tr>
+<td>Video / Live Glass content</td>
+<td>No</td>
+<td>Streamed peer-to-peer via WebRTC; not stored on our servers</td>
+</tr>
+<tr>
+<td>Conversation history / who-talked-to-whom</td>
+<td>No</td>
+<td>Rooms are torn down after sessions close; no log retained</td>
+</tr>
+<tr>
+<td>Location data</td>
+<td>No</td>
+<td>Never collected</td>
+</tr>
+<tr>
+<td>Contact list</td>
+<td>No</td>
+<td>Never collected</td>
+</tr>
+<tr>
+<td>Device fingerprint beyond Ghost ID</td>
+<td>No</td>
+<td>Not collected</td>
+</tr>
+</tbody>
+</table>
+<p>For Paystack-specific records (e.g., the card type used, the IP at checkout, etc.), the request should be directed to Paystack, not to us.</p>
+<hr />
+<h2>3. What we require</h2>
+<p>We will respond to requests that meet <strong>all</strong> of the following criteria:</p>
+<ol>
+<li><strong>Valid legal process.</strong> A subpoena, court order, warrant, or equivalent legally enforceable instrument, issued by a court or competent authority with proper jurisdiction.</li>
+<li><strong>Identification of the requester.</strong> A clearly identified law enforcement officer, prosecutor, or court — with badge / role / credential information sufficient for us to verify.</li>
+<li><strong>Specificity.</strong> A specific Ghost ID, transaction reference, or other unambiguous identifier. We will not respond to "fishing" requests that ask for all users meeting vague criteria.</li>
+<li><strong>Service.</strong> Properly served on us at <strong>legal@piqabu.live</strong> or at our registered office.</li>
+<li><strong>Compliance with applicable law.</strong> The request must comply with the relevant Ghana law and, if applicable, with international comity (for foreign requests, typically via MLAT).</li>
+</ol>
+<p>We will challenge requests that do not meet these requirements.</p>
+<hr />
+<h2>4. Emergency requests</h2>
+<p>In genuine emergencies — credible imminent threat of death or serious physical injury — law enforcement may make an emergency request without a court order, provided that:</p>
+<ul>
+<li>The request is made in writing on official letterhead by a sworn officer.</li>
+<li>The request describes the emergency in specific terms.</li>
+<li>The request seeks only the minimum data needed to address the emergency.</li>
+</ul>
+<p>We may respond to emergency requests at our discretion, <strong>subject to retroactive validation</strong> by a court order within 7 days. We document every emergency request in our Transparency Report.</p>
+<hr />
+<h2>5. User notification</h2>
+<p>Our default position is to <strong>notify users when their data is sought</strong>, so they have an opportunity to challenge the request through their own counsel.</p>
+<p>We will <strong>not</strong> notify in the following circumstances:</p>
+<ul>
+<li>The legal process explicitly prohibits notification (gag order, sealed warrant).</li>
+<li>A specific risk of physical harm to a person would arise from notification.</li>
+<li>The notification itself would obstruct an active investigation we are required to facilitate.</li>
+</ul>
+<p>We aim to notify within 7 days of producing data, where lawful.</p>
+<hr />
+<h2>6. Foreign law enforcement requests</h2>
+<p>Piqabu is operated by a Ghana-registered company. We do not respond to direct requests from foreign law enforcement agencies. Foreign requests must be channeled through:</p>
+<ul>
+<li>A <strong>mutual legal assistance treaty (MLAT)</strong> request between the requesting country's authorities and Ghana's Ministry of Justice.</li>
+<li>An <strong>emergency request</strong> from a recognised foreign agency under Section 4, which we may consider at our discretion.</li>
+</ul>
+<p>We will provide data in response to foreign requests only after legal review in Ghana.</p>
+<hr />
+<h2>7. Civil legal process</h2>
+<p>For civil cases (defamation, divorce, breach of contract, etc.), we respond only to subpoenas served on us in accordance with civil procedure rules in Ghana. We will not produce user data on the strength of informal requests.</p>
+<p>We may charge a reasonable administrative fee for processing civil subpoenas.</p>
+<hr />
+<h2>8. Limits on cooperation</h2>
+<p>To be clear about what we will not do:</p>
+<ul>
+<li>We will <strong>not</strong> build new logging or data-collection capability to comply with a request that would otherwise lack data. The system we have is the system we have.</li>
+<li>We will <strong>not</strong> install monitoring or surveillance software on user devices on behalf of any agency.</li>
+<li>We will <strong>not</strong> weaken the privacy posture of the service to facilitate present or future requests.</li>
+<li>We will <strong>not</strong> provide bulk data, "all users matching pattern X" data, or anything other than data tied to specifically identified Ghost IDs.</li>
+</ul>
+<p>If law would compel any of the above, we will pursue all available legal remedies before complying, including challenge in court.</p>
+<hr />
+<h2>9. Transparency Reports</h2>
+<p>We publish a <strong>Transparency Report</strong> every six months (January and July), summarising:</p>
+<ul>
+<li>The number of legal requests received in the period.</li>
+<li>A breakdown by request type (criminal subpoena, civil subpoena, court order, emergency request, MLAT).</li>
+<li>The fulfillment rate (requests responded to vs. challenged vs. produced no data).</li>
+<li>A warrant canary statement (see Section 10).</li>
+<li>Comparable year-over-year statistics.</li>
+</ul>
+<p>The most recent report is at <a href="https://piqabu.live/transparency">piqabu.live/transparency</a> (when published).</p>
+<hr />
+<h2>10. Warrant canary</h2>
+<p>Each Transparency Report will include a statement of the form:</p>
+<blockquote>
+<p>"As of [date], Wyetey LTD has not received any national security letter, court order, or other instrument requiring us to take action that we have been forbidden from disclosing in this report."</p>
+</blockquote>
+<p>If a future report omits this statement, that omission is meaningful.</p>
+<hr />
+<h2>Contact</h2>
+<p>For legal process and law-enforcement correspondence:</p>
+<p>Wyetey LTD
+Attention: Legal Department
+Haatso-Atomic Road, Dome. Accra, Ghana.
+Ghana</p>
+<p><strong>legal@piqabu.live</strong></p>
+<p>Acknowledgement of receipt: within 5 business days. Production of records: typically within 30 days unless the request specifies a shorter or longer window.</p>
+    </article>
+
+    <nav class="legal-nav">
+      <span class="legal-nav-label">Legal</span>
+      <ul>
+        <li><a href="/terms"           class="">Terms</a></li>
+        <li><a href="/privacy"         class="">Privacy</a></li>
+        <li><a href="/refunds"         class="">Refunds</a></li>
+        <li><a href="/acceptable-use"  class="">Acceptable Use</a></li>
+        <li><a href="/law-enforcement" class="current">Law Enforcement</a></li>
+        <li><a href="/transparency"    class="">Transparency</a></li>
+      </ul>
+    </nav>
+
+    <footer class="legal-footer">
+      Wyetey LTD &nbsp;·&nbsp; Operating under the Ahtohmoh brand &nbsp;·&nbsp; piqabu.live
+    </footer>
+
+  </div>
+
+</body>
+</html>

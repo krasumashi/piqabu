@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta property="og:title" content="Piqabu">
+  <meta property="og:description" content="An ephemeral communication infrastructure.">
+  <title>Piqabu</title>
+  <link rel="icon" type="image/png" href="./assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      background-color: #080808;
+      color: #fff;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ─── Grid ─── */
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+      will-change: transform;
+    }
+    /* Radial vignette darkens the grid toward the hero, so foreground text always wins */
+    .grid-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center,
+        rgba(8,8,8,0.55) 0%, rgba(8,8,8,0.22) 50%, rgba(8,8,8,0) 100%);
+      pointer-events: none;
+    }
+
+    /* ─── Page ─── */
+    .page {
+      position: relative;
+      height: 100dvh;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+      padding: 80px 32px;
+      text-align: center;
+      will-change: transform;
+    }
+
+    /* ─── Logo ─── */
+    .logo-wrap {
+      margin-bottom: 44px;
+      opacity: 0;
+      animation: fadeUp 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards 0.4s;
+    }
+    .logo {
+      width: clamp(110px, 15vw, 190px);
+      height: auto;
+      display: block;
+    }
+
+    /* ─── Typing ─── */
+    .typing-wrap {
+      min-height: clamp(44px, 7vw, 60px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 52px;
+      max-width: 700px;
+      width: 100%;
+    }
+    .typing-text {
+      font-size: clamp(12px, 1.6vw, 16px);
+      font-weight: 300;
+      color: rgba(255,255,255,0.6);
+      letter-spacing: 0.025em;
+      line-height: 1.7;
+    }
+    .cursor {
+      display: inline-block;
+      width: 1.5px;
+      height: 1em;
+      background-color: rgba(255,255,255,0.5);
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: blink 0.9s step-end infinite;
+    }
+
+    /* ─── Connect ─── */
+    .connect-wrap {
+      opacity: 0;
+      animation: fadeIn 0.9s ease forwards 2.8s;
+    }
+    .connect-btn {
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.32);
+      background: none;
+      border: none;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 7px 2px;
+      cursor: pointer;
+      transition: color 0.35s ease, border-color 0.35s ease;
+    }
+    .connect-btn:hover {
+      color: rgba(255,255,255,0.8);
+      border-bottom-color: rgba(255,255,255,0.4);
+    }
+
+    /* ─── Bottom Bar ─── */
+    .bottom-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 20px 28px;
+      padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+      z-index: 2;
+      opacity: 0;
+      animation: fadeIn 1.1s ease forwards 1.3s;
+    }
+    .b-item {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.26);
+      line-height: 1.6;
+    }
+    .b-center { text-align: center; }
+    .b-right { text-align: right; }
+    .b-legal {
+      text-align: center;
+      text-decoration: none;
+      transition: color 0.25s ease;
+    }
+    .b-legal:hover { color: rgba(255,255,255,0.62); }
+    .ahtoh {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+    }
+    .ahtoh-icon {
+      opacity: 0.22;
+      width: 18px;
+      height: auto;
+      display: block;
+      align-self: flex-end;
+    }
+
+    /* ─── Background fade when overlay is open ─── */
+    .page, .grid-bg, .bottom-bar {
+      transition: opacity 0.35s ease;
+    }
+    body.overlay-open .page,
+    body.overlay-open .grid-bg,
+    body.overlay-open .bottom-bar {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* ─── Overlay ─── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      background-color: #080808;
+    }
+    .overlay::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.038) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.038) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+    .overlay.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .close-btn {
+      position: absolute;
+      top: 22px;
+      right: 26px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.65);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.25s ease;
+      z-index: 22;
+    }
+    .close-btn:hover { color: #fff; }
+
+    /* ─── Form Container ─── */
+    .form-wrap {
+      position: relative;
+      z-index: 21;
+      width: 100%;
+      max-width: 460px;
+    }
+
+    /* ─── Steps ─── */
+    .step {
+      display: none;
+      flex-direction: column;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.32s ease, transform 0.32s ease;
+    }
+    .step.active { display: flex; }
+    .step.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .step-title {
+      font-size: clamp(17px, 2.8vw, 22px);
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: 0.02em;
+      margin-bottom: 28px;
+      line-height: 1.4;
+    }
+
+    /* Choice cards */
+    .choices { display: flex; flex-direction: column; gap: 10px; }
+    .choice-card {
+      font-family: inherit;
+      text-align: left;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.9);
+      padding: 16px 20px;
+      cursor: pointer;
+      transition: border-color 0.22s ease, background 0.22s ease, color 0.22s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .choice-card:hover {
+      border-color: rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.05);
+      color: #fff;
+    }
+    .choice-label {
+      font-size: 14px;
+      font-weight: 300;
+      letter-spacing: 0.015em;
+    }
+    .choice-sub {
+      font-size: 12px;
+      color: rgba(255,255,255,0.62);
+      letter-spacing: 0.03em;
+    }
+    .choice-card:hover .choice-sub { color: rgba(255,255,255,0.85); }
+
+    /* Fields */
+    .field { margin-bottom: 22px; }
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .field-label {
+      display: block;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 9px;
+    }
+    .opt { opacity: 0.45; }
+    .req {
+      color: rgba(255,255,255,0.55);
+      margin-left: 3px;
+      font-size: 11px;
+    }
+    .field-input, .field-textarea {
+      width: 100%;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.82);
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      padding: 5px 0 8px;
+      outline: none;
+      transition: border-color 0.22s ease;
+      -webkit-appearance: none;
+      border-radius: 0;
+    }
+    .field-input::placeholder, .field-textarea::placeholder {
+      color: rgba(255,255,255,0.42);
+    }
+    .field-input:focus, .field-textarea:focus {
+      border-bottom-color: rgba(255,255,255,0.48);
+    }
+    .field-input.err, .field-textarea.err {
+      border-bottom-color: rgba(255,255,255,0.55);
+      animation: errShake 0.28s ease;
+    }
+    .chips.err .chip:not(.on) {
+      border-color: rgba(255,255,255,0.3);
+      animation: errShake 0.28s ease;
+    }
+    @keyframes errShake {
+      0%   { transform: translateX(0); }
+      25%  { transform: translateX(-4px); }
+      75%  { transform: translateX(4px); }
+      100% { transform: translateX(0); }
+    }
+    .field-textarea {
+      resize: none;
+      height: 72px;
+      line-height: 1.65;
+    }
+
+    /* Chips */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.72);
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.22);
+      padding: 7px 13px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .chip:hover, .chip.on {
+      border-color: rgba(255,255,255,0.6);
+      color: #fff;
+      background: rgba(255,255,255,0.06);
+    }
+
+    /* Actions */
+    .form-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    .submit-btn {
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #080808;
+      background: rgba(255,255,255,0.86);
+      border: none;
+      padding: 13px 28px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .submit-btn:hover { background: #fff; }
+    .submit-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+    .back-btn {
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.58);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+    .back-btn:hover { color: #fff; }
+
+    /* Confirm */
+    .confirm-title {
+      font-size: clamp(22px, 4vw, 32px);
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: 0.02em;
+      margin-bottom: 16px;
+    }
+    .confirm-sub {
+      font-size: 14px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.72);
+      letter-spacing: 0.03em;
+      line-height: 1.8;
+    }
+
+    /* ─── Investor Downloads ─── */
+    .dl-section {
+      margin-top: 28px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+    }
+    .dl-links {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .dl-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.72);
+      text-decoration: none;
+      transition: border-color 0.22s ease, background 0.22s ease, opacity 0.3s ease;
+      cursor: pointer;
+    }
+    .dl-btn:hover {
+      border-color: rgba(255,255,255,0.32);
+      background: rgba(255,255,255,0.028);
+      color: rgba(255,255,255,0.9);
+    }
+    .dl-btn.locked {
+      opacity: 0.28;
+      pointer-events: none;
+      cursor: default;
+    }
+    .dl-btn-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .dl-name {
+      font-size: 13px;
+      font-weight: 300;
+      letter-spacing: 0.015em;
+    }
+    .dl-ext {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+    }
+    .dl-arrow {
+      font-size: 14px;
+      color: rgba(255,255,255,0.55);
+      flex-shrink: 0;
+    }
+    .dl-btn:hover .dl-arrow { color: #fff; }
+    .dl-soon-label {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.55);
+      flex-shrink: 0;
+    }
+
+    /* ─── Code unlock ─── */
+    .unlock-area {
+      margin-bottom: 20px;
+    }
+    .unlock-hint {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 10px;
+    }
+    .unlock-row {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .code-input {
+      flex: 1;
+      letter-spacing: 0.2em;
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+    .unlock-btn {
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #080808;
+      background: rgba(255,255,255,0.78);
+      border: none;
+      padding: 10px 20px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.2s ease;
+    }
+    .unlock-btn:hover { background: #fff; }
+    .unlock-confirmed {
+      display: none;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.7);
+      padding: 6px 0 4px;
+    }
+    .unlock-area.unlocked .unlock-hint,
+    .unlock-area.unlocked .unlock-row { display: none; }
+    .unlock-area.unlocked .unlock-confirmed { display: block; }
+
+    /* ─── Animations ─── */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* ─── Mobile ─── */
+    @media (max-width: 600px) {
+      .field-row { grid-template-columns: 1fr; gap: 0; }
+      .b-center { display: none; }
+      /* Drop the funding line on mobile so Legal + Ahtohmoh fit comfortably */
+      .bottom-bar > .b-item:first-child { display: none; }
+      .bottom-bar { padding: 16px 18px; }
+      .b-item { font-size: 9px; letter-spacing: 0.1em; }
+      .page { padding: 70px 24px; }
+    }
+
+    @media (max-width: 380px) {
+      .b-item { font-size: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="grid-bg" aria-hidden="true"></div>
+
+  <!-- ─── Main Page ─── -->
+  <main class="page" id="main-page">
+
+    <div class="logo-wrap">
+      <img class="logo" src="./assets/piqabu-logo.png" alt="Piqabu" loading="eager">
+    </div>
+
+    <div class="typing-wrap" aria-live="polite" aria-atomic="true">
+      <span class="typing-text" id="typing-text"></span><span class="cursor" id="cursor" aria-hidden="true"></span>
+    </div>
+
+    <div class="connect-wrap">
+      <button class="connect-btn" id="connect-btn" onclick="openOverlay()">Connect</button>
+    </div>
+
+  </main>
+
+  <!-- ─── Bottom Bar ─── -->
+  <footer class="bottom-bar" role="contentinfo">
+    <span class="b-item">Pre Seed &nbsp;·&nbsp; Raising $1,000,000</span>
+    <a class="b-item b-legal" href="/terms">Legal</a>
+    <div class="b-item b-right ahtoh">
+      <span>Ahtohmoh</span>
+    </div>
+  </footer>
+
+  <!-- ─── Connect Overlay ─── -->
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-label="Connect with Piqabu">
+
+    <button class="close-btn" onclick="closeOverlay()" aria-label="Close">Close &nbsp;✕</button>
+
+    <div class="form-wrap">
+
+      <!-- Step 0: Path selection -->
+      <div class="step" id="step-0">
+        <p class="step-title">Who's reaching out?</p>
+        <div class="choices">
+          <button class="choice-card" onclick="selectPath('investor')">
+            <span class="choice-label">I'm interested in investing</span>
+            <span class="choice-sub">Discuss terms. Explore alignment.</span>
+          </button>
+          <button class="choice-card" onclick="selectPath('hire')">
+            <span class="choice-label">I want to work here</span>
+            <span class="choice-sub">Founding team. Role-based positions.</span>
+          </button>
+          <button class="choice-card" onclick="selectPath('app')">
+            <span class="choice-label">Get the app</span>
+            <span class="choice-sub">For Android and iOS.</span>
+          </button>
+          <button class="choice-card" onclick="selectPath('other')">
+            <span class="choice-label">Something else</span>
+            <span class="choice-sub">Partnerships, press, or just curious.</span>
+          </button>
+          <button class="choice-card" onclick="selectPath('code')">
+            <span class="choice-label">I have an access code</span>
+            <span class="choice-sub">Unlock investor materials.</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 1a: Investor -->
+      <div class="step" id="step-investor">
+        <p class="step-title">Good. A few things.</p>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="inv-name">Name<span class="req">*</span></label>
+            <input class="field-input" id="inv-name" type="text" placeholder="Your name" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label class="field-label" for="inv-org">Organisation<span class="req">*</span></label>
+            <input class="field-input" id="inv-org" type="text" placeholder="Firm or independent" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="inv-link">Where can we find you?<span class="req">*</span></label>
+          <input class="field-input" id="inv-link" type="text" placeholder="e.g. https://linkedin.com/in/yourname" required>
+        </div>
+
+        <div class="field">
+          <label class="field-label">What size conversation are we having?<span class="req">*</span></label>
+          <div class="chips" id="check-chips" role="group" aria-label="Check size">
+            <button class="chip" data-value="Under $25K"    onclick="selectChip(this,'check-chips')">Under $25K</button>
+            <button class="chip" data-value="$25K – $100K"  onclick="selectChip(this,'check-chips')">$25K – $100K</button>
+            <button class="chip" data-value="$100K – $500K" onclick="selectChip(this,'check-chips')">$100K – $500K</button>
+            <button class="chip" data-value="$500K+"        onclick="selectChip(this,'check-chips')">$500K+</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="inv-why">What brought you to Piqabu?<span class="req">*</span></label>
+          <textarea class="field-textarea" id="inv-why" placeholder="How you heard about us, what resonated..." required></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="back-btn" onclick="goBack()">← Back</button>
+          <button class="submit-btn" id="inv-submit" onclick="submitForm('investor')">Send</button>
+        </div>
+      </div>
+
+      <!-- Step 1b: Work with us -->
+      <div class="step" id="step-hire">
+        <p class="step-title">Tell us who you are.</p>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="hire-name">Name</label>
+            <input class="field-input" id="hire-name" type="text" placeholder="Your name" autocomplete="name">
+          </div>
+          <div class="field">
+            <label class="field-label" for="hire-location">Based in</label>
+            <input class="field-input" id="hire-location" type="text" placeholder="City, country">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label">What kind of role?</label>
+          <div class="chips" id="role-chips" role="group" aria-label="Role type">
+            <button class="chip" data-value="Technical"  onclick="selectChip(this,'role-chips')">Technical</button>
+            <button class="chip" data-value="Design"     onclick="selectChip(this,'role-chips')">Design</button>
+            <button class="chip" data-value="Business"   onclick="selectChip(this,'role-chips')">Business</button>
+            <button class="chip" data-value="Operations" onclick="selectChip(this,'role-chips')">Operations</button>
+            <button class="chip" data-value="Other"      onclick="selectChip(this,'role-chips')">Other</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="hire-link">Show us your work</label>
+          <input class="field-input" id="hire-link" type="url" placeholder="Portfolio, GitHub, LinkedIn — your best representation">
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="hire-why">Why Piqabu, why now?</label>
+          <textarea class="field-textarea" id="hire-why" placeholder="What made you reach out..."></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="back-btn" onclick="goBack()">← Back</button>
+          <button class="submit-btn" id="hire-submit" onclick="submitForm('hire')">Send</button>
+        </div>
+      </div>
+
+      <!-- Step 1c: Other -->
+      <div class="step" id="step-other">
+        <p class="step-title">Go ahead.</p>
+
+        <div class="field-row">
+          <div class="field">
+            <label class="field-label" for="other-name">Name</label>
+            <input class="field-input" id="other-name" type="text" placeholder="Your name" autocomplete="name">
+          </div>
+          <div class="field">
+            <label class="field-label" for="other-context">Context <span class="opt">(optional)</span></label>
+            <input class="field-input" id="other-context" type="text" placeholder="Organisation, role...">
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="other-msg">What's this about?</label>
+          <textarea class="field-textarea" id="other-msg" placeholder="Say what you need to..." style="height:90px"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="back-btn" onclick="goBack()">← Back</button>
+          <button class="submit-btn" id="other-submit" onclick="submitForm('other')">Send</button>
+        </div>
+      </div>
+
+      <!--
+        Step: Get the app
+        ───────────────────────────────────────────────────────────────────
+        Both cards live:
+          Android — direct APK from GitHub Releases (latest).
+          iOS     — routes to /iphone (SideStore 3-step flow).
+      -->
+      <div class="step" id="step-app">
+        <p class="step-title">Have it with you.</p>
+
+        <div class="dl-links">
+          <a class="dl-btn" id="dl-android" href="https://github.com/krasumashi/piqabu/releases/latest/download/piqabu.apk" rel="noopener">
+            <div class="dl-btn-inner">
+              <span class="dl-name">Android</span>
+              <span class="dl-ext">APK &nbsp;·&nbsp; Direct install</span>
+            </div>
+            <span class="dl-arrow">↓</span>
+          </a>
+          <a class="dl-btn" id="dl-ios" href="/iphone">
+            <div class="dl-btn-inner">
+              <span class="dl-name">iOS</span>
+              <span class="dl-ext">Via SideStore &nbsp;·&nbsp; 3 steps</span>
+            </div>
+            <span class="dl-arrow">→</span>
+          </a>
+        </div>
+
+        <div class="form-actions" style="margin-top: 28px;">
+          <button class="back-btn" onclick="goBack()">← Back</button>
+        </div>
+      </div>
+
+      <!-- Step 2a: Confirmation (hire / other) -->
+      <div class="step" id="step-confirm">
+        <p class="confirm-title">Sent.</p>
+        <p class="confirm-sub">We'll reach out before it disappears.<br>Until then — you've been noted.</p>
+      </div>
+
+      <!-- Step 2b: Investor Confirmation — documents locked until access code is entered -->
+      <div class="step" id="step-confirm-investor">
+        <p class="confirm-title">Sent.</p>
+        <p class="confirm-sub">We'll be in touch shortly.<br>Once you receive your access code, enter it below.</p>
+        <div class="dl-section">
+          <div class="unlock-area">
+            <p class="unlock-hint">Access code</p>
+            <div class="unlock-row">
+              <input class="field-input code-input" type="text" maxlength="12" placeholder="— — — — — —" oninput="this.value=this.value.toUpperCase()">
+              <button class="unlock-btn" onclick="validateCode(this)">Unlock</button>
+            </div>
+            <p class="unlock-confirmed">Materials unlocked &nbsp;—&nbsp; tap to download.</p>
+          </div>
+          <div class="dl-links">
+            <a class="dl-btn locked" data-file="deck" href="#" download="Piqabu Pitch Deck.pptx">
+              <div class="dl-btn-inner">
+                <span class="dl-name">Pitch Deck</span>
+                <span class="dl-ext">PPTX &nbsp;·&nbsp; 10 MB</span>
+              </div>
+              <span class="dl-arrow">↓</span>
+            </a>
+            <a class="dl-btn locked" data-file="brief" href="#" download="Piqabu Investor Brief.pdf">
+              <div class="dl-btn-inner">
+                <span class="dl-name">Investor Brief</span>
+                <span class="dl-ext">PDF &nbsp;·&nbsp; 317 KB</span>
+              </div>
+              <span class="dl-arrow">↓</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step: returning investor — enters code directly -->
+      <div class="step" id="step-code">
+        <p class="step-title">Enter your access code.</p>
+        <p class="confirm-sub" style="margin-bottom: 28px; margin-top: -14px;">Use the code we sent you to unlock our materials.</p>
+        <div class="unlock-area">
+          <p class="unlock-hint">Access code</p>
+          <div class="unlock-row">
+            <input class="field-input code-input" type="text" maxlength="12" placeholder="— — — — — —" oninput="this.value=this.value.toUpperCase()">
+            <button class="unlock-btn" onclick="validateCode(this)">Unlock</button>
+          </div>
+          <p class="unlock-confirmed">Materials unlocked &nbsp;—&nbsp; tap to download.</p>
+        </div>
+        <div class="dl-links">
+          <a class="dl-btn locked" data-file="deck" href="#" download="Piqabu Pitch Deck.pptx">
+            <div class="dl-btn-inner">
+              <span class="dl-name">Pitch Deck</span>
+              <span class="dl-ext">PPTX &nbsp;·&nbsp; 10 MB</span>
+            </div>
+            <span class="dl-arrow">↓</span>
+          </a>
+          <a class="dl-btn locked" data-file="brief" href="#" download="Piqabu Investor Brief.pdf">
+            <div class="dl-btn-inner">
+              <span class="dl-name">Investor Brief</span>
+              <span class="dl-ext">PDF &nbsp;·&nbsp; 317 KB</span>
+            </div>
+            <span class="dl-arrow">↓</span>
+          </a>
+        </div>
+        <div class="form-actions" style="margin-top: 28px;">
+          <button class="back-btn" onclick="goBack()">← Back</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // SETUP: Create a free form at https://formspree.io
+    // Link it to your Gmail (dquesi@gmail.com)
+    // Replace YOUR_FORM_ID below with the form ID they give you.
+    // ─────────────────────────────────────────────
+    const FORMSPREE = 'https://formspree.io/f/mgorlgve';
+
+    // ─── Typing Animation ───────────────────────
+    const phrases = [
+      'An ephemeral communication infrastructure.',
+      'Some things are not meant to be found.',
+      'Presence without trace.\u2002Consequence without record.',
+      'For what happens in the room.',
+      'Infrastructure for the conversation that ends.',
+      'Discretion, by design.\u2002Not by setting.',
+      'Nothing persists.\u2002That is the point.',
+      'Not encrypted.\u2002Gone.',
+      'For conversations too consequential to leave a record.',
+      'The window opens.\u2002The window closes.\u2002Nothing remains.',
+      'Built where the continent has no equivalent.',
+      'Infrastructure that forgets.\u2002By intention.',
+    ];
+
+    const textEl   = document.getElementById('typing-text');
+    const cursorEl = document.getElementById('cursor');
+
+    let pIdx      = 0;
+    let cIdx      = 0;
+    let deleting  = false;
+
+    const SPEED_TYPE   = 44;
+    const SPEED_DEL    = 24;
+    const HOLD_LONG    = 3200;
+    const HOLD_NORMAL  = 2600;
+
+    function tick() {
+      const phrase = phrases[pIdx];
+
+      if (!deleting) {
+        cIdx++;
+        textEl.textContent = phrase.substring(0, cIdx);
+
+        if (cIdx === phrase.length) {
+          const hold = pIdx === 0 ? HOLD_LONG : HOLD_NORMAL;
+          setTimeout(() => { deleting = true; tick(); }, hold);
+          return;
+        }
+      } else {
+        cIdx--;
+        textEl.textContent = phrase.substring(0, cIdx);
+
+        if (cIdx === 0) {
+          deleting = false;
+          pIdx = (pIdx + 1) % phrases.length;
+          setTimeout(tick, 440);
+          return;
+        }
+      }
+
+      const base  = deleting ? SPEED_DEL : SPEED_TYPE;
+      const jitter = (Math.random() * 22) - 8;
+      setTimeout(tick, base + jitter);
+    }
+
+    setTimeout(tick, 1000);
+
+    // ─── Overlay ────────────────────────────────
+    let currentStep = null;
+
+    function openOverlay() {
+      currentStep = null;
+      document.body.classList.add('overlay-open');
+      document.getElementById('overlay').classList.add('open');
+      showStep('step-0');
+    }
+
+    function closeOverlay() {
+      document.body.classList.remove('overlay-open');
+      document.getElementById('overlay').classList.remove('open');
+
+      // Strip active/visible from every step so reopening is always a clean start
+      document.querySelectorAll('.step').forEach(s => {
+        s.classList.remove('visible', 'active');
+      });
+      currentStep = null;
+
+      // Clear all form fields
+      document.querySelectorAll('.field-input, .field-textarea').forEach(f => f.value = '');
+
+      // Reset chip selections
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+      Object.keys(chipSelections).forEach(k => delete chipSelections[k]);
+
+      // Re-enable submit buttons in case they were disabled mid-submit
+      ['inv-submit', 'hire-submit', 'other-submit'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
+      });
+
+      // Re-lock investor download buttons (NOT the app downloads — those keep their static state)
+      document.querySelectorAll('#step-confirm-investor .dl-btn, #step-code .dl-btn').forEach(a => {
+        a.href = '#';
+        a.classList.add('locked');
+      });
+      document.querySelectorAll('.unlock-area').forEach(a => a.classList.remove('unlocked'));
+      document.querySelectorAll('.code-input').forEach(f => { f.value = ''; f.classList.remove('err'); f.placeholder = '— — — — — —'; });
+    }
+
+    function showStep(id) {
+      const prev = currentStep ? document.getElementById(currentStep) : null;
+      let delay = 0;
+
+      if (prev) {
+        prev.classList.remove('visible');
+        setTimeout(() => prev.classList.remove('active'), 300);
+        delay = 340;
+      }
+
+      currentStep = id;
+      setTimeout(() => {
+        const next = document.getElementById(id);
+        if (!next) return;
+        next.classList.add('active');
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => next.classList.add('visible'));
+        });
+      }, delay);
+    }
+
+    function selectPath(path) {
+      showStep('step-' + path);
+    }
+
+    function goBack() {
+      showStep('step-0');
+    }
+
+    // ─── Chip selection ─────────────────────────
+    const chipSelections = {};
+
+    function selectChip(el, groupId) {
+      const group = document.getElementById(groupId);
+      group.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+      el.classList.add('on');
+      chipSelections[groupId] = el.dataset.value;
+      group.classList.remove('err');
+    }
+
+    // ─── Code Unlock ─────────────────────────────
+    function validateCode(btn) {
+      const area    = btn.closest('.unlock-area');
+      const input   = area.querySelector('.code-input');
+      const entered = input.value.trim().toUpperCase();
+
+      // Valid code assembled from char codes only at call time — never a readable string in source
+      const _c   = String.fromCharCode;
+      const _key = [80,81,66,45,52,49,48,56].map(n=>_c(n)).join('');
+
+      if (entered !== _key) {
+        input.classList.add('err');
+        input.value = '';
+        input.placeholder = 'Invalid code — try again';
+        input.addEventListener('input', () => {
+          input.classList.remove('err');
+          input.placeholder = '— — — — — —';
+        }, { once: true });
+        return;
+      }
+
+      // Correct — assemble file paths and unlock downloads in this step
+      const _f1   = [56,49,102,54,102,54,57,102,53,56,53,54,102,101,54,101,46,112,112,116,120].map(n=>_c(n)).join('');
+      const _f2   = [56,102,49,48,52,101,51,53,56,55,102,49,52,101,100,100,46,112,100,102].map(n=>_c(n)).join('');
+      const _base = './assets/dl/';
+
+      btn.closest('.step').querySelectorAll('.dl-btn[data-file]').forEach(a => {
+        a.href = _base + (a.dataset.file === 'deck' ? _f1 : _f2);
+        a.classList.remove('locked');
+      });
+
+      area.classList.add('unlocked');
+    }
+
+    // ─── Submit ──────────────────────────────────
+    async function submitForm(path) {
+      const btnId = { investor: 'inv-submit', hire: 'hire-submit', other: 'other-submit' }[path];
+      const btn   = document.getElementById(btnId);
+      btn.disabled    = true;
+      btn.textContent = 'Sending...';
+
+      // ─── Investor validation ─────────────────────
+      if (path === 'investor') {
+        const fields  = ['inv-name', 'inv-org', 'inv-link', 'inv-why'];
+        let invalid   = false;
+
+        fields.forEach(id => {
+          const el = document.getElementById(id);
+          el.classList.remove('err');
+          if (!el.value.trim()) {
+            el.classList.add('err');
+            el.addEventListener('input', () => el.classList.remove('err'), { once: true });
+            invalid = true;
+          }
+        });
+
+        const chipsEl = document.getElementById('check-chips');
+        chipsEl.classList.remove('err');
+        if (!chipSelections['check-chips']) {
+          chipsEl.classList.add('err');
+          invalid = true;
+        }
+
+        if (invalid) {
+          btn.disabled    = false;
+          btn.textContent = 'Send';
+          return;
+        }
+      }
+
+      const data = path === 'investor' ? {
+        _subject: 'Piqabu — Investor Inquiry',
+        type:          'Investor',
+        name:          document.getElementById('inv-name').value,
+        organisation:  document.getElementById('inv-org').value,
+        link:          document.getElementById('inv-link').value,
+        check_size:    chipSelections['check-chips'] || '—',
+        message:       document.getElementById('inv-why').value,
+      } : path === 'hire' ? {
+        _subject: 'Piqabu — Work Inquiry',
+        type:     'Work with us',
+        name:     document.getElementById('hire-name').value,
+        location: document.getElementById('hire-location').value,
+        role:     chipSelections['role-chips'] || '—',
+        link:     document.getElementById('hire-link').value,
+        message:  document.getElementById('hire-why').value,
+      } : {
+        _subject: 'Piqabu — General Inquiry',
+        type:     'General',
+        name:     document.getElementById('other-name').value,
+        context:  document.getElementById('other-context').value,
+        message:  document.getElementById('other-msg').value,
+      };
+
+      // Dev mode — Formspree not yet configured
+      if (FORMSPREE.includes('YOUR_FORM_ID')) {
+        console.log('[Piqabu] Form submission (configure Formspree to enable):', data);
+        showStep(path === 'investor' ? 'step-confirm-investor' : 'step-confirm');
+        return;
+      }
+
+      try {
+        const res = await fetch(FORMSPREE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        if (res.ok) {
+          showStep(path === 'investor' ? 'step-confirm-investor' : 'step-confirm');
+        } else {
+          btn.disabled    = false;
+          btn.textContent = 'Try again';
+        }
+      } catch {
+        btn.disabled    = false;
+        btn.textContent = 'Try again';
+      }
+    }
+
+    // Escape key closes overlay
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeOverlay();
+    });
+
+    // Close overlay on backdrop click
+    document.getElementById('overlay').addEventListener('click', e => {
+      if (e.target === document.getElementById('overlay')) closeOverlay();
+    });
+  </script>
+
+  <script>
+  // ─── Mouse Parallax ───────────────────────────────────────────────────────
+  (function () {
+    const gridEl = document.querySelector('.grid-bg');
+    const pageEl = document.getElementById('main-page');
+
+    let tX = 0, tY = 0, cX = 0, cY = 0;
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function loop() {
+      cX = lerp(cX, tX, 0.07);
+      cY = lerp(cY, tY, 0.07);
+      // Grid drifts slowly with mouse (background layer)
+      gridEl.style.transform = `translate(${cX * 8}px, ${cY * 5}px)`;
+      // Content floats the other way (foreground layer)
+      pageEl.style.transform = `translate(${cX * -16}px, ${cY * -10}px)`;
+      requestAnimationFrame(loop);
+    }
+
+    setTimeout(loop, 2400);
+
+    document.addEventListener('mousemove', e => {
+      tX = (e.clientX / window.innerWidth  - 0.5) * 2;
+      tY = (e.clientY / window.innerHeight - 0.5) * 2;
+    });
+
+    window.addEventListener('deviceorientation', e => {
+      tX = Math.max(-1, Math.min(1, (e.gamma || 0) / 30));
+      tY = Math.max(-1, Math.min(1, ((e.beta  || 0) - 20) / 30));
+    });
+  })();
+  // ─────────────────────────────────────────────────────────────────────────
+  </script>
+
+
+</body>
+</html>

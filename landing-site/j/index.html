@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta property="og:title" content="Piqabu — You've been invited">
+  <meta property="og:description" content="Use this code to join the room. The window closes in 30 minutes.">
+  <title>Piqabu — You've been invited</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; overflow: hidden; }
+
+    body {
+      background-color: #080808;
+      color: #fff;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .grid-bg {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .grid-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center,
+        rgba(8,8,8,0.6) 0%, rgba(8,8,8,0.25) 50%, rgba(8,8,8,0) 100%);
+      pointer-events: none;
+    }
+
+    .page {
+      position: relative; z-index: 1;
+      min-height: 100dvh;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 70px 26px 110px;
+      text-align: center;
+    }
+
+    .logo-wrap {
+      margin-bottom: 38px;
+      opacity: 0;
+      animation: fadeUp 1s ease forwards 0.2s;
+    }
+    .logo {
+      width: clamp(80px, 11vw, 130px);
+      height: auto;
+      display: block;
+    }
+
+    .lead-wrap {
+      opacity: 0;
+      animation: fadeUp 1s ease forwards 0.55s;
+      max-width: 440px;
+    }
+    .lead-title {
+      font-size: clamp(20px, 3.4vw, 26px);
+      font-weight: 300;
+      color: rgba(255,255,255,0.92);
+      letter-spacing: 0.01em;
+      margin-bottom: 8px;
+      line-height: 1.35;
+    }
+    .lead-sub {
+      font-size: clamp(13px, 1.7vw, 15px);
+      font-weight: 300;
+      color: rgba(255,255,255,0.78);
+      letter-spacing: 0.03em;
+      margin-bottom: 36px;
+      line-height: 1.7;
+    }
+
+    .code-wrap {
+      opacity: 0;
+      animation: fadeUp 1s ease forwards 0.9s;
+      margin-bottom: 30px;
+    }
+    .code {
+      font-size: clamp(34px, 8vw, 54px);
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: 0.34em;
+      padding-left: 0.34em; /* compensate trailing letter-spacing */
+      line-height: 1.1;
+      margin-bottom: 14px;
+      cursor: pointer;
+      user-select: all;
+      transition: color 0.25s ease;
+    }
+    .code:hover { color: rgba(255,255,255,0.9); }
+    .copy-hint {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.58);
+      cursor: pointer;
+      transition: color 0.3s ease;
+      user-select: none;
+    }
+    .copy-hint:hover { color: #fff; }
+    .copy-hint.copied { color: #fff; }
+
+    .get-btn-wrap {
+      opacity: 0;
+      animation: fadeUp 1s ease forwards 1.2s;
+      margin-bottom: 24px;
+    }
+    .get-btn {
+      display: inline-block;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #080808;
+      background: rgba(255,255,255,0.88);
+      border: none;
+      padding: 15px 36px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s ease;
+    }
+    .get-btn:hover { background: #fff; }
+
+    .expiry {
+      opacity: 0;
+      animation: fadeIn 1s ease forwards 1.5s;
+      font-size: 12px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.68);
+      letter-spacing: 0.03em;
+      line-height: 1.75;
+      max-width: 340px;
+    }
+
+    /* Invalid state */
+    body.invalid .code-wrap,
+    body.invalid .get-btn-wrap,
+    body.invalid .expiry { display: none; }
+    .invalid-msg {
+      display: none;
+      font-size: 14px;
+      font-weight: 300;
+      color: rgba(255,255,255,0.78);
+      letter-spacing: 0.02em;
+      line-height: 1.75;
+      margin-top: 20px;
+      max-width: 380px;
+    }
+    body.invalid .invalid-msg { display: block; }
+    body.invalid .lead-title { color: rgba(255,255,255,0.88); }
+    .home-link {
+      display: inline-block;
+      margin-top: 26px;
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.42);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 6px 2px;
+      transition: color 0.25s ease, border-color 0.25s ease;
+    }
+    .home-link:hover {
+      color: rgba(255,255,255,0.85);
+      border-bottom-color: rgba(255,255,255,0.35);
+    }
+
+    .bottom-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      padding: 18px 24px;
+      padding-bottom: max(18px, env(safe-area-inset-bottom, 18px));
+      z-index: 2;
+      opacity: 0;
+      animation: fadeIn 1.2s ease forwards 1.7s;
+    }
+    .b-item {
+      font-size: 9px;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.22);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 380px) {
+      .code { letter-spacing: 0.22em; padding-left: 0.22em; }
+      .b-item { font-size: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-bg" aria-hidden="true"></div>
+
+  <main class="page">
+
+    <div class="logo-wrap">
+      <img class="logo" src="/assets/piqabu-logo.png" alt="Piqabu" loading="eager">
+    </div>
+
+    <div class="lead-wrap">
+      <p class="lead-title" id="lead-title">You've been invited.</p>
+      <p class="lead-sub" id="lead-sub">Use this code to join the room.</p>
+    </div>
+
+    <div class="code-wrap">
+      <p class="code" id="code" title="Tap to copy" aria-live="polite">—</p>
+      <p class="copy-hint" id="copy-hint">Copy code</p>
+    </div>
+
+    <div class="get-btn-wrap">
+      <a class="get-btn" href="/download">Get Piqabu</a>
+    </div>
+
+    <p class="expiry">Codes expire 30 minutes after creation.<br>Install Piqabu within that window and enter this code.</p>
+
+    <p class="invalid-msg">
+      This invite isn't valid.<br>
+      The link may be expired or mistyped.
+      <a class="home-link" href="/">Back to Piqabu</a>
+    </p>
+
+  </main>
+
+  <footer class="bottom-bar" role="contentinfo">
+    <span class="b-item">piqabu.live</span>
+    <span class="b-item">Ahtohmoh</span>
+  </footer>
+
+  <script>
+    (function () {
+      // Extract the trailing segment of the URL — Netlify rewrites /j/XK4P2L → /j/index.html
+      // while preserving the requested URL in window.location.pathname.
+      const path = window.location.pathname;
+      const raw  = path.replace(/\/+$/, '').split('/').pop().toUpperCase();
+
+      const isValid = /^[A-Z0-9]{6}$/.test(raw);
+
+      if (!isValid) {
+        document.body.classList.add('invalid');
+        document.getElementById('lead-title').textContent = 'Invite not found.';
+        document.getElementById('lead-sub').textContent   = '';
+        document.title = 'Piqabu';
+        return;
+      }
+
+      const codeEl = document.getElementById('code');
+      const hintEl = document.getElementById('copy-hint');
+      codeEl.textContent = raw;
+      document.title = 'Piqabu — ' + raw;
+
+      function showCopied() {
+        hintEl.classList.add('copied');
+        hintEl.textContent = 'Copied';
+        setTimeout(() => {
+          hintEl.classList.remove('copied');
+          hintEl.textContent = 'Copy code';
+        }, 1800);
+      }
+
+      function copyCode() {
+        // Prefer the async clipboard API
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(raw).then(showCopied).catch(legacyCopy);
+        } else {
+          legacyCopy();
+        }
+      }
+
+      function legacyCopy() {
+        const tmp = document.createElement('textarea');
+        tmp.value = raw;
+        tmp.setAttribute('readonly', '');
+        tmp.style.position = 'fixed';
+        tmp.style.left = '-9999px';
+        document.body.appendChild(tmp);
+        tmp.select();
+        try {
+          if (document.execCommand('copy')) showCopied();
+        } catch (e) { /* silent */ }
+        document.body.removeChild(tmp);
+      }
+
+      codeEl.addEventListener('click', copyCode);
+      hintEl.addEventListener('click', copyCode);
+    })();
+  </script>
+
+</body>
+</html>

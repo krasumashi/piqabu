@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta property="og:title" content="Piqabu — Terms of Service">
+  <title>Piqabu — Terms of Service</title>
+  <link rel="icon" type="image/png" href="/assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080808;
+      --fg: rgba(255,255,255,0.9);
+      --muted: rgba(255,255,255,0.68);
+      --line: rgba(255,255,255,0.16);
+      --link: rgba(255,255,255,0.95);
+    }
+
+    html, body {
+      background-color: var(--bg);
+      color: var(--fg);
+      font-family: 'SF Mono', 'Roboto Mono', 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 60px 32px 100px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 60px;
+      font-family: 'Inter', sans-serif;
+    }
+    .back {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.62);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      padding: 6px 2px;
+      transition: color 0.25s ease, border-color 0.25s ease;
+    }
+    .back:hover {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.6);
+    }
+    .topbar-logo {
+      width: 70px;
+      height: auto;
+      opacity: 0.85;
+    }
+
+    .legal-content h1 {
+      font-family: 'Inter', sans-serif;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: -0.01em;
+      margin-bottom: 22px;
+      line-height: 1.25;
+    }
+    .legal-content h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-top: 48px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .legal-content h3 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: rgba(255,255,255,0.95);
+      letter-spacing: 0.02em;
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+    .legal-content p { margin-bottom: 18px; }
+    .legal-content strong { color: #fff; font-weight: 700; }
+    .legal-content em { color: rgba(255,255,255,0.78); font-style: italic; }
+    .legal-content a {
+      color: var(--link);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .legal-content a:hover {
+      color: #fff;
+      border-bottom-color: rgba(255,255,255,0.75);
+    }
+    .legal-content ul, .legal-content ol {
+      margin: 0 0 18px 22px;
+      padding: 0;
+    }
+    .legal-content li { margin-bottom: 6px; }
+    .legal-content hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      margin: 36px 0;
+    }
+    .legal-content code {
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.06);
+      padding: 2px 6px;
+      border-radius: 2px;
+    }
+    .legal-content blockquote {
+      border-left: 2px solid rgba(255,255,255,0.32);
+      padding-left: 18px;
+      color: rgba(255,255,255,0.75);
+      margin: 18px 0;
+    }
+    .legal-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size: 13px;
+    }
+    .legal-content th, .legal-content td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .legal-content th {
+      color: rgba(255,255,255,0.9);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    .legal-nav {
+      margin-top: 80px;
+      padding-top: 30px;
+      border-top: 1px solid var(--line);
+      font-family: 'Inter', sans-serif;
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .legal-nav-label {
+      display: block;
+      margin-bottom: 14px;
+      color: rgba(255,255,255,0.55);
+    }
+    .legal-nav ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 22px;
+      margin: 0;
+      padding: 0;
+    }
+    .legal-nav a {
+      color: rgba(255,255,255,0.75);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .legal-nav a:hover { color: #fff; }
+    .legal-nav a.current {
+      color: #fff;
+      border-bottom: 1px solid rgba(255,255,255,0.6);
+      padding-bottom: 1px;
+    }
+
+    .legal-footer {
+      margin-top: 40px;
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 40px 22px 80px; }
+      html, body { font-size: 13px; line-height: 1.7; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header class="topbar">
+      <a class="back" href="/">← Piqabu</a>
+      <img class="topbar-logo" src="/assets/piqabu-logo.png" alt="Piqabu">
+    </header>
+
+    <article class="legal-content">
+<h1>Piqabu Terms of Service</h1>
+<p><strong>Effective: 10 June 2026</strong>
+<strong>Last updated: 10 June 2026</strong></p>
+<p>These Terms govern your use of Piqabu, the mobile application and related services operated by <strong>Wyetey LTD, a company registered under the laws of Ghana</strong>, under the <strong>Ahtohmoh</strong> brand, of which Piqabu is a product ("Piqabu", "we", "us", "our"). By using Piqabu, you agree to these Terms.</p>
+<p>If you do not agree, do not use Piqabu.</p>
+<p>This document is not legal advice. It is a contract between you and us.</p>
+<hr />
+<h2>1. What Piqabu is, and what it isn't</h2>
+<p>Piqabu is a privacy-oriented ephemeral messaging tool. It is <strong>designed</strong> to be:</p>
+<ul>
+<li>Account-less (no email, no phone number, no name required to send or receive messages).</li>
+<li>Ephemeral (room contents are not persistently stored on our servers beyond what is operationally necessary to route a message in flight).</li>
+<li>Telemetry-free (no third-party analytics or tracking SDKs are bundled in the app).</li>
+</ul>
+<p>Piqabu <strong>does not promise</strong>:</p>
+<ul>
+<li>That conversations cannot be observed by your conversation partner, by someone in physical proximity, or by malicious software on your device.</li>
+<li>That data leaving Piqabu (screenshots taken by your partner, copies they save outside the app, etc.) remains private.</li>
+<li>Absolute confidentiality against lawfully compelled disclosure — see our <a href="/law-enforcement">Law Enforcement Response Policy</a>.</li>
+<li>Uninterrupted or error-free service.</li>
+</ul>
+<p>You acknowledge that <strong>no software can guarantee secrecy</strong>, and Piqabu is one tool among many. Use it accordingly.</p>
+<hr />
+<h2>2. Eligibility</h2>
+<p>You must be at least <strong>18 years old</strong> to use Piqabu. By using the app you confirm you meet this age requirement.</p>
+<p>If we discover that a user is under 18, we will block the device's identifier and remove any associated data we hold.</p>
+<hr />
+<h2>3. The Ghost ID model — no accounts, no recovery</h2>
+<p>When you first open Piqabu, the app generates a "Ghost ID" — a randomized identifier stored on your device. We use this identifier to route messages and apply your subscription entitlement. We do not link it to any real-world identity.</p>
+<p>Because there are no accounts:</p>
+<ul>
+<li><strong>There is no password to recover.</strong> If you uninstall the app, or factory-reset the device, your Ghost ID is destroyed and your subscription cannot be reactivated on a new device without re-purchasing.</li>
+<li><strong>There is no portability.</strong> Your Ghost ID belongs to one device + one install. We do not provide a way to "transfer" it.</li>
+<li><strong>Clearing app storage may reset your identity</strong> (depending on Android version and Piqabu version). We try to make this stable on supported Android versions, but cannot guarantee it across all device + OS combinations.</li>
+</ul>
+<p>You should not rely on Piqabu as your only record of any conversation.</p>
+<hr />
+<h2>4. License to use Piqabu</h2>
+<p>We grant you a limited, personal, non-exclusive, non-transferable, revocable license to install and use Piqabu on devices you own or control, for non-commercial personal use, subject to these Terms.</p>
+<p>You may not:</p>
+<ul>
+<li>Reverse-engineer, decompile, disassemble, or attempt to extract source code from the app, except to the extent permitted by mandatory Ghana law.</li>
+<li>Modify, distribute, sublicense, sell, rent, lease, or otherwise commercially exploit Piqabu.</li>
+<li>Use Piqabu to operate a service for the benefit of third parties without our prior written agreement.</li>
+<li>Use the Piqabu name, marks, or branding for any purpose without our written permission.</li>
+</ul>
+<hr />
+<h2>5. Acceptable use</h2>
+<p>Your use of Piqabu is subject to our <a href="/acceptable-use">Acceptable Use Policy</a>, which is incorporated into these Terms by reference. Violating that policy may result in immediate termination of your access without notice, without refund, and may be reported to law enforcement where required by Ghana law.</p>
+<p>In particular, you must not use Piqabu to:</p>
+<ul>
+<li>Share child sexual abuse material (CSAM) — zero tolerance.</li>
+<li>Plan, incite, or coordinate violence, terrorism, or genocide.</li>
+<li>Engage in unlawful commerce (illegal drug sales, weapons trafficking, human trafficking).</li>
+<li>Harass, threaten, defame, stalk, or doxx any individual.</li>
+<li>Distribute malware, spyware, or other harmful code.</li>
+<li>Misrepresent yourself as another person with intent to deceive.</li>
+</ul>
+<p>We are not a passive conduit for criminal activity. We will act on what we observe and what is reported to us.</p>
+<hr />
+<h2>6. Piqabu Pro — paid subscription</h2>
+<p>Piqabu offers a paid tier called <strong>Piqabu Pro</strong>. Pro unlocks the Piqabu Keyboard and other features designated as Pro in the app.</p>
+<ul>
+<li><strong>Price</strong>: ₵300 (Three hundred Ghana cedis) per year, payable in advance, processed by Paystack.</li>
+<li><strong>Period</strong>: One year (365 days) from the date of successful payment.</li>
+<li><strong>Grace window</strong>: For 14 days after the Pro period expires, Pro features remain active and you will be prompted to renew. After the grace window, Pro features lock until renewal.</li>
+<li><strong>Renewals</strong>: Not automatic. You must initiate each renewal manually within the app.</li>
+<li><strong>Refunds</strong>: Governed by our <a href="/refunds">Refund Policy</a>. In short: refunds are not given after a successful charge, except in the limited circumstances described in that policy.</li>
+</ul>
+<p>The price may change. We will not change the price of a subscription you have already paid for during its 1-year term. Price changes apply only to new purchases and renewals.</p>
+<hr />
+<h2>7. Operator actions — block, mute, lock</h2>
+<p>Piqabu is operated by humans, not solely by software. Operators may, at any time and without prior notice, take any of the following actions against any device:</p>
+<ul>
+<li><strong>Block</strong> — refuse further connections from that device, with or without a stated reason.</li>
+<li><strong>Kick</strong> — forcibly close active sessions.</li>
+<li><strong>Lock</strong> (maintenance) — temporarily restrict access for all users to allow servicing.</li>
+<li><strong>Push notices</strong> — including required-update prompts.</li>
+<li><strong>Disable Pro</strong> — for breach of these Terms, without refund.</li>
+</ul>
+<p>We log every operator action in an internal audit trail for our own accountability. You are not entitled to access this audit trail.</p>
+<hr />
+<h2>8. Termination</h2>
+<p>We may terminate or suspend your access to Piqabu at any time, with or without cause, with or without notice. You may stop using Piqabu at any time by uninstalling the app.</p>
+<p>On termination:</p>
+<ul>
+<li>Pro access ends. No refund of remaining time, except as required by mandatory consumer law.</li>
+<li>Your Ghost ID is added to our blocked-device list, preventing reconnection.</li>
+<li>Sections 9 (Disclaimer), 10 (Limitation of Liability), 11 (Indemnity), 13 (Governing Law), and 14 (Miscellaneous) survive termination.</li>
+</ul>
+<hr />
+<h2>9. Disclaimer of warranties</h2>
+<p><strong>Piqabu is provided "as is" and "as available", without warranties of any kind</strong>, express, implied, or statutory, including without limitation any warranties of merchantability, fitness for a particular purpose, non-infringement, or that the service will be uninterrupted, secure, error-free, or free of harmful components.</p>
+<p>To the maximum extent permitted by Ghana law, we disclaim any implied warranty.</p>
+<p>We do not warrant that:</p>
+<ul>
+<li>Messages will be delivered, or delivered in any particular timeframe.</li>
+<li>Conversations cannot be intercepted, copied, or screenshotted by your partner or by third parties.</li>
+<li>The app is free of vulnerabilities or bugs.</li>
+<li>The service will be available in your country or on your device.</li>
+</ul>
+<hr />
+<h2>10. Limitation of liability</h2>
+<p>To the maximum extent permitted by Ghana law:</p>
+<ul>
+<li><strong>Our total aggregate liability</strong> to you arising out of or relating to these Terms or your use of Piqabu <strong>will not exceed the amount you actually paid to us in the 12 months preceding the event giving rise to liability</strong> (which for a Free user is GH₵0, and for a Pro user is at most ₵300).</li>
+<li>We will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, including but not limited to loss of profits, loss of business, loss of data, loss of goodwill, or any damages arising from third-party conduct on or through Piqabu.</li>
+</ul>
+<p>Some jurisdictions do not allow the exclusion of certain warranties or limitation of certain damages. To the extent any such exclusion is held unenforceable, our liability remains limited to the greatest extent permitted by law.</p>
+<hr />
+<h2>11. Indemnification</h2>
+<p>You agree to defend, indemnify, and hold harmless Wyetey LTD, its officers, directors, employees, and agents from and against any claims, liabilities, damages, losses, and expenses (including reasonable legal fees) arising out of or in any way connected with:</p>
+<ul>
+<li>Your use of Piqabu.</li>
+<li>Your violation of these Terms or any law.</li>
+<li>Your violation of any third party's rights, including intellectual property, privacy, or publicity rights.</li>
+<li>Any content you submit, transmit, or share through Piqabu.</li>
+</ul>
+<hr />
+<h2>12. Changes to these Terms</h2>
+<p>We may revise these Terms. When we do, we will update the "Last updated" date at the top and, for material changes, surface a notice in the app. Continued use of Piqabu after a material change is your acceptance of the revised Terms. If you do not accept a revised version, your only remedy is to stop using Piqabu.</p>
+<hr />
+<h2>13. Governing law and dispute resolution</h2>
+<p><strong>Ghana law applies</strong> to these Terms. Any dispute about them or your use of Piqabu goes to the courts in Accra.</p>
+<p>Before going to court, contact us at <strong>legal@piqabu.live</strong> — we'll try to resolve it informally within 30 days.</p>
+<p>Nothing here limits any right you may have under Ghana consumer law to seek redress through small claims or consumer protection bodies.</p>
+<hr />
+<h2>14. Miscellaneous</h2>
+<ul>
+<li><strong>Entire agreement.</strong> These Terms, together with the Privacy Policy, Refund Policy, and Acceptable Use Policy, are the entire agreement between you and us regarding Piqabu.</li>
+<li><strong>Severability.</strong> If any provision is held unenforceable, the remaining provisions remain in force, and the unenforceable provision will be modified to the minimum extent needed to make it enforceable.</li>
+<li><strong>No waiver.</strong> Our failure to enforce any right or provision is not a waiver of that right or provision.</li>
+<li><strong>Assignment.</strong> You may not assign these Terms without our consent. We may assign these Terms in connection with a merger, acquisition, or sale of substantially all our assets.</li>
+<li><strong>Notices.</strong> We may give you notices through the app or via a notice on piqabu.live. You may give us notice at <strong>legal@piqabu.live</strong>.</li>
+</ul>
+<hr />
+<h2>Contact</h2>
+<p>Wyetey LTD
+Haatso-Atomic Road, Dome. Accra, Ghana.
+Ghana
+<strong>legal@piqabu.live</strong></p>
+    </article>
+
+    <nav class="legal-nav">
+      <span class="legal-nav-label">Legal</span>
+      <ul>
+        <li><a href="/terms"           class="current">Terms</a></li>
+        <li><a href="/privacy"         class="">Privacy</a></li>
+        <li><a href="/refunds"         class="">Refunds</a></li>
+        <li><a href="/acceptable-use"  class="">Acceptable Use</a></li>
+        <li><a href="/law-enforcement" class="">Law Enforcement</a></li>
+        <li><a href="/transparency"    class="">Transparency</a></li>
+      </ul>
+    </nav>
+
+    <footer class="legal-footer">
+      Wyetey LTD &nbsp;·&nbsp; Operating under the Ahtohmoh brand &nbsp;·&nbsp; piqabu.live
+    </footer>
+
+  </div>
+
+</body>
+</html>

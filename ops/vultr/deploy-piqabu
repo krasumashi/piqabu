@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly REPOSITORY_URL="https://github.com/krasumashi/piqabu.git"
+readonly BASE_DIR="/srv/piqabu"
+readonly REPO_DIR="$BASE_DIR/repository.git"
+readonly RELEASES_DIR="$BASE_DIR/releases"
+readonly CURRENT_LINK="$BASE_DIR/current"
+
+sha="${1:-}"
+if [[ ! "$sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  echo "Expected a full 40-character Git commit SHA." >&2
+  exit 2
+fi
+
+install -d -o piqabu -g piqabu "$BASE_DIR" "$RELEASES_DIR"
+
+if [[ ! -d "$REPO_DIR" ]]; then
+  sudo -u piqabu -H git clone --bare "$REPOSITORY_URL" "$REPO_DIR"
+fi
+
+sudo -u piqabu -H git --git-dir="$REPO_DIR" fetch --prune origin main
+git --git-dir="$REPO_DIR" cat-file -e "$sha^{commit}"
+
+release_dir="$RELEASES_DIR/$sha"
+if [[ ! -d "$release_dir" ]]; then
+  install -d -o piqabu -g piqabu "$release_dir"
+  sudo -u piqabu -H git --git-dir="$REPO_DIR" --work-tree="$release_dir" checkout -f "$sha" -- .
+
+  sudo -u piqabu -H npm --prefix "$release_dir/server" ci --omit=dev
+  sudo -u piqabu -H npm --prefix "$release_dir/mission-control" ci --include=dev
+  sudo -u piqabu -H npm --prefix "$release_dir/mission-control" run build
+fi
+
+ln -sfn "$release_dir" "$BASE_DIR/current.next"
+mv -Tf "$BASE_DIR/current.next" "$CURRENT_LINK"
+systemctl restart piqabu
+
+for _ in {1..30}; do
+  if curl --fail --silent http://127.0.0.1:3000/health >/dev/null; then
+    find "$RELEASES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+      | sort -nr | tail -n +6 | cut -d' ' -f2- | xargs -r rm -rf
+    echo "Deployed $sha"
+    exit 0
+  fi
+  sleep 1
+done
+
+echo "Piqabu failed its local health check after deployment." >&2
+journalctl -u piqabu --no-pager -n 100 >&2
+exit 1
