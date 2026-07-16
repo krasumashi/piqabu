@@ -36,6 +36,7 @@
  *     the subscription record itself.
  */
 
+import { Platform } from 'react-native';
 import { CONFIG } from '../../constants/Config';
 
 // Defensive import: expo-web-browser is a native module added in
@@ -243,12 +244,20 @@ export async function startDonation(
         };
     }
 
+    // ASWebAuthenticationSession on iOS must return through the native
+    // scheme declared in app.json. Android's Custom Tabs flow continues to
+    // use the existing HTTPS callback. The server validates this value
+    // against a strict allow-list before passing it to Paystack.
+    const callbackUrl = Platform.OS === 'ios'
+        ? 'piqabu://upgrade'
+        : 'https://piqabu.live/upgrade';
+
     let init: InitResponse;
     try {
         const res = await fetch(`${CONFIG.SIGNAL_TOWER_URL}/api/paystack/donate/init`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ deviceId, amount: amountMinor, email }),
+            body: JSON.stringify({ deviceId, amount: amountMinor, email, callbackUrl }),
         });
         if (!res.ok) {
             const body = await res.text().catch(() => '');
@@ -263,7 +272,7 @@ export async function startDonation(
     try {
         browserResult = await wb.openAuthSessionAsync(
             init.authorization_url,
-            'https://piqabu.live/upgrade',
+            callbackUrl,
         );
     } catch (e) {
         return { kind: 'error', reason: e instanceof Error ? e.message : 'Could not open the payment sheet.' };
