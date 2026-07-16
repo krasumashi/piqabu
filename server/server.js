@@ -158,16 +158,87 @@ app.post('/upload', uploadLimiter, upload.single('file'), (req, res) => {
 // Track uploaded files per room for cleanup
 const roomFiles = new Map();
 
-// --- ICE Servers (TURN credentials) ---
-app.get('/ice-servers', (req, res) => {
-    const iceServers = [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-    ];
+// --- ICE Servers (short-lived Cloudflare TURN credentials) ---
+const FALLBACK_ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+];
+const TURN_TTL_SECONDS = 60 * 60;
+const TURN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+let turnCache = null;
+let turnRequest = null;
+
+async function fetchCloudflareIceServers() {
+    const keyId = process.env.CLOUDFLARE_TURN_KEY_ID;
+    const apiToken = process.env.CLOUDFLARE_TURN_API_TOKEN;
+    if (!keyId || !apiToken) return null;
+
+    if (turnCache && Date.now() < turnCache.expiresAt - TURN_REFRESH_BUFFER_MS) {
+        return turnCache.iceServers;
+    }
+    if (turnRequest) return turnRequest;
+
+    turnRequest = (async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        try {
+            const response = await fetch(
+                `https://rtc.live.cloudflare.com/v1/turn/keys/${encodeURIComponent(keyId)}/credentials/generate-ice-servers`,
+                {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${apiToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ ttl: TURN_TTL_SECONDS }),
+                    signal: controller.signal,
+                },
+            );
+            if (!response.ok) {
+                throw new Error(`Cloudflare TURN returned HTTP ${response.status}`);
+            }
+            const payload = await response.json();
+            if (!Array.isArray(payload.iceServers) || payload.iceServers.length === 0) {
+                throw new Error('Cloudflare TURN returned no ICE servers');
+            }
+            turnCache = {
+                iceServers: payload.iceServers,
+                expiresAt: Date.now() + TURN_TTL_SECONDS * 1000,
+            };
+            return turnCache.iceServers;
+        } finally {
+            clearTimeout(timeout);
+            turnRequest = null;
+        }
+    })();
+
+    return turnRequest;
+}
+
+const iceServerLimiter = rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.get('/ice-servers', iceServerLimiter, async (req, res) => {
+    try {
+        const cloudflareServers = await fetchCloudflareIceServers();
+        if (cloudflareServers) {
+            res.setHeader('Cache-Control', 'private, max-age=300');
+            return res.json({ iceServers: [...FALLBACK_ICE_SERVERS, ...cloudflareServers] });
+        }
+    } catch (error) {
+        console.warn('[TURN] Cloudflare credential request failed; using STUN fallback:', error.message);
+    }
+
+    // Preserve the old Metered configuration as an optional fallback during
+    // rollout. The permanent credentials never leave the server environment.
+    const iceServers = [...FALLBACK_ICE_SERVERS];
     if (process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
         const user = process.env.TURN_USERNAME;
         const cred = process.env.TURN_CREDENTIAL;
-        // Add all Metered TURN relay variants for maximum connectivity
         iceServers.push(
             { urls: 'stun:stun.relay.metered.ca:80', username: user, credential: cred },
             { urls: 'turn:global.relay.metered.ca:80', username: user, credential: cred },
@@ -177,7 +248,7 @@ app.get('/ice-servers', (req, res) => {
             { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: user, credential: cred },
         );
     }
-    res.json({ iceServers });
+    return res.json({ iceServers });
 });
 
 // Stripe subscription routes (checkout, status, webhook)

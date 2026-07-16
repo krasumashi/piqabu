@@ -1,5 +1,7 @@
 # Piqabu Mission Control
 
+> **Historical component notes:** the Render deployment details below are retained for context but no longer describe production. Current production is served from Vultr through `admin.piqabu.live`. Use [`docs/OPERATIONS.md`](../docs/OPERATIONS.md) for deployment and incident procedures and [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md) for the current system map.
+
 Operator dashboard for Piqabu — separate React + TypeScript SPA, **served by the Piqabu Node server itself** alongside the API.
 
 ## Status

@@ -238,7 +238,7 @@ function createPaystackRouter({ io }) {
      */
     router.post('/api/paystack/donate/init', express.json(), async (req, res) => {
         try {
-            const { deviceId, amount, email } = req.body || {};
+            const { deviceId, amount, email, callbackUrl } = req.body || {};
             if (!deviceId || typeof deviceId !== 'string' || deviceId.length < 8 || deviceId.length > 100) {
                 return res.status(400).json({ error: 'Invalid deviceId' });
             }
@@ -249,12 +249,19 @@ function createPaystackRouter({ io }) {
             const cleanEmail = (typeof email === 'string' && email.includes('@'))
                 ? email.trim().slice(0, 254)
                 : syntheticEmail(deviceId);
+            // iOS ASWebAuthenticationSession only closes automatically when
+            // Paystack returns through the native scheme declared by the app.
+            // Keep the existing HTTPS callback for Android and older clients,
+            // and never pass arbitrary client-provided URLs to Paystack.
+            const donationCallbackUrl = callbackUrl === 'piqabu://upgrade'
+                ? 'piqabu://upgrade'
+                : PAYSTACK_CALLBACK_URL;
 
             const data = await paystack.initializeTransaction({
                 email: cleanEmail,
                 amount: amountMinor,
                 currency: PRO_CURRENCY,
-                callbackUrl: PAYSTACK_CALLBACK_URL,
+                callbackUrl: donationCallbackUrl,
                 metadata: { deviceId, product: 'donation' },
             });
 

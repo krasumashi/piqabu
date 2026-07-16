@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { THEME } from '../constants/Theme';
 import { useSecurity } from '../contexts/SecurityContext';
+import { fetchIceServers } from '../lib/iceServers';
 import type { Socket } from 'socket.io-client';
 
 /* ─────────── platform-specific WebRTC imports ─────────── */
@@ -29,11 +30,6 @@ let InCallManager: any = null;
 if (Platform.OS !== 'web') {
     try { InCallManager = require('react-native-incall-manager').default; } catch { /* not in this build */ }
 }
-
-const ICE_SERVERS: RTCIceServer[] = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-];
 
 /* ─────────────────────── types ─────────────────────────── */
 
@@ -142,12 +138,15 @@ export default function WhisperPanel({
     }, [visible]);
 
     /* ── create peer connection ── */
-    const createPC = useCallback((): any | null => {
+    const createPC = useCallback(async (): Promise<any | null> => {
         const PC = Platform.OS === 'web'
             ? (window as any).RTCPeerConnection || (window as any).webkitRTCPeerConnection
             : NativeRTCPC;
         if (!PC) { setError('WebRTC not available on this device.'); return null; }
-        try { return new PC({ iceServers: ICE_SERVERS }); }
+        try {
+            const iceServers = await fetchIceServers();
+            return new PC({ iceServers });
+        }
         catch (e: any) { setError(`PeerConnection failed: ${e?.message}`); return null; }
     }, []);
 
@@ -274,7 +273,7 @@ export default function WhisperPanel({
 
         if (!socket) { setError('No socket connection.'); return; }
 
-        const pc = createPC();
+        const pc = await createPC();
         if (!pc) return;
         pcRef.current = pc;
 
