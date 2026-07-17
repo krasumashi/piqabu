@@ -55,6 +55,8 @@ An OTA may update compatible JavaScript and bundled assets. It cannot safely add
 
 The iOS keyboard is therefore present only in native binaries built after the extension was added. TestFlight build 5 does not contain it.
 
+Peek privacy is platform-specific. Android uses the operating system's secure-window protection while revealed media is visible. On iOS, the active screenshot-blocking implementation in `expo-screen-capture` is not used for Peek because its secure-layer technique blanked image, video, PDF, and React Native content on the tested runtime. iOS retains visible watermarks and uses an app-switcher privacy overlay when the app loses focus. Active iOS screenshots are therefore a known platform limitation pending a media-safe native alternative.
+
 ### Signal Tower backend
 
 The backend lives in `server/` and provides:

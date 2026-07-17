@@ -111,3 +111,12 @@ The iOS keyboard is a native Swift extension that mirrors the safe offline porti
 After sending a minted link, the sender taps it to enter Piqabu. Onboarding and activation explain this iOS-only extra step. The Android Kotlin IME remains unchanged.
 
 Reason: Apple requires keyboard extensions to remain functional without Full Access, provide normal keyboard input and switching, and not launch other apps. The offline design preserves Piqabu's privacy posture and reduces App Review risk. Any future in-keyboard networking or shared state requires a separate decision and privacy review.
+
+## D-013: Media-safe Peek privacy on iOS
+
+- Date: 2026-07-17
+- Status: accepted with platform limitation
+
+Android continues to use secure-window screenshot protection while Peek media is visible. iOS uses the app-switcher privacy overlay plus Piqabu's visible media watermarks, but does not invoke active screenshot blocking for Peek.
+
+The current `expo-screen-capture` iOS implementation reparents the key window beneath a secure text-field layer. On the tested TestFlight runtime this blanked received images, video and PDF tiles, and their native rendering surfaces. Delivering the core communication feature reliably takes precedence over claiming screenshot prevention that makes the content unusable. Revisit active iOS screenshot protection only with a media-safe native implementation tested against React Native images, AVPlayer, PDFKit, modals, and current iOS releases.

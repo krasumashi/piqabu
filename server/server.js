@@ -9,6 +9,7 @@ require('dotenv').config();
 
 const multer = require('multer');
 const fs = require('fs');
+const { getSafeUploadExtension } = require('./lib/uploadFilename');
 const { createSocketRateLimiter, checkBruteForce, recordFailedJoin, clearBruteForceRecord } = require('./middleware/rateLimiter');
 const {
     validateJoinRoom,
@@ -87,7 +88,7 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadDir),
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = path.extname(file.originalname) || '';
+        const ext = getSafeUploadExtension(file.originalname, file.mimetype);
         cb(null, uniqueSuffix + ext);
     },
 });

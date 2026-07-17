@@ -86,6 +86,9 @@ export default function RevealDeck({
     // shown at once; the partner's Peek gallery mirrors exactly this set.
     const [exposedIds, setExposedIds] = useState<Set<string>>(new Set());
     const [uploading, setUploading] = useState(false);
+    // This is playback intent, not the native player's momentary state.
+    // `status.isPlaying` becomes false while the first video buffers; feeding
+    // that value back into `shouldPlay` made the button oscillate rapidly.
     const [isPlaying, setIsPlaying] = useState(true);
     const [videoDuration, setVideoDuration] = useState(0);
     const [videoPosition, setVideoPosition] = useState(0);
@@ -464,7 +467,12 @@ export default function RevealDeck({
                                 shouldPlay={isPlaying}
                                 onPlaybackStatusUpdate={(status: any) => {
                                     if (status.isLoaded) {
-                                        setIsPlaying(status.isPlaying);
+                                        // Keep the user's play/pause intent stable through
+                                        // transient buffering. A completed video is the one
+                                        // native status event that should reset the control.
+                                        if (status.didJustFinish && !status.isLooping) {
+                                            setIsPlaying(false);
+                                        }
                                         if (!isSeeking) {
                                             setVideoPosition(status.positionMillis || 0);
                                         }
@@ -528,12 +536,21 @@ export default function RevealDeck({
                                     <TouchableOpacity
                                         onPress={async () => {
                                             if (!videoRef.current) return;
-                                            if (isPlaying) {
-                                                await videoRef.current.pauseAsync();
-                                                onVideoControl?.({ action: 'pause' });
-                                            } else {
-                                                await videoRef.current.playAsync();
-                                                onVideoControl?.({ action: 'play' });
+                                            const nextIsPlaying = !isPlaying;
+                                            // Update immediately so the button feels responsive;
+                                            // roll back only if the native command fails.
+                                            setIsPlaying(nextIsPlaying);
+                                            try {
+                                                if (nextIsPlaying) {
+                                                    await videoRef.current.playAsync();
+                                                    onVideoControl?.({ action: 'play' });
+                                                } else {
+                                                    await videoRef.current.pauseAsync();
+                                                    onVideoControl?.({ action: 'pause' });
+                                                }
+                                            } catch (error) {
+                                                setIsPlaying(!nextIsPlaying);
+                                                console.warn('[RevealDeck] video playback control failed:', error);
                                             }
                                         }}
                                         style={[styles.videoControlBtn, styles.playPauseBtn]}

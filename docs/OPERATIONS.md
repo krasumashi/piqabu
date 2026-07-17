@@ -77,6 +77,7 @@ On-device acceptance checks:
 - sender and receiver can tap the link into the same waiting room;
 - the decoy key inserts but does not send a phrase;
 - Android behavior and its existing Kotlin IME remain unchanged.
+- when testing Peek on iOS, received images, video action tiles, and PDF action tiles remain visible; backgrounding the app hides Peek content in the app switcher. Active screenshot blocking is intentionally Android-only until a media-safe iOS implementation is validated.
 
 External TestFlight users can use a public link only after Apple approves the external testing build/group. Internal testers always require App Store Connect membership; they cannot be converted into a public anonymous link.
 

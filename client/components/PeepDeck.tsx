@@ -9,21 +9,34 @@ import DocumentViewer from './DocumentViewer';
 import SignatureModal from './SignatureModal';
 import SynthesisIndicator from './SynthesisIndicator';
 
-// Detect media type from URI (supports both data URIs and server URLs)
+// Detect media type from URI (supports data URIs and uploaded URLs, including
+// URLs that later gain a query string or fragment).
+function hasMediaExtension(uri: string, extensions: string[]): boolean {
+    const pathOnly = uri.split(/[?#]/, 1)[0];
+    let decoded = pathOnly;
+    try {
+        decoded = decodeURIComponent(pathOnly);
+    } catch {
+        // A malformed escape should not crash the Peep deck. Match the raw URL.
+    }
+    const extension = decoded.split('.').pop()?.toLowerCase();
+    return extension ? extensions.includes(extension) : false;
+}
+
 function isVideoUri(uri: string): boolean {
-    return uri.startsWith('data:video/') || /\.(mp4|mov|avi|webm)$/i.test(uri);
+    return uri.startsWith('data:video/') || hasMediaExtension(uri, ['mp4', 'mov', 'avi', 'webm']);
 }
 
 function isAudioUri(uri: string): boolean {
-    return uri.startsWith('data:audio/') || /\.(mp3|wav|m4a|aac|ogg)$/i.test(uri);
+    return uri.startsWith('data:audio/') || hasMediaExtension(uri, ['mp3', 'wav', 'm4a', 'aac', 'ogg']);
 }
 
 function isPdfUri(uri: string): boolean {
-    return uri.startsWith('data:application/pdf') || /\.pdf$/i.test(uri);
+    return uri.startsWith('data:application/pdf') || hasMediaExtension(uri, ['pdf']);
 }
 
 function isDocUri(uri: string): boolean {
-    return /\.(doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|json|xml|zip)$/i.test(uri);
+    return hasMediaExtension(uri, ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'json', 'xml', 'zip']);
 }
 
 // Resolve server URLs to full URLs
@@ -88,18 +101,40 @@ export default function PeepDeck({
         if (focusedItem && !remoteImages.includes(focusedItem)) setFocusedItem(null);
     }, [remoteImages, focusedItem]);
 
-    // Prevent screenshots when viewing revealed media
+    const hasVisibleMedia = visible && remoteImages.length > 0;
+
+    // Android's FLAG_SECURE implementation does not interfere with media
+    // surfaces. On iOS, preventScreenCaptureAsync reparents the key window
+    // beneath a secure UITextField layer; that can blank React Native images,
+    // AVPlayer, PDFKit, and even the Peek action tiles. Keep iOS content visible
+    // and protect its app-switcher snapshot instead.
     useEffect(() => {
         if (Platform.OS === 'web') return;
-        if (visible && remoteImages.length > 0) {
-            ScreenCapture.preventScreenCaptureAsync('peepDeck');
-        } else {
-            ScreenCapture.allowScreenCaptureAsync('peepDeck');
+
+        if (Platform.OS === 'ios') {
+            // Also undo an active secure-window layer when this JS update is
+            // loaded into an already-running preview build.
+            ScreenCapture.allowScreenCaptureAsync('peepDeck').catch(() => {});
+            if (hasVisibleMedia) {
+                ScreenCapture.enableAppSwitcherProtectionAsync(0.85).catch(() => {});
+            } else {
+                ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => {});
+            }
+            return () => {
+                ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => {});
+            };
         }
+
+        if (hasVisibleMedia) {
+            ScreenCapture.preventScreenCaptureAsync('peepDeck').catch(() => {});
+        } else {
+            ScreenCapture.allowScreenCaptureAsync('peepDeck').catch(() => {});
+        }
+
         return () => {
-            ScreenCapture.allowScreenCaptureAsync('peepDeck');
+            ScreenCapture.allowScreenCaptureAsync('peepDeck').catch(() => {});
         };
-    }, [visible, remoteImages.length]);
+    }, [hasVisibleMedia]);
 
     if (!visible) return null;
 

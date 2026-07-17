@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { CONFIG } from '../constants/Config';
+import { ensureUploadExtension } from './uploadFilename';
 
 /**
  * Upload a file to the server via HTTP and return the server URL.
@@ -58,10 +59,17 @@ export async function uploadFile(
             }
         }
 
+        // Android keeps its existing filename path unchanged. iOS sometimes
+        // supplies an extensionless display name for videos/documents, which
+        // made the receiver treat the uploaded URL as an image (a black tile).
+        const uploadName = Platform.OS === 'ios'
+            ? ensureUploadExtension(fileName, mimeType)
+            : fileName;
+
         const formData = new FormData();
         formData.append('file', {
             uri: fileUri,
-            name: fileName,
+            name: uploadName,
             type: mimeType,
         } as any);
         formData.append('roomId', roomId);
