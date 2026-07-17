@@ -9,21 +9,34 @@ import DocumentViewer from './DocumentViewer';
 import SignatureModal from './SignatureModal';
 import SynthesisIndicator from './SynthesisIndicator';
 
-// Detect media type from URI (supports both data URIs and server URLs)
+// Detect media type from URI (supports data URIs and uploaded URLs, including
+// URLs that later gain a query string or fragment).
+function hasMediaExtension(uri: string, extensions: string[]): boolean {
+    const pathOnly = uri.split(/[?#]/, 1)[0];
+    let decoded = pathOnly;
+    try {
+        decoded = decodeURIComponent(pathOnly);
+    } catch {
+        // A malformed escape should not crash the Peep deck. Match the raw URL.
+    }
+    const extension = decoded.split('.').pop()?.toLowerCase();
+    return extension ? extensions.includes(extension) : false;
+}
+
 function isVideoUri(uri: string): boolean {
-    return uri.startsWith('data:video/') || /\.(mp4|mov|avi|webm)$/i.test(uri);
+    return uri.startsWith('data:video/') || hasMediaExtension(uri, ['mp4', 'mov', 'avi', 'webm']);
 }
 
 function isAudioUri(uri: string): boolean {
-    return uri.startsWith('data:audio/') || /\.(mp3|wav|m4a|aac|ogg)$/i.test(uri);
+    return uri.startsWith('data:audio/') || hasMediaExtension(uri, ['mp3', 'wav', 'm4a', 'aac', 'ogg']);
 }
 
 function isPdfUri(uri: string): boolean {
-    return uri.startsWith('data:application/pdf') || /\.pdf$/i.test(uri);
+    return uri.startsWith('data:application/pdf') || hasMediaExtension(uri, ['pdf']);
 }
 
 function isDocUri(uri: string): boolean {
-    return /\.(doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|json|xml|zip)$/i.test(uri);
+    return hasMediaExtension(uri, ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'json', 'xml', 'zip']);
 }
 
 // Resolve server URLs to full URLs
