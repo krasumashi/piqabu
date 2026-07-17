@@ -76,11 +76,12 @@ The static site lives in `landing-site/`. Important public integrations include:
 
 - Formspree form endpoint `https://formspree.io/f/mgorlgve`;
 - Android stable download `https://github.com/krasumashi/piqabu/releases/latest/download/piqabu.apk`;
+- public TestFlight beta `https://testflight.apple.com/join/ZQjMEVCC`;
 - SideStore source `https://piqabu.live/apps.json`;
 - SideStore IPA release at the fixed GitHub `ios-latest` release;
 - Apple association and Android asset-link files for project-owned domains.
 
-TestFlight is the primary iOS beta path. SideStore is additive and does not replace App Store Connect.
+TestFlight is the primary iOS beta path. SideStore is a visibly secondary alternative and does not replace App Store Connect.
 
 ## Runtime flows
 
