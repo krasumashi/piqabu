@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta property="og:title" content="Piqabu — iPhone install">
-  <meta property="og:description" content="Install Piqabu on iPhone via SideStore. No App Store gatekeeper.">
+  <meta property="og:description" content="Join the Piqabu public beta on TestFlight, with SideStore available as an alternative.">
   <title>Piqabu — iPhone install</title>
   <link rel="icon" type="image/png" href="/assets/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -111,6 +111,52 @@
       letter-spacing: 0.02em;
       line-height: 1.75;
       max-width: 460px;
+    }
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 18px;
+      margin-top: 26px;
+    }
+    .hero-alt {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.22);
+      padding: 4px 1px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .hero-alt:hover { color: #fff; border-bottom-color: rgba(255,255,255,0.6); }
+
+    .section-intro {
+      margin: 62px 0 24px;
+      padding-top: 34px;
+      border-top: 1px solid var(--line);
+    }
+    .section-eyebrow {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 22px;
+      font-weight: 300;
+      color: #fff;
+      letter-spacing: 0.01em;
+      margin-bottom: 10px;
+    }
+    .section-copy {
+      max-width: 500px;
+      font-size: 13px;
+      line-height: 1.75;
+      color: var(--body);
     }
 
     /* ─── Steps ─── */
@@ -311,21 +357,33 @@
 
     <section class="hero">
       <p class="hero-eyebrow">Piqabu for iPhone</p>
-      <h1 class="hero-title">iPhone <span class="via">via SideStore</span></h1>
+      <h1 class="hero-title">iPhone <span class="via">via TestFlight</span></h1>
       <p class="hero-tagline">
-        No App Store gatekeeper. Installs without asking Apple's permission.<br>
-        Three steps, one week's maintenance.
+        Join the public beta with Apple's TestFlight app.<br>
+        No invitation or email address required.
       </p>
+      <div class="hero-actions">
+        <a class="btn primary" href="https://testflight.apple.com/join/ZQjMEVCC" rel="noopener">
+          Open in TestFlight &nbsp;→
+        </a>
+        <a class="hero-alt" href="#sidestore">Use SideStore instead</a>
+      </div>
     </section>
 
-    <ol class="steps">
+    <section class="section-intro" id="sidestore">
+      <p class="section-eyebrow">Alternative install</p>
+      <h2 class="section-title">SideStore</h2>
+      <p class="section-copy">Use this route if TestFlight is unavailable to you. It is more hands-on and requires a weekly refresh.</p>
+    </section>
+
+    <ol class="steps" aria-label="SideStore installation steps">
 
       <!-- Step 1 — Install SideStore -->
       <li class="step">
         <div class="step-num">01</div>
         <div class="step-body">
           <h2 class="step-title">Install SideStore</h2>
-          <p class="step-copy">iPhone install is done through SideStore (free). Set it up once.</p>
+          <p class="step-copy">Install SideStore (free) and complete its one-time setup.</p>
           <a class="btn" href="https://sidestore.io" target="_blank" rel="noopener">
             Get SideStore &nbsp;↗
           </a>
@@ -374,7 +432,7 @@
 
     <aside class="honest-note">
       <span class="honest-note-label">Honest note</span>
-      <p>iPhone runs the full Piqabu app — rooms, Reveal/Peek, Whisper voice, Live Glass video. The Piqabu Keyboard is Android-only, and some device-level protections (screenshot blocking) aren't possible on iOS — that's Apple's sandbox, not a Piqabu limitation.</p>
+      <p>The TestFlight build includes the Piqabu app and its iOS keyboard extension. iOS requires Full Access for network-backed keyboard features, and some device-level protections available on Android are not possible inside Apple's sandbox.</p>
     </aside>
 
     <div class="back-link-wrap">

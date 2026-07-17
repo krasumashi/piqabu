@@ -66,7 +66,7 @@ TestFlight is the primary beta channel. Signed builds are currently managed thro
 
 The `testflight` EAS profile uses the `preview` channel and auto-increments the build number. Native changes require a new EAS build and submission. JavaScript-only changes compatible with runtime `1.0.0` can use the preview OTA without a new upload.
 
-External TestFlight users can use a public link only after Apple approves the external testing build/group. Internal testers always require App Store Connect membership; they cannot be converted into a public anonymous link.
+External TestFlight users join through `https://testflight.apple.com/join/ZQjMEVCC`. Internal testers still require App Store Connect membership; they cannot be converted into public anonymous testers.
 
 ### SideStore
 
@@ -88,7 +88,7 @@ After a site deployment, verify:
 
 - home, iPhone, Android, privacy, terms, and upgrade pages;
 - Formspree submission to `https://formspree.io/f/mgorlgve`;
-- Android and SideStore download links;
+- Android, public TestFlight, and SideStore download links;
 - `/.well-known/apple-app-site-association` or the configured equivalent;
 - `/.well-known/assetlinks.json` or the configured equivalent;
 - redirect behavior for `/apps.json` and payment callbacks.

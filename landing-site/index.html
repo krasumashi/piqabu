@@ -483,6 +483,23 @@
       flex-shrink: 0;
     }
     .dl-btn:hover .dl-arrow { color: #fff; }
+    .dl-alt {
+      align-self: flex-start;
+      margin: 1px 0 3px 18px;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.48);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      padding-bottom: 3px;
+      transition: color 0.22s ease, border-color 0.22s ease;
+    }
+    .dl-alt:hover {
+      color: rgba(255,255,255,0.82);
+      border-bottom-color: rgba(255,255,255,0.42);
+    }
     .dl-soon-label {
       font-size: 10px;
       font-weight: 400;
@@ -749,9 +766,9 @@
       <!--
         Step: Get the app
         ───────────────────────────────────────────────────────────────────
-        Both cards live:
+        Both platforms live:
           Android — direct APK from GitHub Releases (latest).
-          iOS     — routes to /iphone (SideStore 3-step flow).
+          iOS     — public TestFlight beta, with SideStore as an alternative.
       -->
       <div class="step" id="step-app">
         <p class="step-title">Have it with you.</p>
@@ -764,13 +781,14 @@
             </div>
             <span class="dl-arrow">↓</span>
           </a>
-          <a class="dl-btn" id="dl-ios" href="/iphone">
+          <a class="dl-btn" id="dl-ios" href="https://testflight.apple.com/join/ZQjMEVCC" rel="noopener">
             <div class="dl-btn-inner">
-              <span class="dl-name">iOS</span>
-              <span class="dl-ext">Via SideStore &nbsp;·&nbsp; 3 steps</span>
+              <span class="dl-name">iPhone</span>
+              <span class="dl-ext">TestFlight &nbsp;·&nbsp; Public beta</span>
             </div>
             <span class="dl-arrow">→</span>
           </a>
+          <a class="dl-alt" href="/iphone#sidestore">SideStore alternative →</a>
         </div>
 
         <div class="form-actions" style="margin-top: 28px;">
