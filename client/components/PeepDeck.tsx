@@ -101,18 +101,40 @@ export default function PeepDeck({
         if (focusedItem && !remoteImages.includes(focusedItem)) setFocusedItem(null);
     }, [remoteImages, focusedItem]);
 
-    // Prevent screenshots when viewing revealed media
+    const hasVisibleMedia = visible && remoteImages.length > 0;
+
+    // Android's FLAG_SECURE implementation does not interfere with media
+    // surfaces. On iOS, preventScreenCaptureAsync reparents the key window
+    // beneath a secure UITextField layer; that can blank React Native images,
+    // AVPlayer, PDFKit, and even the Peek action tiles. Keep iOS content visible
+    // and protect its app-switcher snapshot instead.
     useEffect(() => {
         if (Platform.OS === 'web') return;
-        if (visible && remoteImages.length > 0) {
-            ScreenCapture.preventScreenCaptureAsync('peepDeck');
-        } else {
-            ScreenCapture.allowScreenCaptureAsync('peepDeck');
+
+        if (Platform.OS === 'ios') {
+            // Also undo an active secure-window layer when this JS update is
+            // loaded into an already-running preview build.
+            ScreenCapture.allowScreenCaptureAsync('peepDeck').catch(() => {});
+            if (hasVisibleMedia) {
+                ScreenCapture.enableAppSwitcherProtectionAsync(0.85).catch(() => {});
+            } else {
+                ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => {});
+            }
+            return () => {
+                ScreenCapture.disableAppSwitcherProtectionAsync().catch(() => {});
+            };
         }
+
+        if (hasVisibleMedia) {
+            ScreenCapture.preventScreenCaptureAsync('peepDeck').catch(() => {});
+        } else {
+            ScreenCapture.allowScreenCaptureAsync('peepDeck').catch(() => {});
+        }
+
         return () => {
-            ScreenCapture.allowScreenCaptureAsync('peepDeck');
+            ScreenCapture.allowScreenCaptureAsync('peepDeck').catch(() => {});
         };
-    }, [visible, remoteImages.length]);
+    }, [hasVisibleMedia]);
 
     if (!visible) return null;
 
