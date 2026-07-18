@@ -37,6 +37,37 @@ const nativeMediaDevices: typeof navigator.mediaDevices | undefined =
     RNWebRTC?.mediaDevices;
 const RTCViewNative: React.ComponentType<any> | undefined = RNWebRTC?.RTCView;
 
+/**
+ * Native Live Glass camera frames are converted before WebRTC encoding.
+ * Keep this as a JS flag so a compatible OTA can immediately restore the
+ * untouched colour pipeline if real-device validation finds a regression.
+ */
+const ENABLE_TRANSMITTED_MONOCHROME = true;
+
+function enableTransmittedMonochrome(stream: any): void {
+    if (!ENABLE_TRANSMITTED_MONOCHROME || Platform.OS === 'web') return;
+
+    const videoTrack = stream?.getVideoTracks?.()?.[0];
+    if (!videoTrack) return;
+
+    try {
+        const setVideoEffect = videoTrack._setVideoEffect;
+        if (typeof setVideoEffect !== 'function') {
+            console.warn('[LiveGlass] Monochrome processor unavailable; keeping colour video.');
+            return;
+        }
+
+        setVideoEffect.call(videoTrack, 'piqabu-monochrome');
+        console.log('[LiveGlass] Transmitted monochrome enabled.');
+    } catch (effectError: any) {
+        // Never sacrifice the call if the native processor cannot start.
+        console.warn(
+            '[LiveGlass] Monochrome processor failed; keeping colour video:',
+            effectError?.message ?? effectError,
+        );
+    }
+}
+
 /* ── call audio session (react-native-incall-manager) ──────────────────────
  * WebRTC on Android needs an explicit audio session (MODE_IN_COMMUNICATION
  * + speaker routing) or the remote voice is silent / stuck on the earpiece.
@@ -71,7 +102,7 @@ function stopCallAudio() {
     } catch { /* noop */ }
 }
 
-/* Live Glass renders plain colour video via RTCView. No B&W / blur. */
+/* Live Glass uses native pre-encode monochrome; no display-only filter. */
 
 /* ─────────────────────────────── constants ───────────────────────────────── */
 
@@ -249,6 +280,7 @@ export default function LiveGlassPanel({
 
                 if (nativeMediaDevices) {
                     const stream = await nativeMediaDevices.getUserMedia(constraints as any);
+                    enableTransmittedMonochrome(stream);
                     console.log('[LiveGlass] Native stream acquired, tracks:', stream?.getTracks?.()?.length);
                     return stream;
                 }

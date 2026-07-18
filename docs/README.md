@@ -26,4 +26,4 @@ The live host currently differs from the checked-in Vultr target deployment. Tha
 
 Update these files in the same commit as any architectural or operational change. Never add real secret values. Use dates in `YYYY-MM-DD` format and link decisions from the affected runbook section.
 
-Last reconciled with the repository and observed deployment: 2026-07-16.
+Last reconciled with the repository and observed deployment: 2026-07-18.

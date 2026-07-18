@@ -79,6 +79,16 @@ On-device acceptance checks:
 - Android behavior and its existing Kotlin IME remain unchanged.
 - when testing Peek on iOS, received images, video action tiles, and PDF action tiles remain visible; backgrounding the app hides Peek content in the app switcher. Active screenshot blocking is intentionally Android-only until a media-safe iOS implementation is validated.
 
+Live Glass monochrome acceptance checks for the first processor-enabled binary:
+
+- verify the local preview is monochrome before calling and the remote device receives monochrome pixels, not merely a filtered display;
+- test iPhone-to-Android and Android-to-iPhone in both directions, including a mixed session where only one device has the new binary;
+- switch front/rear cameras repeatedly and confirm the replacement track remains monochrome without renegotiation or a black frame;
+- test connect, reconnect, PiP/expanded views, background/foreground, push-to-talk audio, and a 20-minute session;
+- note device heat, battery use, dropped frames, and audio/video synchronization;
+- confirm a processor failure or an older binary still completes the call in colour;
+- do not promote the build if Live Glass crashes, stalls, or becomes materially less reliable. The immediate compatible rollback is an OTA that sets `ENABLE_TRANSMITTED_MONOCHROME` to `false`; the full rollback is the prior native binary.
+
 External TestFlight users can use a public link only after Apple approves the external testing build/group. Internal testers always require App Store Connect membership; they cannot be converted into a public anonymous link.
 
 ### SideStore

@@ -120,3 +120,14 @@ Reason: Apple requires keyboard extensions to remain functional without Full Acc
 Android continues to use secure-window screenshot protection while Peek media is visible. iOS uses the app-switcher privacy overlay plus Piqabu's visible media watermarks, but does not invoke active screenshot blocking for Peek.
 
 The current `expo-screen-capture` iOS implementation reparents the key window beneath a secure text-field layer. On the tested TestFlight runtime this blanked received images, video and PDF tiles, and their native rendering surfaces. Delivering the core communication feature reliably takes precedence over claiming screenshot prevention that makes the content unusable. Revisit active iOS screenshot protection only with a media-safe native implementation tested against React Native images, AVPlayer, PDFKit, modals, and current iOS releases.
+
+## D-014: Pre-encode monochrome for Live Glass
+
+- Date: 2026-07-18
+- Status: accepted, pending native-build and cross-device validation
+
+Live Glass applies a native frame processor to the local camera track before WebRTC encoding. Neutral chroma is written into each outgoing frame while luminance is preserved, so the local preview and the encoded stream are truly monochrome. This is intentionally limited to camera-based Live Glass; screen-sharing Live Mirror remains unchanged.
+
+The effect is registered under `piqabu-monochrome` in the pinned `react-native-webrtc` 124.0.7 native source through an idempotent post-install patch. JavaScript enables it behind `ENABLE_TRANSMITTED_MONOCHROME`. Missing processors, unsupported native buffers, allocation failures, and processing errors fall back to the original colour path. Signaling, Socket.IO, TURN, audio, and the backend are unchanged.
+
+Reason: display filters do not affect encoded WebRTC frames and are unreliable around native `RTCView` surfaces. Pre-encode processing provides a consistent noir stream while the feature flag and fail-open behaviour preserve the working call path. Any dependency upgrade must deliberately revalidate or replace the pinned native patch.
