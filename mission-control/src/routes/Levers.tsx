@@ -14,7 +14,7 @@ import { apiFetch, ApiError } from '../lib/api';
  */
 export default function Levers() {
     return (
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-6 sm:gap-8">
             <header>
                 <h1 className="text-ink text-lg tracking-widest font-bold">LEVERS</h1>
                 <p className="text-faint text-[10px] tracking-widest mt-1">
@@ -148,7 +148,7 @@ function BroadcastPanel() {
                 maxLength={500}
                 className="w-full bg-paper2 border border-edge rounded-lg px-3 py-2 text-ink text-xs tracking-wider placeholder:text-faint focus:outline-none focus:border-ink resize-none"
             />
-            <div className="flex justify-between items-center mt-3 gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-faint text-[9px] tracking-widest">
                     {message.length} / 500
                 </span>
@@ -161,7 +161,7 @@ function BroadcastPanel() {
                         SEND TO EVERYONE
                     </button>
                 ) : (
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                         <button
                             onClick={() => setConfirming(false)}
                             className="px-4 py-2 rounded-lg text-[10px] tracking-widest font-bold text-muted hover:text-ink"
@@ -274,7 +274,7 @@ function UpdateNoticePanel() {
                 <div className="text-faint text-[10px] tracking-widest">LOADING…</div>
             ) : active ? (
                 <div className="mb-4 p-3 rounded-lg bg-paper2 border border-edge2">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                         <div className={`text-[9px] tracking-widest font-bold px-2 py-0.5 rounded ${
                             active.mode === 'hard' ? 'bg-warn/20 text-warn' : 'bg-ink/10 text-ink'
                         }`}>
@@ -283,11 +283,11 @@ function UpdateNoticePanel() {
                         <div className="text-faint text-[9px] tracking-widest">
                             {active.action.toUpperCase()} · {active.targetVersion || '—'}
                         </div>
-                        <div className="flex-1" />
+                        <div className="hidden sm:block sm:flex-1" />
                         <button
                             onClick={clear}
                             disabled={busy}
-                            className="text-[9px] tracking-widest font-bold text-bad hover:text-warn disabled:opacity-40"
+                            className="w-full text-left text-[9px] tracking-widest font-bold text-bad hover:text-warn disabled:opacity-40 sm:ml-auto sm:w-auto sm:text-right"
                         >
                             CLEAR ACTIVE NOTICE
                         </button>
@@ -360,7 +360,7 @@ function UpdateNoticePanel() {
                 )}
             </div>
 
-            <div className="flex justify-between items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-faint text-[9px] tracking-widest">
                     {message.length} / 1000
                 </span>
@@ -373,7 +373,7 @@ function UpdateNoticePanel() {
                         PUSH NOTICE
                     </button>
                 ) : (
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap justify-end gap-2">
                         <button
                             onClick={() => setConfirming(false)}
                             className="px-4 py-2 rounded-lg text-[10px] tracking-widest font-bold text-muted hover:text-ink"
@@ -541,7 +541,7 @@ function Section({
 }) {
     const accent = tone === 'warn' ? 'border-warn/40' : 'border-edge2';
     return (
-        <div className={`border ${accent} rounded-xl p-6 bg-paper2/30`}>
+        <div className={`border ${accent} rounded-xl p-4 sm:p-6 bg-paper2/30`}>
             <div className="text-faint text-[9px] tracking-widest font-bold uppercase mb-1">
                 {label}
             </div>

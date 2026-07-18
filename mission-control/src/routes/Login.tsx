@@ -11,7 +11,7 @@ import PulseDot from '../components/PulseDot';
 
 /**
  * Single-input operator login. The "username" is the admin API key —
- * matched server-side against ADMIN_API_KEY env var on Render. Key is
+ * matched server-side against the Signal Tower's ADMIN_API_KEY env var. Key is
  * stored in sessionStorage (cleared on tab close).
  *
  * Advanced section lets the operator point at a different API base
@@ -33,7 +33,7 @@ export default function Login() {
             setApiBase(base.trim() || DEFAULT_API_BASE);
             const ok = await probeAdminKey(key.trim());
             if (!ok) {
-                setError('Key rejected by server. Check the ADMIN_API_KEY env var on Render.');
+                setError('Key rejected by server. Check the Signal Tower ADMIN_API_KEY.');
                 return;
             }
             setAdminKey(key.trim());
@@ -46,10 +46,10 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center px-6">
+        <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 py-6">
             <form
                 onSubmit={onSubmit}
-                className="w-full max-w-md flex flex-col gap-6 p-8 border border-edge2 rounded-2xl bg-paper"
+                className="w-full max-w-md flex flex-col gap-6 p-5 sm:p-8 border border-edge2 rounded-2xl bg-paper"
             >
                 <div className="flex items-center gap-3 mb-2">
                     <PulseDot size={10} />
@@ -92,7 +92,7 @@ export default function Login() {
                             type="url"
                             value={base}
                             onChange={e => setBase(e.target.value)}
-                            placeholder={DEFAULT_API_BASE || 'https://piqabu.onrender.com'}
+                            placeholder={DEFAULT_API_BASE || 'https://api.piqabu.live'}
                             className="bg-paper2 border border-edge rounded-lg px-4 py-3 text-ink text-xs tracking-wider focus:outline-none focus:border-ink"
                         />
                         <span className="text-faint text-[9px] tracking-widest">

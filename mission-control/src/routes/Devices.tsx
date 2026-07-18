@@ -74,14 +74,14 @@ export default function Devices() {
 
     return (
         <div className="flex flex-col gap-6">
-            <header className="flex items-end justify-between">
+            <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h1 className="text-ink text-lg tracking-widest font-bold">DEVICES</h1>
                     <p className="text-faint text-[10px] tracking-widest mt-1">
                         GHOST IDS · NO CONTENT VISIBLE FROM HERE
                     </p>
                 </div>
-                <div className="text-faint text-[9px] tracking-widest">
+                <div className="text-faint text-[9px] tracking-widest sm:text-right">
                     {lastUpdated ? `${filtered.length} SHOWN · LAST SYNC ${relativeTime(lastUpdated)}` : 'LOADING…'}
                 </div>
             </header>
@@ -92,7 +92,7 @@ export default function Devices() {
                 </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
                 <input
                     type="text"
                     value={query}
@@ -100,12 +100,12 @@ export default function Devices() {
                     placeholder="SEARCH GHOST ID…"
                     className="flex-1 bg-paper2 border border-edge rounded-lg px-4 py-3 text-ink text-xs tracking-wider placeholder:text-faint focus:outline-none focus:border-ink"
                 />
-                <div className="flex gap-1 bg-paper2 border border-edge rounded-lg p-1">
+                <div className="flex max-w-full gap-1 overflow-x-auto bg-paper2 border border-edge rounded-lg p-1">
                     {(['all', 'free', 'pro'] as const).map(t => (
                         <button
                             key={t}
                             onClick={() => setTierFilter(t)}
-                            className={`px-3 py-1.5 text-[10px] tracking-widest font-bold rounded ${
+                            className={`shrink-0 px-3 py-1.5 text-[10px] tracking-widest font-bold rounded ${
                                 tierFilter === t ? 'bg-ink text-bg' : 'text-muted hover:text-ink'
                             }`}
                         >
@@ -115,8 +115,8 @@ export default function Devices() {
                 </div>
             </div>
 
-            <div className="border border-edge2 rounded-xl overflow-hidden">
-                <table className="w-full text-left">
+            <div className="border border-edge2 rounded-xl overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left">
                     <thead className="bg-paper2">
                         <tr className="text-faint text-[9px] tracking-widest">
                             <th className="px-4 py-3 font-bold">GHOST ID</th>
@@ -205,7 +205,7 @@ function DeviceDrawer({ device, onClose, onActed }: { device: Device; onClose: (
             onClick={onClose}
         >
             <div
-                className="w-full max-w-md bg-paper border-l border-edge p-8 overflow-y-auto"
+                className="w-full max-w-md bg-paper border-l border-edge p-4 sm:p-8 overflow-y-auto"
                 onClick={e => e.stopPropagation()}
             >
                 <div className="flex items-start justify-between mb-6">

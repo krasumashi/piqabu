@@ -124,7 +124,7 @@ The current `expo-screen-capture` iOS implementation reparents the key window be
 ## D-014: Pre-encode monochrome for Live Glass
 
 - Date: 2026-07-18
-- Status: accepted, pending native-build and cross-device validation
+- Status: accepted, native binaries built; pending cross-device validation
 
 Live Glass applies a native frame processor to the local camera track before WebRTC encoding. Neutral chroma is written into each outgoing frame while luminance is preserved, so the local preview and the encoded stream are truly monochrome. This is intentionally limited to camera-based Live Glass; screen-sharing Live Mirror remains unchanged.
 

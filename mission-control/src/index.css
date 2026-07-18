@@ -7,6 +7,7 @@
 
 html, body, #root {
     height: 100%;
+    min-width: 0;
 }
 
 body {
@@ -14,10 +15,19 @@ body {
     color: rgba(245, 243, 235, 0.92);
     font-family: "Space Mono", ui-monospace, monospace;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
 }
 
 * {
     box-sizing: border-box;
+}
+
+button, a {
+    -webkit-tap-highlight-color: transparent;
+}
+
+button, input, textarea {
+    max-width: 100%;
 }
 
 /* Subtle grid background for empty space — matches the Piqabu app's

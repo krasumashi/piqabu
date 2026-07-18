@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
   <meta property="og:title" content="Piqabu — Download">
-  <meta property="og:description" content="Get Piqabu on Android. iOS coming soon.">
+  <meta property="og:description" content="Get Piqabu on Android or join the public iPhone beta on TestFlight.">
   <title>Piqabu — Download</title>
   <link rel="icon" type="image/png" href="/assets/favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -170,8 +170,8 @@
   <script>
     (function () {
       const ANDROID_URL = "https://github.com/krasumashi/piqabu/releases/latest/download/piqabu.apk";
-      // iOS ships via SideStore (self-signed sideload). See /iphone for the 3-step flow.
-      const IOS_URL     = "/iphone";
+      const IOS_URL     = "https://testflight.apple.com/join/ZQjMEVCC";
+      const SIDESTORE_URL = "/iphone#sidestore";
 
       function detectPlatform() {
         const ua = (navigator.userAgent || "").toLowerCase();
@@ -195,19 +195,28 @@
         </a>`;
 
       const iosBtn = `
-        <a class="dl-btn primary" href="${IOS_URL}">
+        <a class="dl-btn primary" href="${IOS_URL}" rel="noopener">
           <div class="dl-btn-inner">
-            <span class="dl-name">Download for iPhone</span>
-            <span class="dl-ext">Via SideStore &nbsp;·&nbsp; 3 steps</span>
+            <span class="dl-name">Join the iPhone beta</span>
+            <span class="dl-ext">TestFlight &nbsp;·&nbsp; Public link</span>
           </div>
           <span class="dl-arrow">→</span>
         </a>`;
 
       const iosSecondary = `
-        <a class="dl-btn" href="${IOS_URL}">
+        <a class="dl-btn" href="${IOS_URL}" rel="noopener">
           <div class="dl-btn-inner">
             <span class="dl-name">For iPhone</span>
-            <span class="dl-ext">Via SideStore</span>
+            <span class="dl-ext">TestFlight &nbsp;·&nbsp; Public beta</span>
+          </div>
+          <span class="dl-arrow">→</span>
+        </a>`;
+
+      const sideStoreSecondary = `
+        <a class="dl-btn" href="${SIDESTORE_URL}">
+          <div class="dl-btn-inner">
+            <span class="dl-name">SideStore alternative</span>
+            <span class="dl-ext">Manual iPhone install</span>
           </div>
           <span class="dl-arrow">→</span>
         </a>`;
@@ -222,14 +231,14 @@
         </a>`;
 
       if (plat === "android") {
-        root.innerHTML = androidBtn + iosSecondary;
+        root.innerHTML = androidBtn + iosSecondary + sideStoreSecondary;
         note.textContent = "Allow installs from this browser if prompted.";
       } else if (plat === "ios") {
-        root.innerHTML = iosBtn + androidSecondary;
-        note.textContent = "iPhone installs via SideStore. No App Store gatekeeper.";
-        lead.textContent = "iPhone installs via SideStore.";
+        root.innerHTML = iosBtn + sideStoreSecondary + androidSecondary;
+        note.textContent = "TestFlight is the recommended iPhone install. SideStore remains available.";
+        lead.textContent = "The public beta is ready on TestFlight.";
       } else {
-        root.innerHTML = androidSecondary + iosSecondary;
+        root.innerHTML = androidSecondary + iosSecondary + sideStoreSecondary;
         note.textContent = "Send the link to your phone, or scan from there.";
         lead.textContent = "Pick your platform.";
       }

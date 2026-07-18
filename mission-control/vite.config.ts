@@ -3,10 +3,9 @@ import react from '@vitejs/plugin-react';
 
 // Vite config for Mission Control.
 //
-// Hosting: served by the Piqabu Node server (Render) at the /mission/
+// Hosting: served by the Piqabu Node server (Vultr) at the /mission/
 // path. So the production build uses `base: '/mission/'` to prefix all
 // asset URLs, and the SPA is reachable at:
-//   https://piqabu.onrender.com/mission/
 //   https://admin.piqabu.live/  (server rewrites / -> /mission/)
 //
 // Dev: Vite serves at http://localhost:5174 with `base: '/'` so the

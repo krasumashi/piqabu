@@ -121,7 +121,7 @@ export default function Helpdesk() {
         <div className="grid md:grid-cols-[360px_1fr] gap-6 min-h-[60vh]">
             {/* Inbox column */}
             <div className="flex flex-col gap-3">
-                <header className="flex items-end justify-between">
+                <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                     <div>
                         <h1 className="text-ink text-lg tracking-widest font-bold">HELPDESK</h1>
                         <p className="text-faint text-[10px] tracking-widest mt-1">
@@ -187,10 +187,10 @@ export default function Helpdesk() {
             </div>
 
             {/* Thread column */}
-            <div className="border border-edge2 rounded-xl p-8 bg-paper2/30 flex flex-col">
+            <div className="border border-edge2 rounded-xl p-4 sm:p-8 bg-paper2/30 flex flex-col">
                 {active ? (
                     <>
-                        <div className="flex items-start justify-between mb-6 gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-6 gap-3">
                             <div>
                                 <div className="text-faint text-[9px] tracking-widest font-bold mb-1">
                                     FROM DEVICE
@@ -199,7 +199,7 @@ export default function Helpdesk() {
                                     {active.deviceId}
                                 </div>
                             </div>
-                            <div className="text-faint text-[9px] tracking-widest text-right">
+                            <div className="text-faint text-[9px] tracking-widest sm:text-right">
                                 {shortClock(active.createdAt)}
                             </div>
                         </div>
@@ -257,7 +257,7 @@ export default function Helpdesk() {
                                     ⏳ QUEUED · Device is offline; delivered on next connect
                                 </div>
                             )}
-                            <div className="flex justify-between items-center mt-3 gap-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <span className="text-faint text-[9px] tracking-widest">
                                     {replyDraft.length} / 4000
                                 </span>

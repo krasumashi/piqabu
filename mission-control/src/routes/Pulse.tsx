@@ -61,14 +61,14 @@ export default function Pulse() {
 
     return (
         <div className="flex flex-col gap-8">
-            <header className="flex items-end justify-between">
+            <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h1 className="text-ink text-lg tracking-widest font-bold">PULSE</h1>
                     <p className="text-faint text-[10px] tracking-widest mt-1">
                         AT-A-GLANCE NETWORK + BUSINESS HEALTH
                     </p>
                 </div>
-                <div className="text-faint text-[9px] tracking-widest">
+                <div className="text-faint text-[9px] tracking-widest sm:text-right">
                     {lastUpdated ? `LAST PING ${relativeTime(lastUpdated)}` : 'CONNECTING…'}
                 </div>
             </header>
@@ -127,7 +127,7 @@ export default function Pulse() {
                             ? formatUptime(status.uptime)
                             : '—'
                     }
-                    sub="Since last Render deploy"
+                    sub="Since last Signal Tower restart"
                 />
                 <StatCard
                     label="Server time"
@@ -136,7 +136,7 @@ export default function Pulse() {
                             ? new Date(status.serverTime).toLocaleTimeString(undefined, { hour12: false })
                             : '—'
                     }
-                    sub="Render's local clock"
+                    sub="Signal Tower local clock"
                 />
             </section>
         </div>

@@ -55,7 +55,7 @@ An OTA may update compatible JavaScript and bundled assets. It cannot safely add
 
 Live Glass camera video uses a named native WebRTC frame processor, `piqabu-monochrome`, before encoding. The processor preserves the luminance plane and neutralizes chroma, so the local preview and transmitted stream are genuinely monochrome rather than display-filtered. Android processes I420 frames; iOS processes the camera's bi-planar or BGRA pixel buffers. The JavaScript activation is deliberately fail-open: a missing or failed processor leaves the original colour track in place so a call is not sacrificed for the effect. The processor is injected into the pinned `react-native-webrtc` 124.0.7 native source by the client's post-install script and therefore requires a new native binary; it is not introduced by an Expo OTA.
 
-The iOS keyboard is therefore present only in native binaries built after the extension was added. TestFlight build 5 does not contain it.
+The iOS keyboard is therefore present only in native binaries built after the extension was added. TestFlight build 5 does not contain it; signed build `1.0.2 (9)` does.
 
 Peek privacy is platform-specific. Android uses the operating system's secure-window protection while revealed media is visible. On iOS, the active screenshot-blocking implementation in `expo-screen-capture` is not used for Peek because its secure-layer technique blanked image, video, PDF, and React Native content on the tested runtime. iOS retains visible watermarks and uses an app-switcher privacy overlay when the app loses focus. Active iOS screenshots are therefore a known platform limitation pending a media-safe native alternative.
 
@@ -76,7 +76,7 @@ Room membership, presence, minted-code state, and active Socket.IO connections a
 
 ### Mission Control
 
-The operator UI lives in `mission-control/`. Its production build is served by the Signal Tower. It sends the entered admin key in the `x-admin-key` header and keeps the value in browser `sessionStorage`, so closing the tab ends the local session.
+The operator UI lives in `mission-control/`. Its production build is served by the Signal Tower. It sends the entered admin key in the `x-admin-key` header and keeps the value in browser `sessionStorage`, so closing the tab ends the local session. The authenticated shell, navigation, forms, data tables, detail panes, and levers are responsive for phone operation; wide operational tables scroll within their own panels instead of forcing the whole page sideways.
 
 ### Landing and distribution
 
@@ -84,11 +84,12 @@ The static site lives in `landing-site/`. Important public integrations include:
 
 - Formspree form endpoint `https://formspree.io/f/mgorlgve`;
 - Android stable download `https://github.com/krasumashi/piqabu/releases/latest/download/piqabu.apk`;
+- public TestFlight beta `https://testflight.apple.com/join/ZQjMEVCC`;
 - SideStore source `https://piqabu.live/apps.json`;
 - SideStore IPA release at the fixed GitHub `ios-latest` release;
 - Apple association and Android asset-link files for project-owned domains.
 
-TestFlight is the primary iOS beta path. SideStore is additive and does not replace App Store Connect.
+TestFlight is the primary iOS beta path. SideStore is a visibly secondary alternative and does not replace App Store Connect.
 
 ## Runtime flows
 

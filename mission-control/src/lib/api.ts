@@ -8,7 +8,8 @@
  *
  * Base URL strategy:
  *   - Dev: Vite proxy forwards /admin and /api to localhost:3000.
- *   - Prod: VITE_API_BASE env var points at the Render server.
+ *   - Prod: same-origin reaches the Vultr Signal Tower through
+ *     admin.piqabu.live; VITE_API_BASE remains available for staging.
  */
 
 const KEY_STORAGE = 'piqabu_mc_admin_key';

@@ -56,7 +56,7 @@ Required GitHub Actions secret: `EXPO_TOKEN`.
 5. Wait for success, open the preview build, and test launch, API connection, deep links, and the changed behavior.
 6. Repeat for `production` only after preview passes.
 
-An OTA does not upload a new binary to Apple and therefore does not change the App Store Connect upload date. The current native identity is version `1.0.2`, build `5`; compatibility is controlled by runtime version `1.0.0`.
+An OTA does not upload a new binary to Apple and therefore does not change the App Store Connect upload date. The current signed native identity is version `1.0.2`, build `9`; compatibility is controlled by runtime version `1.0.0`.
 
 ## iOS distribution
 
@@ -66,7 +66,7 @@ TestFlight is the primary beta channel. Signed builds are currently managed thro
 
 The `testflight` EAS profile uses the `preview` channel and auto-increments the build number. Native changes require a new EAS build and submission. JavaScript-only changes compatible with runtime `1.0.0` can use the preview OTA without a new upload.
 
-The native iOS keyboard target lives under `client/targets/keyboard/`. Adding or changing it requires a new binary and extension provisioning; it cannot be delivered by OTA. Existing build 5 has no keyboard. For the first keyboard-enabled build, confirm EAS detects target `PiqabuKeyboard` with bundle identifier `com.krasumashi.piqabu.keyboard`, creates its credentials, and embeds it in the archive.
+The native iOS keyboard target lives under `client/targets/keyboard/`. Adding or changing it requires a new binary and extension provisioning; it cannot be delivered by OTA. Build `1.0.2 (9)` contains the keyboard extension and the pre-encode Live Glass monochrome processor. Confirm EAS detects target `PiqabuKeyboard` with bundle identifier `com.krasumashi.piqabu.keyboard`, uses its valid credentials, and embeds it in every later archive.
 
 On-device acceptance checks:
 
@@ -91,6 +91,8 @@ Live Glass monochrome acceptance checks for the first processor-enabled binary:
 
 External TestFlight users can use a public link only after Apple approves the external testing build/group. Internal testers always require App Store Connect membership; they cannot be converted into a public anonymous link.
 
+Once Apple approves the external testing build/group, public testers join through `https://testflight.apple.com/join/ZQjMEVCC`. Internal testers still require App Store Connect membership; they cannot be converted into public anonymous testers.
+
 ### SideStore
 
 Repository workflow: `.github/workflows/ios-sidestore.yml`.
@@ -111,7 +113,7 @@ After a site deployment, verify:
 
 - home, iPhone, Android, privacy, terms, and upgrade pages;
 - Formspree submission to `https://formspree.io/f/mgorlgve`;
-- Android and SideStore download links;
+- Android, public TestFlight, and SideStore download links;
 - `/.well-known/apple-app-site-association` or the configured equivalent;
 - `/.well-known/assetlinks.json` or the configured equivalent;
 - redirect behavior for `/apps.json` and payment callbacks.

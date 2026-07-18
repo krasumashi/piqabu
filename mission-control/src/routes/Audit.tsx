@@ -54,14 +54,14 @@ export default function Audit() {
 
     return (
         <div className="flex flex-col gap-6">
-            <header className="flex items-end justify-between">
+            <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h1 className="text-ink text-lg tracking-widest font-bold">AUDIT</h1>
                     <p className="text-faint text-[10px] tracking-widest mt-1">
                         APPEND-ONLY LOG · LAST 500 ENTRIES
                     </p>
                 </div>
-                <div className="text-faint text-[9px] tracking-widest">
+                <div className="text-faint text-[9px] tracking-widest sm:text-right">
                     {lastUpdated ? `${filtered.length} SHOWN · LAST SYNC ${relativeTime(lastUpdated)}` : 'LOADING…'}
                 </div>
             </header>
@@ -72,12 +72,12 @@ export default function Audit() {
                 </div>
             )}
 
-            <div className="flex gap-1 bg-paper2 border border-edge rounded-lg p-1 self-start">
+            <div className="flex max-w-full gap-1 overflow-x-auto bg-paper2 border border-edge rounded-lg p-1 self-start">
                 {(['all', 'info', 'warn', 'error'] as const).map(f => (
                     <button
                         key={f}
                         onClick={() => setFilter(f)}
-                        className={`px-3 py-1.5 text-[10px] tracking-widest font-bold rounded ${
+                        className={`shrink-0 px-3 py-1.5 text-[10px] tracking-widest font-bold rounded ${
                             filter === f ? 'bg-ink text-bg' : 'text-muted hover:text-ink'
                         }`}
                     >
@@ -86,13 +86,13 @@ export default function Audit() {
                 ))}
             </div>
 
-            <div className="border border-edge2 rounded-xl overflow-hidden">
+            <div className="border border-edge2 rounded-xl overflow-x-auto">
                 {filtered.length === 0 ? (
                     <div className="p-10 text-center text-faint text-[10px] tracking-widest">
                         {logs === null ? '—' : 'NO ENTRIES MATCH THIS FILTER'}
                     </div>
                 ) : (
-                    <table className="w-full text-left">
+                    <table className="w-full min-w-[760px] text-left">
                         <thead className="bg-paper2">
                             <tr className="text-faint text-[9px] tracking-widest">
                                 <th className="px-4 py-3 font-bold w-24">TYPE</th>
