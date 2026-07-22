@@ -95,6 +95,7 @@
       "./plugins/withMediaProjectionService.js",
       "expo-web-browser",
       "react-native-iap",
+      "./plugins/withEasIosBuildNumber.js",
       "@bacons/apple-targets"
     ],
     "runtimeVersion": "1.0.0",
