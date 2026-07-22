@@ -131,3 +131,25 @@ Live Glass applies a native frame processor to the local camera track before Web
 The effect is registered under `piqabu-monochrome` in the pinned `react-native-webrtc` 124.0.7 native source through an idempotent post-install patch. JavaScript enables it behind `ENABLE_TRANSMITTED_MONOCHROME`. Missing processors, unsupported native buffers, allocation failures, and processing errors fall back to the original colour path. Signaling, Socket.IO, TURN, audio, and the backend are unchanged.
 
 Reason: display filters do not affect encoded WebRTC frames and are unreliable around native `RTCView` surfaces. Pre-encode processing provides a consistent noir stream while the feature flag and fail-open behaviour preserve the working call path. Any dependency upgrade must deliberately revalidate or replace the pinned native patch.
+
+## D-015: Signal Stream is transient state, not message history
+
+- Date: 2026-07-22
+- Status: accepted; implementation pending device validation
+
+The room uses a scrollable, in-memory Signal Stream with a floating live
+composer. Text still has no Send action: each edit replaces the current remote
+revision. Showing an object creates a temporary text boundary so subsequent
+typing can continue below it. Stream blocks are never persisted or replayed
+after background wipe, disconnect, or process restart.
+
+Vanish governs text. Show/Cover governs media and documents. Selecting an
+object stages only a local URI; the first upload occurs after Show. Optional
+object IDs, text TTLs, and Vanish scope are relayed as backward-compatible
+Socket.IO metadata so mixed-version rooms retain the previous payload/action
+behaviour.
+
+Reason: a scrollable reading surface must not quietly turn Piqabu into a chat
+archive. Explicit transient boundaries provide readability around shown
+objects while retaining predictable expiry, memory wiping, and deliberate
+object exposure.

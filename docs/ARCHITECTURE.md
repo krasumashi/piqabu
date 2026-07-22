@@ -99,7 +99,7 @@ TestFlight is the primary iOS beta path. SideStore is a visibly secondary altern
 2. Socket.IO maintains room presence and WebRTC signaling.
 3. The client requests `/ice-servers`; the backend obtains short-lived TURN credentials from Cloudflare when configured and caches them for about one hour.
 4. The client attempts WebRTC with returned ICE servers. Google STUN remains a fallback, but STUN alone does not guarantee difficult NAT traversal.
-5. Uploads are staged under `/tmp/uploads`, limited to 15 MB, tracked with the room, and removed during room cleanup.
+5. Uploads are staged under `UPLOAD_DIR` (default `/tmp/uploads`), limited to 15 MB, tracked with the room, and removed during room cleanup. Signal Stream v2 clients also request immediate deletion when the sender Covers an object.
 
 Cloudflare R2 is activated in the account but is not integrated into the current upload flow.
 

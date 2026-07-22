@@ -31,6 +31,8 @@ final class KeyboardViewController: UIInputViewController {
     private let guidanceLabel = UILabel()
     private let mintButton = UIButton(type: .system)
     private let keysStack = UIStackView()
+    private var keyboardHeightConstraint: NSLayoutConstraint?
+    private weak var shiftButton: UIButton?
 
     private var currentLayout: KeyboardLayout = .letters
     private var isShifted = false
@@ -43,24 +45,55 @@ final class KeyboardViewController: UIInputViewController {
         rebuildKeys()
     }
 
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.updateKeyboardHeight(for: size)
+        })
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateKeyboardHeight(for: view.bounds.size)
+    }
+
+    private func updateKeyboardHeight(for size: CGSize) {
+        guard size.width > 0 else { return }
+        let isLandscape = size.width > UIScreen.main.bounds.height * 0.72
+        let screenHeight = max(UIScreen.main.bounds.width, UIScreen.main.bounds.height)
+        let portraitHeight: CGFloat
+        if screenHeight < 700 {
+            portraitHeight = 282
+        } else if screenHeight > 880 {
+            portraitHeight = 300
+        } else {
+            portraitHeight = 292
+        }
+        let desired = isLandscape ? CGFloat(218) : portraitHeight
+        if keyboardHeightConstraint?.constant != desired {
+            keyboardHeightConstraint?.constant = desired
+        }
+    }
+
     private func setupKeyboard() {
         view.backgroundColor = backgroundColor
 
-        let height = view.heightAnchor.constraint(equalToConstant: 332)
+        let height = view.heightAnchor.constraint(equalToConstant: 292)
         height.priority = UILayoutPriority(999)
         height.isActive = true
+        keyboardHeightConstraint = height
 
         let root = UIStackView()
         root.axis = .vertical
-        root.spacing = 6
+        root.spacing = 5
         root.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(root)
 
         NSLayoutConstraint.activate([
-            root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-            root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-            root.topAnchor.constraint(equalTo: view.topAnchor, constant: 7),
-            root.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -7)
+            root.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 5),
+            root.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -5),
+            root.topAnchor.constraint(equalTo: view.topAnchor, constant: 5),
+            root.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -5)
         ])
 
         let strip = UIStackView()
@@ -71,7 +104,7 @@ final class KeyboardViewController: UIInputViewController {
         strip.layoutMargins = UIEdgeInsets(top: 4, left: 10, bottom: 4, right: 6)
         strip.backgroundColor = UIColor.white.withAlphaComponent(0.035)
         strip.layer.cornerRadius = 8
-        strip.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        strip.heightAnchor.constraint(equalToConstant: 34).isActive = true
 
         let pulse = UIView()
         pulse.backgroundColor = inkColor.withAlphaComponent(0.42)
@@ -98,16 +131,16 @@ final class KeyboardViewController: UIInputViewController {
 
         guidanceLabel.text = "MINT inserts a link. Send it, then tap it to enter Piqabu."
         guidanceLabel.textColor = mutedColor
-        guidanceLabel.font = UIFont.monospacedSystemFont(ofSize: 9, weight: .regular)
+        guidanceLabel.font = UIFont.monospacedSystemFont(ofSize: 8, weight: .regular)
         guidanceLabel.textAlignment = .center
         guidanceLabel.numberOfLines = 1
         guidanceLabel.adjustsFontSizeToFitWidth = true
         guidanceLabel.minimumScaleFactor = 0.75
-        guidanceLabel.heightAnchor.constraint(equalToConstant: 18).isActive = true
+        guidanceLabel.heightAnchor.constraint(equalToConstant: 14).isActive = true
         root.addArrangedSubview(guidanceLabel)
 
         keysStack.axis = .vertical
-        keysStack.spacing = 6
+        keysStack.spacing = 5
         keysStack.distribution = .fillEqually
         root.addArrangedSubview(keysStack)
     }
@@ -144,11 +177,12 @@ final class KeyboardViewController: UIInputViewController {
 
     private func letterThirdRow() -> UIStackView {
         let row = equalRow()
-        let shift = actionButton("⇧") { [weak self] in
+        let shift = symbolButton("shift") { [weak self] in
             guard let self else { return }
             self.isShifted.toggle()
             self.updateShiftTitles()
         }
+        shiftButton = shift
         shift.accessibilityLabel = "Shift"
         row.addArrangedSubview(shift)
         Array("zxcvbnm").map { String($0) }.forEach { row.addArrangedSubview(characterButton($0)) }
@@ -172,10 +206,11 @@ final class KeyboardViewController: UIInputViewController {
         row.distribution = .fill
 
         let globe = UIButton(type: .system)
-        styleButton(globe, title: "🌐", actionStyle: true)
+        styleSymbolButton(globe, systemName: "globe", actionStyle: true)
         globe.accessibilityLabel = "Next keyboard"
         globe.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
         globe.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        globe.isHidden = !needsInputModeSwitchKey
 
         let modeTitle = currentLayout == .letters ? "123" : "ABC"
         let mode = actionButton(modeTitle) { [weak self] in
@@ -194,7 +229,7 @@ final class KeyboardViewController: UIInputViewController {
         let space = keyButton("space") { [weak self] in self?.textDocumentProxy.insertText(" ") }
         space.accessibilityLabel = "Space"
 
-        let returnButton = actionButton("return") { [weak self] in self?.textDocumentProxy.insertText("\n") }
+        let returnButton = symbolButton("return") { [weak self] in self?.textDocumentProxy.insertText("\n") }
         returnButton.accessibilityLabel = "Return"
         returnButton.widthAnchor.constraint(equalToConstant: 58).isActive = true
 
@@ -223,7 +258,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func deleteButton() -> UIButton {
-        let button = actionButton("⌫") { [weak self] in self?.textDocumentProxy.deleteBackward() }
+        let button = symbolButton("delete.left") { [weak self] in self?.textDocumentProxy.deleteBackward() }
         button.accessibilityLabel = "Delete"
         return button
     }
@@ -242,6 +277,13 @@ final class KeyboardViewController: UIInputViewController {
         return button
     }
 
+    private func symbolButton(_ systemName: String, action: @escaping () -> Void) -> UIButton {
+        let button = UIButton(type: .system)
+        styleSymbolButton(button, systemName: systemName, actionStyle: true)
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
+        return button
+    }
+
     private func configureButton(_ button: UIButton, title: String, action: Selector, actionStyle: Bool) {
         styleButton(button, title: title, actionStyle: actionStyle)
         button.addTarget(self, action: action, for: .touchUpInside)
@@ -252,7 +294,17 @@ final class KeyboardViewController: UIInputViewController {
         button.setTitleColor(inkColor, for: .normal)
         button.titleLabel?.font = UIFont.systemFont(ofSize: title.count == 1 ? 20 : 12, weight: .medium)
         button.backgroundColor = actionStyle ? actionKeyColor : keyColor
-        button.layer.cornerRadius = 6
+        button.layer.cornerRadius = 7
+        button.layer.borderWidth = 0.5
+        button.layer.borderColor = UIColor.white.withAlphaComponent(0.09).cgColor
+    }
+
+    private func styleSymbolButton(_ button: UIButton, systemName: String, actionStyle: Bool) {
+        let configuration = UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
+        button.setImage(UIImage(systemName: systemName, withConfiguration: configuration), for: .normal)
+        button.tintColor = inkColor
+        button.backgroundColor = actionStyle ? actionKeyColor : keyColor
+        button.layer.cornerRadius = 7
         button.layer.borderWidth = 0.5
         button.layer.borderColor = UIColor.white.withAlphaComponent(0.09).cgColor
     }
@@ -273,6 +325,9 @@ final class KeyboardViewController: UIInputViewController {
         letterButtons.forEach { item in
             item.button.setTitle(isShifted ? item.value.uppercased() : item.value, for: .normal)
         }
+        let name = isShifted ? "shift.fill" : "shift"
+        let configuration = UIImage.SymbolConfiguration(pointSize: 17, weight: .medium)
+        shiftButton?.setImage(UIImage(systemName: name, withConfiguration: configuration), for: .normal)
     }
 
     @objc private func mintOrReset() {

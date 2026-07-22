@@ -1,21 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView,
-    Platform, ScrollView, Alert, Modal, StyleSheet, Share,
-    Animated as RNAnimated, Keyboard, Easing, useWindowDimensions,
+    View, Text, TextInput, TouchableOpacity,
+    Platform, Alert, Modal, StyleSheet, Share,
+    Animated as RNAnimated, Keyboard, Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useRoomContext } from '../../contexts/RoomContext';
 import { useRoom, LinkStatus } from '../../hooks/useRoom';
 import RoomTabBar from '../../components/RoomTabBar';
-import Dock from '../../components/Dock';
-import RevealDeck from '../../components/RevealDeck';
-import PeepDeck from '../../components/PeepDeck';
+import SignalStream from '../../components/SignalStream';
 import SettingsPanel from '../../components/SettingsPanel';
 import WhisperPanel from '../../components/WhisperPanel';
 import InviteOverlay from '../../components/InviteOverlay';
@@ -31,7 +28,6 @@ import HandshakeScreen, {
 import { usePartnerHandshake } from '../../hooks/usePartnerHandshake';
 import GridBackground from '../../components/GridBackground';
 import PresencePulse from '../../components/PresencePulse';
-import SandText from '../../components/SandText';
 import { usePresence } from '../../hooks/usePresence';
 import * as ScreenCapture from 'expo-screen-capture';
 import { THEME } from '../../constants/Theme';
@@ -91,7 +87,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const isDeepLinkRoom = currentRoom?.origin === 'deeplink';
     const { partnerPresence, sendPulseTap } = usePresence(socket, roomId);
     const {
-        linkStatus, remoteText, remoteReveal, revealGallery,
+        linkStatus, remoteText, remoteStream,
         sendText, sendVanish, sendReveal,
         pendingInvite, inviteStatus, inviteFeature,
         sendInvite, acceptInvite, declineInvite, clearInviteStatus,
@@ -113,13 +109,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const statusPillRef = useWalkthroughTarget<View>('statusPill');
 
     const [localText, setLocalText] = useState('');
-    const [activeOverlay, setActiveOverlay] = useState<'peep' | 'whisper' | 'reveal' | null>(null);
+    const [activeOverlay, setActiveOverlay] = useState<'whisper' | null>(null);
     const [isPartnerTyping, setIsPartnerTyping] = useState(false);
     const [whisperBadge, setWhisperBadge] = useState(0);
     const [roomCodeCopied, setRoomCodeCopied] = useState(false);
     const [vanishDuration, setVanishDuration] = useState(0);
     const [incomingWhisper, setIncomingWhisper] = useState(false);
-    const [peekBadge, setPeekBadge] = useState(false);
     const [whisperPartnerAccepted, setWhisperPartnerAccepted] = useState(false);
     const [whisperInitialState, setWhisperInitialState] = useState<'idle' | 'accepted'>('idle');
     const [screenshotAlert, setScreenshotAlert] = useState(false);
@@ -160,11 +155,6 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     //    grows line-by-line and docks above the keyboard. We only track
     //    keyboard visibility (to hide the Dock while typing) and the
     //    input's content height (to auto-grow it, clamped). ──
-    const { height: winH } = useWindowDimensions();
-    const COMPOSE_MIN = 46;                              // ~1 line + padding
-    const COMPOSE_MAX = Math.round(winH * 0.34);          // cap, then scrolls
-    const PEEK_TRAY_H = Math.round(winH * 0.46);          // Peek tray height
-    const [composeHeight, setComposeHeight] = useState(COMPOSE_MIN);
     // Manual keyboard inset. Expo's edge-to-edge mode means the window does
     // NOT auto-resize for the IME even with adjustResize, so we measure the
     // keyboard height and lift the feed+compose by it ourselves (works on
@@ -243,6 +233,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         setSandOverlayText(currentText);
         setSandOverlayActive(true);
         // Clear input in one operation (no char-by-char — no autocomplete interference)
+        localTextRef.current = '';
         setLocalText('');
         batchSendText('');
     }, [sendVanish, batchSendText]);
@@ -250,6 +241,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     // ── Handle text input changes — simple, no segment tracking ──
     const handleTextChange = useCallback((newText: string) => {
         if (newText.length > limits.textLimit) return;
+        localTextRef.current = newText;
         setLocalText(newText);
         batchSendText(newText);
 
@@ -264,6 +256,40 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             vanishTimerRef.current = null;
         }
     }, [vanishDuration, batchSendText, limits.textLimit, handleVanishTrigger]);
+
+    // Showing an object is an ordered boundary transaction. Flush the latest
+    // text revision synchronously (it may still be inside the 50 ms batch),
+    // emit Show so the receiver freezes that exact revision, then clear.
+    const handleShowObject = useCallback((payload: string, itemId: string) => {
+        if (vanishTimerRef.current) {
+            clearTimeout(vanishTimerRef.current);
+            vanishTimerRef.current = null;
+        }
+        if (batchTimerRef.current) {
+            clearTimeout(batchTimerRef.current);
+            batchTimerRef.current = null;
+        }
+        const currentText = pendingTextRef.current;
+        if (currentText) sendText(currentText);
+        sendReveal(payload, 'show', { itemId, textTtlMs: vanishDuration });
+        if (!currentText) return;
+        sendText('');
+        pendingTextRef.current = '';
+        localTextRef.current = '';
+        setLocalText('');
+    }, [sendReveal, sendText, vanishDuration]);
+
+    const handleClearStream = useCallback(() => {
+        if (vanishTimerRef.current) {
+            clearTimeout(vanishTimerRef.current);
+            vanishTimerRef.current = null;
+        }
+        sendVanish('all');
+        localTextRef.current = '';
+        pendingTextRef.current = '';
+        setLocalText('');
+        batchSendText('');
+    }, [batchSendText, sendVanish]);
 
     // ── Cleanup vanish timer on unmount ──
     useEffect(() => {
@@ -297,16 +323,6 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             setIncomingWhisper(false);
         };
     }, [socket, roomId]);
-
-    // ── Peek indicator: badge the PEEK button when the partner shows
-    //    something and the Peek room isn't already open. ──
-    useEffect(() => {
-        if (remoteReveal) setPeekBadge(activeOverlay !== 'peep');
-        else setPeekBadge(false);
-    }, [remoteReveal]);
-    useEffect(() => {
-        if (activeOverlay === 'peep') setPeekBadge(false);
-    }, [activeOverlay]);
 
     // ── Screenshot detection → notify partner ──
     useEffect(() => {
@@ -365,13 +381,6 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         } catch {}
     };
 
-    // ── Dock toggle ──
-    // Piqabu is free — every surface (Peek, Whisper, Reveal) is open to
-    // all users. No gating.
-    const handleDockToggle = (id: 'peep' | 'whisper' | 'reveal') => {
-        setActiveOverlay(prev => prev === id ? null : id);
-    };
-
     // ── Handle invite acceptance ──
     useEffect(() => {
         if (inviteStatus === 'accepted') {
@@ -418,15 +427,6 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 </View>
 
                 <View style={st.headerRight}>
-                    {/* Piqa Live — unified entry for camera (Live Glass) + screen (Live Mirror) */}
-                    <TouchableOpacity
-                        onPress={() => setLiveLauncherOpen(true)}
-                        style={st.headerIconBtn}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="radio-outline" size={18} color={THEME.muted} />
-                    </TouchableOpacity>
-
                     <TouchableOpacity
                         onPress={handleLinkDevices}
                         style={[
@@ -442,143 +442,51 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                         />
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                        onPress={handleCycleVanish}
-                        style={[
-                            st.headerIconBtn,
-                            vanishDuration > 0 && { backgroundColor: THEME.accEmerald, borderWidth: 0 },
-                        ]}
-                        activeOpacity={0.7}
-                    >
-                        <Ionicons name="flash" size={16} color={vanishDuration > 0 ? '#000' : THEME.muted} />
-                        {vanishDuration > 0 && (
-                            <Text style={st.vanishLabel}>{vanishDuration / 1000}s</Text>
-                        )}
-                    </TouchableOpacity>
-
                     <TouchableOpacity onPress={onOpenSettings} style={st.headerIconBtn} activeOpacity={0.7}>
                         <Ionicons name="settings-outline" size={18} color={THEME.muted} />
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* ─── Feed + compose ─── */}
-            {/* paddingBottom = keyboard height when typing (lifts the compose
-                bar above the keys), or a small gap to the Dock at rest. */}
-            <View style={[st.splitContainer, {
-                // Peek tray takes priority over the keyboard: while the tray
-                // is open the compose bar sits fixed above it and ignores the
-                // keyboard (so typing doesn't drop it behind the tray). Only
-                // when the tray is closed does the keyboard drive the lift.
-                paddingBottom: activeOverlay === 'peep'
-                    ? PEEK_TRAY_H + 8                           // above the Peek tray
-                    : kbHeight > 0
-                        // Android edge-to-edge under-reports the keyboard by
-                        // the nav-bar height; iOS already includes the inset.
-                        ? kbHeight + (Platform.OS === 'android' ? insets.bottom : 0) + KB_GAP
-                        : 14,                                   // rest: gap to the Dock
+            {/* Signal Stream v2. The old split feed and separate Reveal/Peek
+                decks remain in source for rollback, but are not mounted. */}
+            <View style={[st.signalContainer, {
+                paddingBottom: kbHeight > 0
+                    ? kbHeight + (Platform.OS === 'android' ? insets.bottom : 0) + KB_GAP
+                    : 0,
             }]}>
-                {/* Correspondent feed — fills the top like a chat thread */}
-                <View style={[st.card, { flex: 1 }]}>
-                    <View style={st.cardHeader}>
-                        <View style={st.cardHeaderLeft}>
-                            <View style={[st.cardDot, { backgroundColor: THEME.remote }]} />
-                            <Text style={st.cardLabel}>CORRESPONDENT</Text>
-                        </View>
-                        <Text style={st.cardSub}>REMOTE FEED</Text>
-                    </View>
-                    <View style={st.cardBody}>
-                        <LinearGradient colors={['rgba(15,17,20,0.95)', 'transparent']} style={st.fadeTop} pointerEvents="none" />
-                        <ScrollView style={st.cardScroll} showsVerticalScrollIndicator={false}>
-                            {remoteSandActive && remoteDecayText ? (
-                                <SandText
-                                    text={remoteDecayText}
-                                    trigger={true}
-                                    onComplete={() => {
-                                        setRemoteDecayText(null);
-                                        setRemoteSandActive(false);
-                                    }}
-                                />
-                            ) : remoteText ? (
-                                <Text style={st.decayText}>{remoteText}</Text>
-                            ) : (
-                                <Text style={st.placeholderText}>SIGNAL WAITING...</Text>
-                            )}
-                        </ScrollView>
-                        <LinearGradient colors={['transparent', 'rgba(15,17,20,0.95)']} style={st.fadeBottom} pointerEvents="none" />
-                    </View>
-                </View>
-
-                {/* Compose bar — grows line-by-line, docks above the keyboard
-                    (Android adjustResize handles the push-up). */}
-                <View style={st.composeBar}>
-                    <View style={[st.cardDot, st.composeDot, { backgroundColor: THEME.local }]} />
-                    <View style={st.composeInputWrap}>
-                        <TextInput
-                            multiline
-                            value={localText}
-                            onChangeText={handleTextChange}
-                            onContentSizeChange={(e) => {
-                                const h = e.nativeEvent.contentSize.height + 20;
-                                setComposeHeight(Math.max(COMPOSE_MIN, Math.min(COMPOSE_MAX, h)));
-                            }}
-                            placeholder="START TRANSMISSION..."
-                            placeholderTextColor={THEME.faint}
-                            style={[st.composeInput, { height: composeHeight }]}
-                        />
-                        {/* Sand dissipation overlay */}
-                        {sandOverlayText && (
-                            <View style={[StyleSheet.absoluteFill, { paddingHorizontal: 4, paddingVertical: 10, zIndex: 10 }]} pointerEvents="none">
-                                <SandText
-                                    text={sandOverlayText}
-                                    trigger={sandOverlayActive}
-                                    onComplete={() => {
-                                        setSandOverlayText(null);
-                                        setSandOverlayActive(false);
-                                    }}
-                                />
-                            </View>
-                        )}
-                    </View>
-                </View>
+                <SignalStream
+                    roomId={roomId}
+                    remoteText={remoteText}
+                    remoteStream={remoteStream}
+                    remoteDecayText={remoteDecayText}
+                    remoteSandActive={remoteSandActive}
+                    localDecayText={sandOverlayText}
+                    localSandActive={sandOverlayActive}
+                    localText={localText}
+                    textLimit={limits.textLimit}
+                    vanishDuration={vanishDuration}
+                    isPartnerTyping={isPartnerTyping}
+                    keyboardVisible={keyboardVisible}
+                    onChangeText={handleTextChange}
+                    onShow={handleShowObject}
+                    onCover={(payload, itemId) => sendReveal(payload, 'cover', { itemId, purge: true })}
+                    onClearStream={handleClearStream}
+                    onCycleVanish={handleCycleVanish}
+                    onOpenWhisper={() => setActiveOverlay('whisper')}
+                    onOpenLive={() => setLiveLauncherOpen(true)}
+                    videoPlaybackControl={videoPlaybackControl}
+                    onSign={(line) => handleTextChange(line)}
+                    onLocalSandComplete={() => {
+                        setSandOverlayText(null);
+                        setSandOverlayActive(false);
+                    }}
+                />
             </View>
 
             {/* Listening Indicator */}
             <ListeningIndicator incomingWhisper={incomingWhisper} />
 
-            {/* Dock — hidden while typing (compose sits above the keyboard)
-                and while the Peek tray is open (compose sits above the tray;
-                fold the tray shut to bring the Dock back). */}
-            {!keyboardVisible && activeOverlay !== 'peep' && (
-                <Dock
-                    activeOverlay={activeOverlay}
-                    onToggle={handleDockToggle}
-                    incomingWhisper={whisperBadge > 0}
-                    peekBadge={peekBadge}
-                    whisperActive={activeOverlay === 'whisper'}
-                />
-            )}
-
-            {/* Overlays */}
-            <RevealDeck
-                visible={activeOverlay === 'reveal'}
-                onClose={() => setActiveOverlay(null)}
-                onReveal={sendReveal}
-                roomId={roomId}
-                onVideoControl={(ctrl) => socket?.emit('transmit_video_playback', { roomId, control: ctrl })}
-            />
-            <PeepDeck
-                visible={activeOverlay === 'peep'}
-                onClose={() => {
-                    setActiveOverlay(null);
-                    // Clear the peep view — sender must re-expose for it to show again
-                    setVideoPlaybackControl(null);
-                }}
-                remoteImages={revealGallery}
-                videoControls={videoPlaybackControl}
-                onSign={(line) => sendText(line)}
-                trayHeight={PEEK_TRAY_H}
-            />
             <WhisperPanel
                 visible={activeOverlay === 'whisper'}
                 onClose={() => {
@@ -942,7 +850,10 @@ const st = StyleSheet.create({
     },
     vanishLabel: { fontSize: 10, fontWeight: '900', fontFamily: THEME.mono, color: '#000' },
 
-    // Split Interface
+    signalContainer: { flex: 1 },
+
+    // Legacy split interface styles retained for rollback while Signal Stream
+    // v2 completes cross-device validation.
     splitContainer: { flex: 1, paddingHorizontal: 14, gap: 12, paddingTop: 12 },
     card: {
         borderRadius: THEME.r, borderWidth: 1, borderColor: THEME.edge,

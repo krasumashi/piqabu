@@ -79,7 +79,7 @@ app.post('/api/feedback', express.json(), healthLimiter, (req, res) => {
 });
 
 // --- File Upload (Multer) ---
-const uploadDir = '/tmp/uploads';
+const uploadDir = process.env.UPLOAD_DIR || '/tmp/uploads';
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -700,11 +700,12 @@ io.on('connection', (socket) => {
         if (!participant) return;
 
         const roomId = extractRoomId(data);
+        const scope = data && data.scope === 'all' ? 'all' : 'current';
         if (roomId && participant.rooms.has(roomId)) {
-            socket.to(roomId).emit('remote_vanish', { roomId });
+            socket.to(roomId).emit('remote_vanish', { roomId, scope });
         } else {
             const firstRoom = participant.rooms.values().next().value;
-            if (firstRoom) socket.to(firstRoom).emit('remote_vanish', { roomId: firstRoom });
+            if (firstRoom) socket.to(firstRoom).emit('remote_vanish', { roomId: firstRoom, scope });
         }
     });
 
@@ -722,7 +723,25 @@ io.on('connection', (socket) => {
             // gallery; 'cover' removes that specific item; 'coverAll' clears
             // the gallery. Relayed verbatim so the receiver can reconcile.
             const action = (data.action === 'cover' || data.action === 'coverAll') ? data.action : 'show';
-            socket.to(roomId).emit('remote_reveal', { roomId, payload: result.sanitized, action });
+            const itemId = typeof data.itemId === 'string' && /^[a-z0-9_-]{1,64}$/i.test(data.itemId)
+                ? data.itemId
+                : undefined;
+            const textTtlMs = Number.isFinite(data.textTtlMs)
+                ? Math.max(0, Math.min(30000, Math.round(data.textTtlMs)))
+                : 0;
+            socket.to(roomId).emit('remote_reveal', {
+                roomId,
+                payload: result.sanitized,
+                action,
+                itemId,
+                textTtlMs,
+            });
+            // New Signal Stream clients explicitly request purge on Cover.
+            // Legacy clients omit this flag and retain their old re-show
+            // behaviour until they leave the room.
+            if (action === 'cover' && data.purge === true && result.sanitized) {
+                cleanupRoomFile(roomId, result.sanitized);
+            }
         } else {
             // Legacy: data is the payload directly
             const result = validateRevealPayload(data);
@@ -1040,6 +1059,23 @@ function cleanupRoomFiles(roomId) {
     }
     roomFiles.delete(roomId);
     console.log(`[CLEANUP] Deleted ${files.size} files for room ${roomId}`);
+}
+
+function cleanupRoomFile(roomId, payload) {
+    if (typeof payload !== 'string' || !payload.startsWith('/uploads/')) return;
+    const fileName = path.basename(payload);
+    if (payload !== `/uploads/${fileName}`) return;
+    const files = roomFiles.get(roomId);
+    if (!files) return;
+    const filePath = [...files].find((candidate) => path.basename(candidate) === fileName);
+    if (!filePath) return;
+    files.delete(filePath);
+    if (files.size === 0) roomFiles.delete(roomId);
+    fs.unlink(filePath, (err) => {
+        if (err && err.code !== 'ENOENT') {
+            console.warn(`[CLEANUP] Failed to delete ${filePath}:`, err.message);
+        }
+    });
 }
 
 // Leave a single room
