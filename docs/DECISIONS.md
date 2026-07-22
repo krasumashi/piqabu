@@ -153,3 +153,22 @@ Reason: a scrollable reading surface must not quietly turn Piqabu into a chat
 archive. Explicit transient boundaries provide readability around shown
 objects while retaining predictable expiry, memory wiping, and deliberate
 object exposure.
+
+## D-016: Consent and media control live with the sender composer
+
+- Date: 2026-07-22
+- Status: accepted; device validation pending
+
+Whisper is a persistent composer mic rather than a tool-sheet or modal action.
+The first tap sends a consent invite, red denotes waiting/connecting, green
+denotes an open muted line, and only press-and-hold enables the microphone.
+Release mutes immediately. This preserves the existing WebRTC and invitation
+protocol while making its state visible at the point of use.
+
+Shown-video playback is sender-controlled. The receiver may open the sealed
+surface but gets no local playback controls. Play/pause commands carry the
+temporary object ID so multiple shown videos do not share control state.
+
+Reason: audio capture and media motion are consequential disclosures. Keeping
+their controls beside the sender's live draft makes consent, ownership, and
+current state legible without adding durable messages or hidden modal state.

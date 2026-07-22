@@ -33,7 +33,7 @@ if (Platform.OS !== 'web') {
 
 /* ─────────────────────── types ─────────────────────────── */
 
-type WhisperState = 'IDLE' | 'INVITED' | 'CONNECTING' | 'LIVE';
+export type WhisperState = 'IDLE' | 'INVITED' | 'CONNECTING' | 'LIVE';
 
 interface WhisperPanelProps {
     visible: boolean;
@@ -47,6 +47,13 @@ interface WhisperPanelProps {
     partnerAccepted: boolean;
     /** 'idle' for sender (default), 'accepted' for receiver who accepted invite */
     initialState?: 'idle' | 'accepted';
+    /** Render only the connection controller; the composer owns the controls. */
+    headless?: boolean;
+    /** Increment to send one consent invite from an embedded controller. */
+    startRequested?: number;
+    /** True only while the embedded composer mic is being held. */
+    holdActive?: boolean;
+    onStateChange?: (state: WhisperState, error: string | null) => void;
 }
 
 /* ═══════════════════════ COMPONENT ════════════════════════ */
@@ -54,6 +61,7 @@ interface WhisperPanelProps {
 export default function WhisperPanel({
     visible, onClose, socket, roomId, whisperBadge,
     onSendInvite, partnerAccepted, initialState = 'idle',
+    headless = false, startRequested = 0, holdActive = false, onStateChange,
 }: WhisperPanelProps) {
     const slideAnim = useRef(new RNAnimated.Value(400)).current;
     const fadeAnim = useRef(new RNAnimated.Value(0)).current;
@@ -76,6 +84,7 @@ export default function WhisperPanel({
     const cleanedUp = useRef(false);
     const makingOffer = useRef(false);
     const webrtcStarted = useRef(false);
+    const handledStartRequest = useRef(0);
 
     /* ── reset when panel opens ── */
     useEffect(() => {
@@ -457,11 +466,31 @@ export default function WhisperPanel({
 
     /* ── CONNECT button ── */
     const handleConnect = useCallback(() => {
+        setError(null);
         setState('INVITED');
         onSendInvite();
     }, [onSendInvite]);
 
-    if (!visible) return null;
+    // Embedded composer control: one tap raises the consent invite. A
+    // monotonically increasing token prevents re-renders from re-sending it.
+    useEffect(() => {
+        if (!visible || startRequested <= handledStartRequest.current) return;
+        handledStartRequest.current = startRequested;
+        if (state === 'IDLE') handleConnect();
+    }, [handleConnect, startRequested, state, visible]);
+
+    // Once the line is live, the composer owns push-to-talk directly.
+    useEffect(() => {
+        if (!visible || state !== 'LIVE') return;
+        if (holdActive) handlePTTIn();
+        else handlePTTOut();
+    }, [handlePTTIn, handlePTTOut, holdActive, state, visible]);
+
+    useEffect(() => {
+        onStateChange?.(state, error);
+    }, [error, onStateChange, state]);
+
+    if (!visible || headless) return null;
 
     /* ── derived values ── */
     const statusColor = state === 'LIVE' ? '#4ADE80' : error ? '#EF4444' : THEME.faint;

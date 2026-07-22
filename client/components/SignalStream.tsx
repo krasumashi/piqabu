@@ -7,6 +7,7 @@ import {
     Image,
     Modal,
     Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -50,6 +51,7 @@ interface ComposerAttachment {
 interface SignalStreamProps {
     roomId: string;
     remoteText: string;
+    remoteTextRevision: number;
     remoteStream: RemoteStreamItem[];
     remoteDecayText: string | null;
     remoteSandActive: boolean;
@@ -65,9 +67,12 @@ interface SignalStreamProps {
     onCover: (payload: string, itemId: string) => void;
     onClearStream: () => void;
     onCycleVanish: () => void;
-    onOpenWhisper: () => void;
+    whisperState: 'idle' | 'invited' | 'connecting' | 'live' | 'speaking' | 'error';
+    onWhisperTap: () => void;
+    onWhisperHoldChange: (holding: boolean) => void;
     onOpenLive: () => void;
-    videoPlaybackControl?: { action: string; position?: number } | null;
+    videoPlaybackControl?: { action: string; position?: number; itemId?: string } | null;
+    onVideoControl?: (control: { action: 'play' | 'pause' | 'seek'; position?: number; itemId?: string }) => void;
     onSign?: (line: string) => void;
     onLocalSandComplete: () => void;
 }
@@ -128,22 +133,22 @@ function InlineMediaCard({
     item: Extract<RemoteStreamItem, { type: 'media' }>;
     opened: boolean;
     onOpen: () => void;
-    videoPlaybackControl?: { action: string; position?: number } | null;
+    videoPlaybackControl?: { action: string; position?: number; itemId?: string } | null;
 }) {
     const kind = kindFromUri(item.uri);
     const uri = resolveUri(item.uri);
     const videoRef = useRef<any>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(false);
 
     useEffect(() => {
         if (!videoPlaybackControl || !videoRef.current || kind !== 'video') return;
+        if (videoPlaybackControl.itemId && item.id !== `media:${videoPlaybackControl.itemId}`) return;
         if (videoPlaybackControl.action === 'play') videoRef.current.playAsync?.();
         if (videoPlaybackControl.action === 'pause') videoRef.current.pauseAsync?.();
         if (videoPlaybackControl.action === 'seek' && videoPlaybackControl.position != null) {
             videoRef.current.setPositionAsync?.(videoPlaybackControl.position);
         }
-    }, [kind, videoPlaybackControl]);
+    }, [item.id, kind, opened, videoPlaybackControl]);
 
     if (!opened) {
         return (
@@ -152,7 +157,7 @@ function InlineMediaCard({
                 style={styles.sealedCard}
                 activeOpacity={0.78}
                 accessibilityRole="button"
-                accessibilityLabel={kind === 'video' ? 'Video shown. Tap to play.' : `${kind} shown. Tap to peek.`}
+                accessibilityLabel={kind === 'video' ? 'Video shown. Tap to open the sender-controlled player.' : `${kind} shown. Tap to peek.`}
             >
                 <View style={styles.sealedStamp}>
                     <Text style={styles.sealedStampText}>OBJECT SHOWN</Text>
@@ -166,7 +171,7 @@ function InlineMediaCard({
                 </View>
                 <View style={styles.sealedCopy}>
                     <Text style={styles.sealedTitle}>{kind === 'video' ? 'VIDEO SIGNAL' : kind === 'pdf' ? 'DOCUMENT SIGNAL' : 'IMAGE SIGNAL'}</Text>
-                    <Text style={styles.sealedSub}>{kind === 'video' ? 'TAP PLAY TO OPEN' : 'TAP TO PEEK'}</Text>
+                    <Text style={styles.sealedSub}>{kind === 'video' ? 'TAP TO OPEN · SENDER CONTROLLED' : 'TAP TO PEEK'}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={THEME.faint} />
             </TouchableOpacity>
@@ -181,32 +186,23 @@ function InlineMediaCard({
                     source={{ uri }}
                     style={styles.inlineVideo}
                     resizeMode={ResizeMode.CONTAIN}
-                    useNativeControls
+                    useNativeControls={false}
                     shouldPlay={false}
+                    pointerEvents="none"
                     onPlaybackStatusUpdate={(status: any) => {
                         if (!status?.isLoaded) {
-                            setIsPlaying(false);
                             setIsBuffering(Boolean(status?.isBuffering));
                             return;
                         }
-                        setIsPlaying(Boolean(status.isPlaying));
                         setIsBuffering(Boolean(status.isBuffering));
                     }}
                 />
-                {(!isPlaying || isBuffering) && (
-                    <TouchableOpacity
-                        style={styles.videoPlayOverlay}
-                        onPress={() => videoRef.current?.playAsync?.()}
-                        activeOpacity={0.8}
-                        accessibilityRole="button"
-                        accessibilityLabel="Play shown video"
-                    >
-                        {isBuffering
-                            ? <ActivityIndicator color="#000" />
-                            : <Ionicons name="play" size={30} color="#000" style={{ marginLeft: 3 }} />}
-                    </TouchableOpacity>
+                {isBuffering && (
+                    <View style={styles.videoBuffering} pointerEvents="none">
+                        <ActivityIndicator color={THEME.ink} />
+                    </View>
                 )}
-                <View style={styles.openMediaLabel}><Text style={styles.openMediaLabelText}>VIDEO · SHOWN</Text></View>
+                <View style={styles.openMediaLabel}><Text style={styles.openMediaLabelText}>VIDEO · SENDER CONTROLLED</Text></View>
                 <Watermark />
             </View>
         );
@@ -237,6 +233,7 @@ function InlineMediaCard({
 export default function SignalStream({
     roomId,
     remoteText,
+    remoteTextRevision,
     remoteStream,
     remoteDecayText,
     remoteSandActive,
@@ -252,9 +249,12 @@ export default function SignalStream({
     onCover,
     onClearStream,
     onCycleVanish,
-    onOpenWhisper,
+    whisperState,
+    onWhisperTap,
+    onWhisperHoldChange,
     onOpenLive,
     videoPlaybackControl,
+    onVideoControl,
     onSign,
     onLocalSandComplete,
 }: SignalStreamProps) {
@@ -270,23 +270,28 @@ export default function SignalStream({
     const [openedIds, setOpenedIds] = useState<Set<string>>(new Set());
     const [focusedUri, setFocusedUri] = useState<string | null>(null);
     const [signatureVisible, setSignatureVisible] = useState(false);
+    const [playingAttachmentIds, setPlayingAttachmentIds] = useState<Set<string>>(new Set());
     const lastSignalKey = useRef('');
+    const previousRemoteText = useRef('');
 
     const compact = height < 720;
-    const readableWidth = Math.min(width - 28, 720);
-    const composerMaxHeight = Math.min(compact ? 230 : 290, Math.round(height * 0.4));
+    const readableWidth = Math.min(width, 720);
     const composerBottom = keyboardVisible ? 8 : Math.max(insets.bottom, 8);
+    const composerMaxHeight = Math.max(
+        176,
+        Math.min(compact ? 254 : 316, height - insets.top - composerBottom - 82),
+    );
 
     const liveItem = useMemo<RemoteStreamItem | null>(() => {
         const text = remoteSandActive && remoteDecayText ? remoteDecayText : remoteText;
         return text ? {
-            id: 'live-text',
+            id: `live-text:${remoteTextRevision}`,
             type: 'text',
             text,
             createdAt: Date.now(),
             expiresAt: null,
         } : null;
-    }, [remoteDecayText, remoteSandActive, remoteText]);
+    }, [remoteDecayText, remoteSandActive, remoteText, remoteTextRevision]);
 
     const streamData = useMemo(
         () => liveItem ? [...remoteStream, liveItem] : remoteStream,
@@ -303,6 +308,18 @@ export default function SignalStream({
             setShowLiveJump(true);
         }
     }, [nearBottom, remoteText, streamData.length]);
+
+    // The first character after a shown object starts a new live block.
+    // Surface it immediately below the object even if the media expansion
+    // changed the list's measured bottom while the receiver was watching.
+    useEffect(() => {
+        const beginsNewBlock = previousRemoteText.current.length === 0 && remoteText.length > 0;
+        previousRemoteText.current = remoteText;
+        if (!beginsNewBlock || remoteTextRevision === 0) return;
+        setNearBottom(true);
+        setShowLiveJump(false);
+        requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    }, [remoteText, remoteTextRevision]);
 
     useEffect(() => {
         const sub = AppState.addEventListener('change', (state) => {
@@ -446,17 +463,45 @@ export default function SignalStream({
     const coverAttachment = useCallback((id: string) => {
         const item = attachments.find((candidate) => candidate.id === id);
         if (!item?.remoteUri) return;
+        if (item.kind === 'video' && playingAttachmentIds.has(id)) {
+            onVideoControl?.({ action: 'pause', itemId: id });
+            setPlayingAttachmentIds((prev) => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+        }
         onCover(item.remoteUri, item.id);
         setAttachments((prev) => prev.map((candidate) => candidate.id === id
             ? { ...candidate, status: 'staged', remoteUri: undefined }
             : candidate));
-    }, [attachments, onCover]);
+    }, [attachments, onCover, onVideoControl, playingAttachmentIds]);
 
     const removeAttachment = useCallback((id: string) => {
         const item = attachments.find((candidate) => candidate.id === id);
+        if (item?.kind === 'video' && playingAttachmentIds.has(id)) {
+            onVideoControl?.({ action: 'pause', itemId: id });
+        }
         if (item?.status === 'shown' && item.remoteUri) onCover(item.remoteUri, item.id);
+        setPlayingAttachmentIds((prev) => {
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
         setAttachments((prev) => prev.filter((candidate) => candidate.id !== id));
-    }, [attachments, onCover]);
+    }, [attachments, onCover, onVideoControl, playingAttachmentIds]);
+
+    const toggleVideoPlayback = useCallback((item: ComposerAttachment) => {
+        if (item.kind !== 'video' || item.status !== 'shown') return;
+        const isPlaying = playingAttachmentIds.has(item.id);
+        onVideoControl?.({ action: isPlaying ? 'pause' : 'play', itemId: item.id });
+        setPlayingAttachmentIds((prev) => {
+            const next = new Set(prev);
+            if (isPlaying) next.delete(item.id);
+            else next.add(item.id);
+            return next;
+        });
+    }, [onVideoControl, playingAttachmentIds]);
 
     const openMedia = useCallback((item: Extract<RemoteStreamItem, { type: 'media' }>) => {
         const kind = kindFromUri(item.uri);
@@ -479,7 +524,7 @@ export default function SignalStream({
                 />
             );
         }
-        const isLive = item.id === 'live-text';
+        const isLive = item.id.startsWith('live-text:');
         return (
             <View style={[styles.textBlock, isLive && styles.liveTextBlock]}>
                 <View style={styles.textMetaRow}>
@@ -495,6 +540,15 @@ export default function SignalStream({
             </View>
         );
     }, [isPartnerTyping, openMedia, openedIds, remoteSandActive, videoPlaybackControl]);
+
+    const whisperReady = whisperState === 'live' || whisperState === 'speaking';
+    const whisperBusy = whisperState === 'invited' || whisperState === 'connecting';
+    const whisperLabel = whisperState === 'speaking' ? 'TRANSMITTING'
+        : whisperState === 'live' ? 'WHISPER READY'
+        : whisperState === 'connecting' ? 'OPENING WHISPER'
+        : whisperState === 'invited' ? 'WHISPER INVITED'
+        : whisperState === 'error' ? 'WHISPER RETRY'
+        : 'LIVE TEXT';
 
     return (
         <View style={styles.root}>
@@ -571,9 +625,25 @@ export default function SignalStream({
                                                 </View>
                                             )}
                                         {item.kind === 'video' && (
-                                            <View style={[styles.attachmentPlay, item.status === 'shown' && styles.attachmentPlayShown]}>
-                                                <Ionicons name="play" size={15} color={item.status === 'shown' ? '#000' : THEME.ink} style={{ marginLeft: 2 }} />
-                                            </View>
+                                            item.status === 'shown' ? (
+                                                <TouchableOpacity
+                                                    style={[styles.attachmentPlay, styles.attachmentPlayShown]}
+                                                    onPress={() => toggleVideoPlayback(item)}
+                                                    accessibilityRole="button"
+                                                    accessibilityLabel={playingAttachmentIds.has(item.id) ? 'Pause shown video for your correspondent' : 'Play shown video for your correspondent'}
+                                                >
+                                                    <Ionicons
+                                                        name={playingAttachmentIds.has(item.id) ? 'pause' : 'play'}
+                                                        size={15}
+                                                        color="#000"
+                                                        style={playingAttachmentIds.has(item.id) ? undefined : { marginLeft: 2 }}
+                                                    />
+                                                </TouchableOpacity>
+                                            ) : (
+                                                <View style={styles.attachmentPlay}>
+                                                    <Ionicons name="play" size={15} color={THEME.ink} style={{ marginLeft: 2 }} />
+                                                </View>
+                                            )
                                         )}
                                         <TouchableOpacity
                                             onPress={() => removeAttachment(item.id)}
@@ -627,18 +697,50 @@ export default function SignalStream({
                                 </View>
                             )}
                         </View>
-                        <View style={styles.liveState}>
-                            <View style={[styles.liveStateDot, localText.length > 0 && styles.liveStateDotActive]} />
-                            <Text style={styles.liveStateText}>LIVE</Text>
-                        </View>
+                        <Pressable
+                            onPress={onWhisperTap}
+                            onPressIn={() => { if (whisperReady) onWhisperHoldChange(true); }}
+                            onPressOut={() => { if (whisperReady) onWhisperHoldChange(false); }}
+                            style={({ pressed }) => [
+                                styles.micButton,
+                                whisperBusy && styles.micButtonBusy,
+                                whisperReady && styles.micButtonReady,
+                                whisperState === 'speaking' && styles.micButtonSpeaking,
+                                pressed && whisperReady && styles.micButtonPressed,
+                            ]}
+                            accessibilityRole="button"
+                            accessibilityLabel={whisperReady ? 'Hold to whisper' : 'Invite correspondent to whisper'}
+                            accessibilityHint={whisperReady ? 'Keep holding while you speak, then release.' : 'Your correspondent must accept before audio opens.'}
+                        >
+                            <Ionicons
+                                name={whisperState === 'speaking' ? 'mic' : 'mic-outline'}
+                                size={21}
+                                color={whisperReady ? '#08110b' : THEME.ink}
+                            />
+                            {(whisperBusy || whisperReady || whisperState === 'error') && (
+                                <View style={[
+                                    styles.micStatusDot,
+                                    whisperReady ? styles.micStatusReady : styles.micStatusWaiting,
+                                ]} />
+                            )}
+                        </Pressable>
                     </View>
                     <View style={styles.composerFooter}>
-                        <TouchableOpacity onPress={onCycleVanish} style={styles.footerControl}>
+                        <TouchableOpacity onPress={onCycleVanish} style={[styles.footerControl, styles.vanishControl]}>
                             <Ionicons name="hourglass-outline" size={14} color={vanishDuration ? THEME.ink : THEME.faint} />
                             <Text style={[styles.footerControlText, vanishDuration > 0 && { color: THEME.ink }]}>
                                 {vanishDuration ? `${vanishDuration / 1000}s VANISH` : 'VANISH OFF'}
                             </Text>
                         </TouchableOpacity>
+                        <View style={styles.composerStatus} pointerEvents="none">
+                            <View style={[
+                                styles.composerStatusDot,
+                                localText.length > 0 && styles.composerStatusDotActive,
+                                whisperBusy && styles.composerStatusDotWaiting,
+                                whisperReady && styles.composerStatusDotReady,
+                            ]} />
+                            <Text style={styles.composerStatusText} numberOfLines={1}>{whisperLabel}</Text>
+                        </View>
                         <TouchableOpacity
                             onPress={() => Alert.alert(
                                 'Clear transient text?',
@@ -648,10 +750,10 @@ export default function SignalStream({
                                     { text: 'Clear', style: 'destructive', onPress: onClearStream },
                                 ],
                             )}
-                            style={styles.footerControl}
+                            style={styles.clearControl}
+                            accessibilityLabel="Clear transient text"
                         >
-                            <Ionicons name="close-circle-outline" size={14} color={THEME.faint} />
-                            <Text style={styles.footerControlText}>CLEAR TEXT</Text>
+                            <Ionicons name="close-circle-outline" size={17} color={THEME.faint} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -668,9 +770,8 @@ export default function SignalStream({
                             <ActionButton icon="images-outline" label="PHOTOS / VIDEO" onPress={() => pickMedia('library')} />
                             <ActionButton icon="document-text-outline" label="PDF" onPress={pickDocument} />
                         </View>
-                        <Text style={styles.sheetSection}>LIVE · REQUIRES CONSENT</Text>
+                        <Text style={styles.sheetSection}>LIVE VIEW · REQUIRES CONSENT</Text>
                         <View style={styles.actionGrid}>
-                            <ActionButton icon="mic-outline" label="WHISPER" onPress={() => { setActionsVisible(false); onOpenWhisper(); }} />
                             <ActionButton icon="radio-outline" label="GLASS / MIRROR" onPress={() => { setActionsVisible(false); onOpenLive(); }} />
                         </View>
                         <Text style={styles.sheetFootnote}>Selecting an object does not upload or expose it. SHOW begins transmission.</Text>
@@ -761,7 +862,7 @@ const styles = StyleSheet.create({
     openMediaCard: { minHeight: 190, maxHeight: 420, aspectRatio: 4 / 3, borderWidth: 1, borderColor: THEME.edge, borderRadius: 10, backgroundColor: '#030405', overflow: 'hidden' },
     inlineImage: { width: '100%', height: '100%' },
     inlineVideo: { width: '100%', height: '100%' },
-    videoPlayOverlay: { position: 'absolute', alignSelf: 'center', top: '50%', marginTop: -28, width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(245,243,235,0.94)', alignItems: 'center', justifyContent: 'center', zIndex: 8 },
+    videoBuffering: { position: 'absolute', alignSelf: 'center', top: '50%', marginTop: -22, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', zIndex: 8 },
     openMediaLabel: { position: 'absolute', left: 9, bottom: 9, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 3, backgroundColor: 'rgba(0,0,0,0.72)', zIndex: 9 },
     openMediaLabelText: { fontFamily: THEME.mono, color: THEME.ink, fontSize: 7, letterSpacing: 1.4 },
     documentCard: { minHeight: 92, borderWidth: 1, borderColor: THEME.edge, borderRadius: 8, backgroundColor: THEME.paper, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -769,8 +870,8 @@ const styles = StyleSheet.create({
     watermarkText: { fontFamily: THEME.mono, color: 'rgba(255,255,255,0.045)', fontSize: 14, letterSpacing: 5, fontWeight: '900' },
     liveJump: { position: 'absolute', alignSelf: 'center', backgroundColor: THEME.ink, borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8, flexDirection: 'row', gap: 7, alignItems: 'center', zIndex: 14 },
     liveJumpText: { fontFamily: THEME.mono, color: '#000', fontSize: 8, letterSpacing: 1.6, fontWeight: '900' },
-    composer: { position: 'absolute', left: 8, right: 8, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(245,243,235,0.24)', backgroundColor: 'rgba(15,17,20,0.97)', overflow: 'hidden', zIndex: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 24, elevation: 16 },
-    attachmentRail: { padding: 10, gap: 9 },
+    composer: { position: 'absolute', left: 10, right: 10, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(245,243,235,0.24)', backgroundColor: 'rgba(15,17,20,0.98)', overflow: 'hidden', zIndex: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 24, elevation: 16 },
+    attachmentRail: { paddingHorizontal: 11, paddingTop: 11, paddingBottom: 5, gap: 9 },
     attachmentCard: { width: 104, borderRadius: 10, borderWidth: 1, borderColor: THEME.edge2, backgroundColor: THEME.paper2, overflow: 'hidden', paddingBottom: 8 },
     attachmentShown: { borderColor: 'rgba(245,243,235,0.5)' },
     attachmentPreview: { height: 70, backgroundColor: '#08090b', position: 'relative' },
@@ -785,19 +886,31 @@ const styles = StyleSheet.create({
     showButtonText: { fontFamily: THEME.mono, color: '#000', fontSize: 7, letterSpacing: 1.4, fontWeight: '900' },
     coverButton: { marginHorizontal: 7, marginTop: 5, minHeight: 25, borderRadius: 5, borderWidth: 1, borderColor: THEME.edge, justifyContent: 'center', alignItems: 'center' },
     coverButtonText: { fontFamily: THEME.mono, color: THEME.ink, fontSize: 7, letterSpacing: 1.4, fontWeight: '900' },
-    inputRow: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 10, paddingTop: 8, gap: 8 },
-    plusButton: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: THEME.edge, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+    inputRow: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 10, paddingTop: 9, paddingBottom: 8, gap: 8 },
+    plusButton: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: THEME.edge, alignItems: 'center', justifyContent: 'center' },
     plusButtonActive: { backgroundColor: THEME.ink },
-    inputWrap: { flex: 1, position: 'relative' },
-    input: { minHeight: 44, maxHeight: 118, color: THEME.ink, fontSize: 16, lineHeight: 22, paddingHorizontal: 3, paddingVertical: 10 },
-    localSandOverlay: { ...StyleSheet.absoluteFillObject, paddingHorizontal: 3, paddingVertical: 10, backgroundColor: THEME.paper },
-    liveState: { minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingBottom: 2 },
-    liveStateDot: { width: 7, height: 7, borderRadius: 4, borderWidth: 1, borderColor: THEME.faint },
-    liveStateDotActive: { backgroundColor: THEME.ink, borderColor: THEME.ink },
-    liveStateText: { fontFamily: THEME.mono, color: THEME.faint, fontSize: 6, letterSpacing: 1.2, marginTop: 4 },
-    composerFooter: { minHeight: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: THEME.edge2 },
-    footerControl: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7 },
+    inputWrap: { flex: 1, minHeight: 40, position: 'relative', justifyContent: 'flex-end' },
+    input: { minHeight: 40, maxHeight: 126, color: THEME.ink, fontSize: 16, lineHeight: 22, paddingHorizontal: 5, paddingTop: 9, paddingBottom: 8 },
+    localSandOverlay: { ...StyleSheet.absoluteFillObject, paddingHorizontal: 5, paddingTop: 9, paddingBottom: 8, backgroundColor: THEME.paper },
+    micButton: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: THEME.edge, backgroundColor: 'rgba(255,255,255,0.025)', alignItems: 'center', justifyContent: 'center', position: 'relative' },
+    micButtonBusy: { borderColor: 'rgba(239,68,68,0.7)' },
+    micButtonReady: { backgroundColor: '#77D68C', borderColor: '#77D68C' },
+    micButtonSpeaking: { backgroundColor: '#9AEAAA', transform: [{ scale: 1.04 }] },
+    micButtonPressed: { opacity: 0.88 },
+    micStatusDot: { position: 'absolute', top: 1, right: 1, width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: '#111316' },
+    micStatusWaiting: { backgroundColor: '#EF4444' },
+    micStatusReady: { backgroundColor: '#1E7A38' },
+    composerFooter: { minHeight: 39, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, gap: 8, borderTopWidth: 1, borderTopColor: THEME.edge2 },
+    footerControl: { minHeight: 31, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6, paddingVertical: 6, borderRadius: 12 },
+    vanishControl: { flexShrink: 0 },
     footerControlText: { fontFamily: THEME.mono, color: THEME.faint, fontSize: 7, letterSpacing: 1.2 },
+    composerStatus: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5 },
+    composerStatusDot: { width: 5, height: 5, borderRadius: 3, borderWidth: 1, borderColor: THEME.faint },
+    composerStatusDotActive: { backgroundColor: THEME.ink, borderColor: THEME.ink },
+    composerStatusDotWaiting: { backgroundColor: '#EF4444', borderColor: '#EF4444' },
+    composerStatusDotReady: { backgroundColor: '#77D68C', borderColor: '#77D68C' },
+    composerStatusText: { flexShrink: 1, fontFamily: THEME.mono, color: THEME.faint, fontSize: 6.5, letterSpacing: 1, textAlign: 'center' },
+    clearControl: { width: 31, height: 31, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
     sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.58)' },
     actionSheet: { backgroundColor: '#111316', borderTopLeftRadius: 22, borderTopRightRadius: 22, borderWidth: 1, borderBottomWidth: 0, borderColor: THEME.edge, paddingHorizontal: 18, paddingTop: 10 },
     sheetHandle: { width: 38, height: 4, borderRadius: 2, backgroundColor: THEME.edge, alignSelf: 'center', marginBottom: 17 },

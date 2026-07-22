@@ -23,6 +23,10 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
     const [remoteText, setRemoteText] = useState('');
     const [remoteReveal, setRemoteReveal] = useState<string | null>(null);
     const [remoteStream, setRemoteStream] = useState<RemoteStreamItem[]>([]);
+    // Changes whenever a shown object closes the current live text block.
+    // SignalStream uses this generation in the live row key so text typed
+    // after media is always mounted as a fresh row below that object.
+    const [remoteTextRevision, setRemoteTextRevision] = useState(0);
     // Session gallery — every distinct item the partner has shown this
     // session, accumulated so the viewer can scroll back through all of
     // them on the Peek deck (each new SHOW adds rather than replaces).
@@ -56,6 +60,7 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         setRemoteReveal(null);
         setRevealGallery([]);
         setRemoteStream([]);
+        setRemoteTextRevision(0);
     }, [clearStreamTimers]);
 
     // Join room on connect (and re-join on every reconnect)
@@ -138,6 +143,7 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
             if (!data || (typeof data === 'object' && data.roomId === roomId)) {
                 remoteTextRef.current = '';
                 setRemoteText('');
+                setRemoteTextRevision((revision) => revision + 1);
                 // A legacy unscoped event represented the entire visible
                 // text surface. Preserve that expectation for mixed-version
                 // rooms by treating it as a full text wipe.
@@ -208,11 +214,13 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
                     return next;
                 });
 
-                // A shown object closes the current live text block. The
-                // sender follows with an empty text revision; clearing now
-                // avoids briefly rendering the same text twice.
+                // A shown object closes the current live text block. Start a
+                // fresh row identity before the sender's next keystroke so
+                // that new text is mounted below the object, never inside or
+                // behind the retired block.
                 remoteTextRef.current = '';
                 setRemoteText('');
+                setRemoteTextRevision((revision) => revision + 1);
 
                 if (boundaryText && ttl > 0) {
                     const timer = setTimeout(() => {
@@ -386,6 +394,7 @@ export function useRoom(roomId: string, socket: Socket | null, deviceId: string 
         remoteReveal,
         revealGallery,
         remoteStream,
+        remoteTextRevision,
         remoteWhisper,
         videoControls,
         sendText,

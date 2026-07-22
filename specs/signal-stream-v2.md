@@ -72,9 +72,14 @@ The composer contains:
 
 - a `+` action control;
 - the growing live text field;
+- an inline Whisper mic: tap once to invite, wait for the red consent state
+  to turn green, then hold to transmit and release to mute;
 - a small live/transmission state rather than a Send arrow;
 - a clear/vanish affordance;
 - a horizontal attachment rail when objects are staged.
+
+The `+` and mic remain anchored to the bottom edge while multiline text grows
+upward. Neither control drifts vertically with the first line of the draft.
 
 Each staged object exposes `SHOW` and `REMOVE`. A shown object exposes `COVER`.
 Multiple staged objects retain independent state and progress.
@@ -84,7 +89,8 @@ Multiple staged objects retain independent state and progress.
 The `+` sheet is grouped to prevent it becoming an unstructured tool drawer:
 
 - **Object:** Camera, Photos/Video, File/PDF.
-- **Live:** Whisper, Live Glass, Live Mirror.
+- **Live view:** Live Glass and Live Mirror. Whisper remains directly on the
+  composer because it is a push-to-talk control, not an attachment.
 - **Privacy:** Vanish duration and clear stream.
 
 Settings, device linking, and operator functions remain outside this sheet.
@@ -283,8 +289,10 @@ The Signal Tower relays that optional metadata and scoped Vanish events.
 
 Object selection is local. Show performs the first upload, flushes the exact
 current text revision, inserts the object boundary, and clears the composer.
-The shown-video card and staged/shown video tile both retain an explicit play
-icon. Cover removes the receiver's inline object and asks the Signal Tower to
+The staged/shown video tile retains the only interactive play/pause control.
+The receiver can open the video surface but cannot control playback; sender
+commands are scoped to the shown object ID and relayed as ephemeral state.
+Cover removes the receiver's inline object and asks the Signal Tower to
 unlink the room-owned temporary upload immediately; the upload purge path has
 an integration smoke test. Physical Android and iOS validation, server
 deployment, OTA publication, and the signed iOS keyboard build remain

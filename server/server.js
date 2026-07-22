@@ -813,6 +813,9 @@ io.on('connection', (socket) => {
             control: {
                 action: String(data.control.action || '').substring(0, 10),
                 position: typeof data.control.position === 'number' ? data.control.position : undefined,
+                itemId: typeof data.control.itemId === 'string' && /^[a-z0-9_-]{1,64}$/i.test(data.control.itemId)
+                    ? data.control.itemId
+                    : undefined,
             },
         });
     });

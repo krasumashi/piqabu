@@ -14,7 +14,7 @@ import { useRoom, LinkStatus } from '../../hooks/useRoom';
 import RoomTabBar from '../../components/RoomTabBar';
 import SignalStream from '../../components/SignalStream';
 import SettingsPanel from '../../components/SettingsPanel';
-import WhisperPanel from '../../components/WhisperPanel';
+import WhisperPanel, { type WhisperState } from '../../components/WhisperPanel';
 import InviteOverlay from '../../components/InviteOverlay';
 import ListeningIndicator from '../../components/ListeningIndicator';
 import LiveGlassPanel from '../../components/LiveGlassPanel';
@@ -87,7 +87,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const isDeepLinkRoom = currentRoom?.origin === 'deeplink';
     const { partnerPresence, sendPulseTap } = usePresence(socket, roomId);
     const {
-        linkStatus, remoteText, remoteStream,
+        linkStatus, remoteText, remoteTextRevision, remoteStream,
         sendText, sendVanish, sendReveal,
         pendingInvite, inviteStatus, inviteFeature,
         sendInvite, acceptInvite, declineInvite, clearInviteStatus,
@@ -109,7 +109,11 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const statusPillRef = useWalkthroughTarget<View>('statusPill');
 
     const [localText, setLocalText] = useState('');
-    const [activeOverlay, setActiveOverlay] = useState<'whisper' | null>(null);
+    const [whisperActive, setWhisperActive] = useState(false);
+    const [whisperRequestToken, setWhisperRequestToken] = useState(0);
+    const [whisperHolding, setWhisperHolding] = useState(false);
+    const [whisperConnectionState, setWhisperConnectionState] = useState<WhisperState>('IDLE');
+    const [whisperError, setWhisperError] = useState<string | null>(null);
     const [isPartnerTyping, setIsPartnerTyping] = useState(false);
     const [whisperBadge, setWhisperBadge] = useState(0);
     const [roomCodeCopied, setRoomCodeCopied] = useState(false);
@@ -259,7 +263,10 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
 
     // Showing an object is an ordered boundary transaction. Flush the latest
     // text revision synchronously (it may still be inside the 50 ms batch),
-    // emit Show so the receiver freezes that exact revision, then clear.
+    // emit Show so the receiver freezes that exact revision, then clear the
+    // local composer. The Show event itself retires the receiver's live row;
+    // sending a second empty-text revision here could arrive after the first
+    // characters of the next block on a recovering connection.
     const handleShowObject = useCallback((payload: string, itemId: string) => {
         if (vanishTimerRef.current) {
             clearTimeout(vanishTimerRef.current);
@@ -273,7 +280,6 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
         if (currentText) sendText(currentText);
         sendReveal(payload, 'show', { itemId, textTtlMs: vanishDuration });
         if (!currentText) return;
-        sendText('');
         pendingTextRef.current = '';
         localTextRef.current = '';
         setLocalText('');
@@ -362,6 +368,38 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
     const handleWhisperInvite = useCallback(() => {
         sendInvite('whisper');
     }, [sendInvite]);
+
+    const handleWhisperTap = useCallback(() => {
+        if (whisperConnectionState === 'LIVE' && !whisperError) return;
+        setWhisperInitialState('idle');
+        setWhisperPartnerAccepted(false);
+        setWhisperHolding(false);
+        setWhisperError(null);
+        setWhisperActive(true);
+        setWhisperRequestToken((token) => token + 1);
+    }, [whisperConnectionState, whisperError]);
+
+    const handleWhisperHoldChange = useCallback((holding: boolean) => {
+        if (whisperConnectionState !== 'LIVE') return;
+        setWhisperHolding(holding);
+    }, [whisperConnectionState]);
+
+    const handleVideoPlayback = useCallback((control: { action: 'play' | 'pause' | 'seek'; position?: number; itemId?: string }) => {
+        socket?.emit('transmit_video_playback', { roomId, control });
+    }, [roomId, socket]);
+
+    const handleWhisperStateChange = useCallback((state: WhisperState, error: string | null) => {
+        setWhisperConnectionState(state);
+        setWhisperError(error);
+        if (state !== 'LIVE') setWhisperHolding(false);
+    }, []);
+
+    const whisperComposerState = whisperError ? 'error'
+        : whisperConnectionState === 'LIVE' && whisperHolding ? 'speaking'
+        : whisperConnectionState === 'LIVE' ? 'live'
+        : whisperConnectionState === 'CONNECTING' ? 'connecting'
+        : whisperConnectionState === 'INVITED' ? 'invited'
+        : 'idle';
 
     // ── Trust Sync (Linked Devices) ──
     const handleLinkDevices = useCallback(() => {
@@ -458,6 +496,7 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 <SignalStream
                     roomId={roomId}
                     remoteText={remoteText}
+                    remoteTextRevision={remoteTextRevision}
                     remoteStream={remoteStream}
                     remoteDecayText={remoteDecayText}
                     remoteSandActive={remoteSandActive}
@@ -473,9 +512,12 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                     onCover={(payload, itemId) => sendReveal(payload, 'cover', { itemId, purge: true })}
                     onClearStream={handleClearStream}
                     onCycleVanish={handleCycleVanish}
-                    onOpenWhisper={() => setActiveOverlay('whisper')}
+                    whisperState={whisperComposerState}
+                    onWhisperTap={handleWhisperTap}
+                    onWhisperHoldChange={handleWhisperHoldChange}
                     onOpenLive={() => setLiveLauncherOpen(true)}
                     videoPlaybackControl={videoPlaybackControl}
+                    onVideoControl={handleVideoPlayback}
                     onSign={(line) => handleTextChange(line)}
                     onLocalSandComplete={() => {
                         setSandOverlayText(null);
@@ -488,9 +530,10 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
             <ListeningIndicator incomingWhisper={incomingWhisper} />
 
             <WhisperPanel
-                visible={activeOverlay === 'whisper'}
+                visible={whisperActive}
                 onClose={() => {
-                    setActiveOverlay(null);
+                    setWhisperActive(false);
+                    setWhisperHolding(false);
                     setWhisperPartnerAccepted(false);
                     setWhisperInitialState('idle');
                 }}
@@ -500,6 +543,10 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                 partnerAccepted={whisperPartnerAccepted}
                 initialState={whisperInitialState}
                 whisperBadge={whisperBadge}
+                headless
+                startRequested={whisperRequestToken}
+                holdActive={whisperHolding}
+                onStateChange={handleWhisperStateChange}
             />
 
             {/* Invite Overlay */}
@@ -516,7 +563,8 @@ function RoomContent({ roomId, onOpenSettings, onOpenLiveGlass, onOpenScreenShar
                         acceptInvite(pendingInvite.feature);
                         if (pendingInvite.feature === 'whisper') {
                             setWhisperInitialState('accepted');
-                            setActiveOverlay('whisper');
+                            setWhisperError(null);
+                            setWhisperActive(true);
                         } else if (pendingInvite.feature === 'live_glass') {
                             // Receiver: skip lobby, go straight to calling/WebRTC
                             setLiveGlassInitialMode('calling');
